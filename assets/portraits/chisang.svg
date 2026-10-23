@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="480" viewBox="0 0 360 480">
+<defs>
+<linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e3d7bd"/><stop offset=".55" stop-color="#d6c6a6"/><stop offset="1" stop-color="#c3b08c"/></linearGradient>
+<radialGradient id="glow" cx="50%" cy="38%" r="60%"><stop offset="0" stop-color="#b45b43" stop-opacity=".30"/><stop offset="1" stop-color="#b45b43" stop-opacity="0"/></radialGradient>
+<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".12"/></feComponentTransfer></filter>
+<clipPath id="frame"><rect width="360" height="480" rx="3"/></clipPath>
+</defs>
+<g clip-path="url(#frame)">
+<rect width="360" height="480" fill="url(#paper)"/>
+<circle cx="270" cy="106" r="54" fill="#d98c4a" opacity=".18"/>
+<circle cx="270" cy="106" r="54" fill="none" stroke="#d98c4a" stroke-opacity=".25"/>
+<path d="M-20 250 C40 210 80 236 120 214 C164 190 202 226 250 206 C292 188 330 210 380 190 L380 360 L-20 360 Z" fill="#b45b43" opacity=".13"/>
+<path d="M-20 300 C50 276 96 296 142 280 C196 260 236 292 286 274 C318 264 350 276 380 266 L380 400 L-20 400 Z" fill="#b45b43" opacity=".10"/>
+<rect width="360" height="480" fill="url(#glow)"/>
+<path d="M-20 360 C60 320 100 350 150 330 C210 305 260 345 380 320 L380 500 L-20 500 Z" fill="#b45b43" opacity=".10"/><path d="M-20 410 C70 380 130 402 190 386 C250 370 310 398 380 378 L380 500 L-20 500 Z" fill="#b45b43" opacity=".08"/>
+<circle cx="180" cy="182" r="118" fill="none" stroke="#d98c4a" stroke-opacity=".22" stroke-width="1.2"/><circle cx="180" cy="182" r="96" fill="#b45b43" opacity=".12"/>
+<path d="M40 480 C48 392 95 340 150 322 L180 348 L210 322 C265 340 312 392 320 480 Z" fill="#5c2f26"/><path d="M150 322 L180 348 L210 322 L196 314 L180 330 L164 314 Z" fill="#44231d"/><path d="M150 326 C160 370 168 410 176 480 L184 480 C192 410 200 370 210 326 L196 336 L180 390 L164 336 Z" fill="#44231d"/><path d="M120 430 C150 418 210 418 240 430 L244 452 C210 438 150 438 116 452 Z" fill="#7b3c2b" opacity=".9"/><circle cx="180" cy="438" r="7" fill="#d98c4a" opacity=".85"/>
+<path d="M160 252 L160 300 C160 312 168 318 180 318 C192 318 200 312 200 300 L200 252 Z" fill="#dfc0a0"/><path d="M158 286 C166 296 194 296 202 286 L202 304 C192 312 168 312 158 304 Z" fill="#000" opacity=".10"/><path d="M180 104 C226 104 252 136 252 184 C252 234 224 270 180 276 C136 270 108 234 108 184 C108 136 134 104 180 104 Z" fill="#dfc0a0"/><path d="M112 176 C104 182 102 196 108 206 C112 212 118 212 120 208 L120 180 Z" fill="#dfc0a0"/><path d="M248 176 C256 182 258 196 252 206 C248 212 242 212 240 208 L240 180 Z" fill="#dfc0a0"/>
+<path d="M106 182 C100 148 130 112 180 110 C230 112 260 148 254 182 C244 152 220 138 180 138 C140 138 116 152 106 182 Z" fill="#2b1c19"/>
+<path d="M112 180 C108 152 120 128 138 116 L128 90 L154 110 L158 84 L176 108 L188 82 L200 110 L222 88 L226 116 L252 100 L244 132 C256 148 260 164 248 180 C234 154 212 144 180 144 C148 144 126 154 112 180 Z" fill="#2b1c19"/>
+<path d="M130 174 L166 184" stroke="#332b24" stroke-width="4" stroke-linecap="round"/><path d="M194 184 L230 174" stroke="#332b24" stroke-width="4" stroke-linecap="round"/><path d="M138 196 L164 191" stroke="#332b24" stroke-width="2.2"/><path d="M196 191 L222 196" stroke="#332b24" stroke-width="2.2"/><circle cx="152" cy="198" r="2.8" fill="#332b24"/><circle cx="208" cy="198" r="2.8" fill="#332b24"/><path d="M180 200 L174 219 L183 220" stroke="#332b24" stroke-width="1.8" fill="none"/><path d="M166 238 C176 244 188 243 196 236" stroke="#332b24" stroke-width="2.6" fill="none"/><path d="M160 258 C172 266 192 265 202 257" stroke="#332b24" stroke-width="2.6" fill="none" opacity=".5"/>
+<path d="M268 84 L250 128 L264 128 L244 174 L276 122 L260 122 L282 84 Z" fill="#d98c4a" opacity=".55"/>
+<g transform="rotate(8 300 300)"><rect x="290" y="180" width="6" height="220" fill="#5b472f"/><g fill="#e8dcc0" stroke="#d98c4a" stroke-width="1.2"><rect x="300" y="184" width="26" height="58" rx="2"/><rect x="316" y="214" width="24" height="52" rx="2"/><rect x="306" y="250" width="22" height="48" rx="2"/></g><g stroke="#9e3b32" stroke-width="1.4" opacity=".8"><path d="M308 200 L320 200 M314 192 L314 210 M310 246 L324 246 M317 238 L317 256 M312 272 L326 272"/></g></g>
+<path d="M-10 474 C40 452 60 470 96 458 C132 446 160 470 198 456 C236 442 268 468 310 452 C334 444 356 452 372 448 L372 490 L-10 490 Z" fill="#2e3b32" opacity=".22"/>
+<g stroke="#3b453a" stroke-width="1.4" fill="none" opacity=".35"><path d="M40 470 C46 440 42 416 34 396"/><path d="M52 472 C60 444 58 420 50 402"/><path d="M316 468 C322 440 318 418 310 400"/><path d="M328 470 C336 444 334 420 326 404"/></g>
+<rect width="360" height="480" filter="url(#grain)" opacity=".55"/>
+<g opacity=".92"><rect x="26" y="26" width="34" height="52" rx="2" fill="#9e3b32"/><text x="43" y="62" text-anchor="middle" font-family="KaiTi, STKaiti, serif" font-size="24" fill="#f1e4ca">桑</text></g><text x="330" y="452" text-anchor="end" font-family="KaiTi, STKaiti, serif" font-size="15" fill="#3f3a2e" opacity=".55" writing-mode="vertical-rl">雷符真人</text>
+</g>
+</svg>

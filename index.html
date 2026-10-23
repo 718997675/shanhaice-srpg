@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#121715">
+<meta name="description" content="山海策·灵脉 —— 原创东方玄幻战棋。九脉将枯，守脉人行。">
+<title>山海策 · 灵脉</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game" aria-label="战场"></canvas>
+
+  <!-- ═══════════ 战斗界面 ═══════════ -->
+  <div id="battleUI" class="screen hidden">
+    <div id="topBar">
+      <div class="tb-left">
+        <div id="chapterName">第一章 · 青岚山门</div>
+        <div id="objectiveText">目标：歼灭所有敌军</div>
+      </div>
+      <div id="turnBadge"><span id="turnNum">第 1 回合</span><small id="phaseName">我方阶段</small></div>
+      <div class="tb-right">
+        <button id="btnDanger" class="hud-btn" title="显示危险范围">危</button>
+        <button id="btnSpeed" class="hud-btn" title="战斗速度">×1</button>
+        <button id="btnMenu" class="hud-btn" title="菜单">☰</button>
+        <button id="btnEndTurn" class="hud-btn end">结束回合</button>
+      </div>
+    </div>
+    <div id="sidePanel"></div>
+    <div id="battleLog"></div>
+    <div id="unitCard" class="hidden"></div>
+    <div id="actionBar" class="hidden"></div>
+    <div id="forecastOverlay" class="hidden"></div>
+    <div id="dangerBadge" class="hidden">危 险 范 围</div>
+    <div id="phaseBanner" class="hidden"></div>
+    <div id="tapHint" class="hidden"></div>
+  </div>
+
+  <!-- ═══════════ 标题 ═══════════ -->
+  <div id="titleScreen" class="screen">
+    <div class="title-ink"></div>
+    <div class="title-art" id="titleArt"></div>
+    <div class="title-seal">山海</div>
+    <div class="title-content">
+      <div class="title-eyebrow">九 脉 山 海 · 原 创 战 棋</div>
+      <h1>山海策</h1>
+      <div class="title-sub">灵 脉</div>
+      <div class="title-rule"></div>
+      <p class="title-desc">九条灵脉将枯，浊潮自海眼涌起。<br>最后一位守脉人，带着半卷残策下山。</p>
+      <div class="title-buttons">
+        <button id="btnContinue" class="brush-btn primary">继续旅程</button>
+        <button id="btnNew" class="brush-btn">新的旅程</button>
+        <button id="btnHow" class="brush-btn">战斗说明</button>
+        <button id="btnSettings" class="brush-btn">设置</button>
+      </div>
+      <div id="titleSaveInfo" class="title-save"></div>
+      <div class="title-foot">v1.0 · 横屏触控 / 键鼠 · 所有图文音均为原创</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 难度 ═══════════ -->
+  <div id="difficultyScreen" class="screen hidden">
+    <div class="diff-wrap">
+      <div class="diff-head">
+        <div class="eyebrow">择 难 而 行</div>
+        <h2>山海路远，各有走法</h2>
+        <p>难度影响敌军强度与悔棋次数。修罗之路没有回头。</p>
+      </div>
+      <div id="diffList" class="diff-list"></div>
+      <button id="diffBack" class="ghost-btn">返回</button>
+    </div>
+  </div>
+
+  <!-- ═══════════ 营地 ═══════════ -->
+  <div id="campScreen" class="screen hidden">
+    <header class="camp-header">
+      <div class="camp-brand"><span class="brand-main">山海策</span><span class="brand-sub">营 地</span></div>
+      <div class="camp-res">
+        <span class="res-label">盘缠</span><b id="campGold">0</b>
+        <span class="res-label">脉印</span><b id="campSeals">0</b>
+      </div>
+      <button id="campTitleBtn" class="ghost-btn small">返回标题</button>
+    </header>
+    <nav class="camp-tabs" id="campTabs">
+      <button data-tab="team" class="active">队伍</button>
+      <button data-tab="shop">市集</button>
+      <button data-tab="support">羁绊</button>
+      <button data-tab="record">行录</button>
+      <button data-tab="deploy" class="camp-deploy">出 征 ▸</button>
+    </nav>
+    <main id="campBody" class="camp-body"></main>
+  </div>
+
+  <!-- ═══════════ 章节结算 ═══════════ -->
+  <div id="resultScreen" class="screen hidden">
+    <div id="resultCard" class="result-card"></div>
+  </div>
+
+  <!-- ═══════════ 对话 ═══════════ -->
+  <div id="dialogOverlay" class="overlay hidden">
+    <div class="dialog-stage" id="dialogStage">
+      <div class="dialog-portrait" id="dialogPortraitWrap">
+        <img id="dialogImg" alt="">
+        <div class="portrait-fallback" id="dialogFallback">策</div>
+      </div>
+      <div class="dialog-panel">
+        <div class="dialog-name" id="dialogName"></div>
+        <div class="dialog-text" id="dialogText"></div>
+        <div class="dialog-hint">点击任意处继续 <span>▸</span></div>
+      </div>
+    </div>
+    <button id="dialogSkip" class="ghost-btn dialog-skip">跳过</button>
+  </div>
+
+  <!-- ═══════════ 通用弹层 ═══════════ -->
+  <div id="modalOverlay" class="overlay hidden">
+    <div class="modal" id="modalBox"></div>
+  </div>
+
+  <div id="toast" class="hidden"></div>
+  <div id="rotateHint">
+    <div class="rotate-icon">▭</div>
+    <div>请 横 屏 游 玩</div>
+    <small>山水辽阔，横过来才看得全</small>
+  </div>
+</div>
+
+<script src="js/rng.js"></script>
+<script src="js/data-core.js"></script>
+<script src="js/data-maps.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/camp.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
