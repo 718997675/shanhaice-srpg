@@ -337,3 +337,17 @@ const AFFIX_SHIELD_MUL = 0.7;      // 护盾减伤
 const AFFIX_REGEN_RATE = 0.1;      // 自愈比例
 const AFFIX_AURA_HIT = 10;         // 光环命中
 const AFFIX_BERSERK_SPD = 3;       // 狂暴攻速
+
+/* ---------------- 云策指挥技（每章 1 次，HUD「令」入口） ----------------
+ * order  号令：3 格内友军本回合可再行动一次（含已行动者）
+ * volley 集火：指定 5 格内敌人，友军本回合对其命中 +15
+ * hold   坚守：3 格内友军本回合受到攻击伤害 -20%
+ * 云策阵亡/离队时不可用。数值常量集中于此。 */
+const COMMAND_SKILLS = {
+  order: { key: 'order', name: '号令', desc: '3 格内友军本回合可再行动一次（含已行动者）' },
+  volley: { key: 'volley', name: '集火', desc: '指定 5 格内敌人，友军本回合对其命中 +15' },
+  hold: { key: 'hold', name: '坚守', desc: '3 格内友军本回合受到攻击伤害 -20%' }
+};
+const COMMAND_VOLLEY_HIT = 15;   // 集火命中加成
+const COMMAND_HOLD_MUL = 0.8;    // 坚守减伤
+const CHAIN_RANGE = 2;           // 连携：与攻击者相距 ≤2 格

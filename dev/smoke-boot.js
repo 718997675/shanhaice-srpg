@@ -427,5 +427,68 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     else node.owner = 'none';
   }
 
+  /* 双人连携 + 云策指挥技（P1.4） */
+  {
+    const CB = vm.runInContext('Combat', ctx);
+    const RNGv = vm.runInContext('RNG', ctx);
+    const UIv = vm.runInContext('UI', ctx);
+    /* 连携：A（云策）攻击后，未行动的鹿鸣可追加一击 */
+    const A = B.units.find(x => x.charId === 'yunce');
+    const mate = B.units.find(x => x.charId === 'luming');
+    A.items = [{ key: 'iron_sword', uses: 20 }]; A.weaponIndex = 0;
+    mate.items = [{ key: 'iron_sword', uses: 20 }]; mate.weaponIndex = 0;
+    mate.ranks = Object.assign({}, mate.ranks, { sword: 'C' });   // 鹿鸣本职无剑 rank，临时授剑验连携
+    A.x = 3; A.y = 3; A.acted = false; A.chainUsed = false;
+    mate.x = 4; mate.y = 4; mate.acted = false; mate.chainUsed = false;
+    const cf1 = { id: 'cf1', name: '连携靶', side: 'enemy', charId: null, hp: 30, x: 3, y: 4,
+      stats: { hp: 30, str: 8, mag: 0, skl: 8, spd: 8, lck: 5, def: 5, res: 5 },
+      items: [{ key: 'iron_sword', uses: 20 }], weaponIndex: 0, ranks: { sword: 'C' }, statuses: {}, tags: ['human'] };
+    B.units.push(cf1);
+    const cands = Battle.chainAllies(A, cf1);
+    console.log('连携候选：', cands.map(u => u.name).join('/') || '无');
+    if (cands.length !== 1 || cands[0].id !== mate.id) throw new Error('连携候选异常');
+    const origResolve3 = CB.resolve;
+    CB.resolve = () => [{ type: 'strike', attacker: A.id, defender: cf1.id, attackerName: A.name, defenderName: cf1.name, hit: true, crit: false, dmg: 3, hpAfter: 27 }];
+    const origModal = UIv.modal, origHit = RNGv.hitRoll, origNext = RNGv.next;
+    UIv.modal = opts => Promise.resolve(opts.list[0].value);   // 自动选第一个候选
+    RNGv.hitRoll = () => 0; RNGv.next = () => 0.99;            // 必中且不暴击
+    const hpBefore = cf1.hp;
+    await Battle.offerChain(A, cf1);
+    UIv.modal = origModal; RNGv.hitRoll = origHit; RNGv.next = origNext;
+    CB.resolve = origResolve3;
+    console.log('连携追加：' + mate.name + ' 命中，靶 ' + hpBefore + ' → ' + cf1.hp + '；chainUsed =', mate.chainUsed);
+    if (!mate.chainUsed || !mate.acted || cf1.hp >= hpBefore) throw new Error('连携追加攻击异常');
+    B.units = B.units.filter(u => u.id !== 'cf1');
+    /* 指挥技：号令 → 集火 → 坚守 */
+    if (!Battle.commandAvailable()) throw new Error('云策在阵指挥技应可用');
+    Battle.applyOrderCommand();
+    console.log('号令：commandUsed =', B.commandUsed, '；云策可再动 =', A.acted === false);
+    if (!B.commandUsed || A.acted) throw new Error('号令效果异常');
+    if (Battle.commandAvailable()) throw new Error('用过后应不可再指挥');
+    B.commandUsed = false;
+    const cf2 = { id: 'cf2', name: '集火靶', side: 'enemy', charId: null, hp: 30, x: 5, y: 3,
+      stats: { hp: 30, str: 8, mag: 0, skl: 8, spd: 8, lck: 5, def: 5, res: 5 },
+      items: [{ key: 'iron_sword', uses: 20 }], weaponIndex: 0, ranks: { sword: 'C' }, statuses: {}, tags: ['human'] };
+    B.units.push(cf2);
+    Battle.beginVolleySelect();
+    if (B.mode !== 'command-target') throw new Error('集火选择态异常');
+    await Battle.chooseVolleyTarget(cf2);
+    B.volleyTarget = null;
+    const hitNo = Battle.modsFor(A, cf2).hit;
+    B.volleyTarget = 'cf2';
+    const hitYes = Battle.modsFor(A, cf2).hit;
+    console.log('集火命中：' + hitNo + ' → ' + hitYes + '（+15）');
+    if (hitYes - hitNo !== 15) throw new Error('集火加成异常');
+    B.commandUsed = false;
+    Battle.applyHoldCommand();
+    const ctxH = Battle.combatCtx();
+    console.log('坚守保护 ' + B.holdUnits.length + ' 人；云策受保护 =', ctxH.holdActive(A));
+    if (!ctxH.holdActive(A) || !B.commandUsed) throw new Error('坚守效果异常');
+    B.commandUsed = false; B.volleyTarget = null; B.holdUnits = [];
+    B.units = B.units.filter(u => u.id !== 'cf2');
+    B.mode = 'idle';
+    B.targetTiles = null; B.attackRange = null;
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

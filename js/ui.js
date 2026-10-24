@@ -16,6 +16,7 @@ const UI = {
       battleUI: $('battleUI'), topBar: $('topBar'), chapterName: $('chapterName'),
       objectiveText: $('objectiveText'), turnNum: $('turnNum'), phaseName: $('phaseName'),
       btnDanger: $('btnDanger'), btnSpeed: $('btnSpeed'), btnEndTurn: $('btnEndTurn'),
+      btnCommand: $('btnCommand'),
       sidePanel: $('sidePanel'), battleLog: $('battleLog'), unitCard: $('unitCard'),
       actionBar: $('actionBar'), forecast: $('forecastOverlay'), dangerBadge: $('dangerBadge'),
       phaseBanner: $('phaseBanner'), tapHint: $('tapHint'),
@@ -47,6 +48,9 @@ const UI = {
     });
     this.el.btnEndTurn.addEventListener('click', () => {
       if (window.Battle) Battle.askEndTurn();
+    });
+    if (this.el.btnCommand) this.el.btnCommand.addEventListener('click', () => {
+      if (window.Battle && Battle.openCommandMenu) Battle.openCommandMenu();
     });
     document.getElementById('btnMenu').addEventListener('click', () => {
       if (window.Battle) Battle.openMenu();
@@ -92,6 +96,13 @@ const UI = {
     this.el.btnEndTurn.disabled = B.phase !== 'player' || B.busy || B.ending;
     const anyReady = B.units && B.units.some(u => u.side === 'player' && u.hp > 0 && !u.acted && !u.escaped);
     this.el.btnEndTurn.classList.toggle('ready', B.phase === 'player' && !B.busy && !anyReady && !B.ending);
+    /* 指挥技按钮：云策在阵中且本章未用过时可点 */
+    if (this.el.btnCommand) {
+      const canCmd = !!(window.Battle && Battle.commandAvailable && Battle.commandAvailable());
+      this.el.btnCommand.disabled = !canCmd;
+      this.el.btnCommand.classList.toggle('ready', canCmd);
+      this.el.btnCommand.title = '云策指挥技（每章 1 次）' + (B.commandUsed ? ' · 已用过' : (canCmd ? ' · 可用' : ' · 云策不在阵中'));
+    }
     this.updateSide(B);
     const hint = B.phase === 'player' && !B.busy && !B.ending ? (B.tapHint || '') : '';
     if (hint) {
@@ -370,6 +381,10 @@ const UI = {
       if (f.defender.canCounter) tags.push('敌方反击');
       if (f.defender.double) tags.push('敌方追击');
       if (attacker.recruitable) tags.push('可说得目标');
+      if (attacker.side === 'player' && ctx && typeof ctx.chainAllies === 'function' &&
+          ctx.chainAllies(attacker, defender).length) {
+        tags.push('<span class="tri-good">可连携</span>');
+      }
       const sideHtml = (u, title, isDef, weapon) => {
         const dmg = isDef ? f.defender.dmg : f.attacker.dmg;
         const hit = isDef ? f.defender.hit : f.attacker.hit;

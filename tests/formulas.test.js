@@ -1355,6 +1355,72 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('说得单位不戴词缀', recU.affixes.length, 0);
   }
 
+  /* ---------------- 21. 双人连携 + 云策指挥技（P1.4） ---------------- */
+  {
+    const { Battle: B3, COMMAND_SKILLS: CS, CHAIN_RANGE: CR } =
+      vm.runInContext('({ Battle, COMMAND_SKILLS, CHAIN_RANGE })', ctx);
+    /* 21.1 数据 */
+    eq('指挥技 3 种', Object.keys(CS).length, 3);
+    for (const k of ['order', 'volley', 'hold']) ok('指挥技 ' + k + ' 有名称说明', !!CS[k] && !!CS[k].name && !!CS[k].desc);
+    eq('连携距离 2', CR, 2);
+    /* 21.2 连携候选：≤2 格 + 未行动 + 未连携过 + 射程覆盖 + 我军 */
+    const fakeC = Object.create(B3);
+    fakeC.B = { units: [], nodes: [], supports: {}, volleyTarget: null, holdUnits: [] };
+    const A = give(mkUnit({ id: 'A', x: 5, y: 5 }), 'iron_sword');
+    const tgt = mkUnit({ id: 'T', side: 'enemy', x: 6, y: 5 });
+    const B1 = give(mkUnit({ id: 'B1', x: 6, y: 6 }), 'iron_sword');            // 合格候选
+    const B2u = give(mkUnit({ id: 'B2', x: 6, y: 6 }), 'iron_sword'); B2u.acted = true;   // 已行动
+    const B3u = give(mkUnit({ id: 'B3', x: 8, y: 8 }), 'iron_sword');            // 超出 2 格
+    const B4 = give(mkUnit({ id: 'B4', x: 4, y: 6 }), 'iron_sword'); B4.chainUsed = true; // 本回合已连携
+    const B5 = give(mkUnit({ id: 'B5', x: 6, y: 4 }), 'iron_sword'); B5.side = 'enemy';   // 敌军
+    const B6 = mkUnit({ id: 'B6', x: 5, y: 6 });                                 // 无武器
+    fakeC.B.units = [A, tgt, B1, B2u, B3u, B4, B5, B6];
+    const cands = B3.chainAllies.call(fakeC, A, tgt);
+    eq('连携候选仅剩 B1', cands.length === 1 && cands[0].id === 'B1', true);
+    eq('敌军攻击不触发连携候选', B3.chainAllies.call(fakeC, B5, A).length, 0);
+    /* 21.3 集火：本回合对指定敌人命中 +15 */
+    const base = B3.modsFor.call(fakeC, A, tgt).hit;
+    fakeC.B.volleyTarget = 'T';
+    eq('集火命中 +15', B3.modsFor.call(fakeC, A, tgt).hit, base + 15);
+    fakeC.B.volleyTarget = 'other';
+    eq('集火只对指定敌人生效', B3.modsFor.call(fakeC, A, tgt).hit, base);
+    fakeC.B.volleyTarget = null;
+    /* 21.4 坚守：受伤 -20%（combat.damage 读 ctx.holdActive） */
+    const heroH = give(mkUnit(), 'iron_sword');
+    const foeH = mkUnit({ side: 'enemy', x: 1, y: 0 });
+    const holdCtx = { mods: () => null, tileAt: () => TERRAIN['.'], phaseIndex: 1, holdActive: u => u === foeH };
+    eq('坚守减伤 20%（10→8）', Combat.damage(heroH, foeH, holdCtx), 8);
+    eq('未受保护不减免', Combat.damage(heroH, foeH, FLAT), 10);
+    /* 21.5 指挥可用性：云策在阵 + 本章未用 + 我方阶段 */
+    const fakeK = Object.create(B3);
+    const yunce = mkUnit({ id: 'Y', charId: 'yunce', x: 3, y: 3 });
+    const mate = mkUnit({ id: 'M', x: 4, y: 3 });
+    fakeK.B = { units: [yunce, mate], phase: 'player', commandUsed: false, ending: false, busy: false, volleyTarget: null, holdUnits: [] };
+    ok('云策在阵可指挥', B3.commandAvailable.call(fakeK));
+    fakeK.B.commandUsed = true;
+    ok('用过后不可再指挥', !B3.commandAvailable.call(fakeK));
+    fakeK.B.commandUsed = false;
+    fakeK.B.phase = 'enemy';
+    ok('敌方阶段不可指挥', !B3.commandAvailable.call(fakeK));
+    fakeK.B.phase = 'player';
+    yunce.hp = 0;
+    ok('云策阵亡不可指挥', !B3.commandAvailable.call(fakeK));
+    yunce.hp = 30;
+    /* 21.6 号令/坚守 效果 */
+    mate.acted = true;
+    const far = mkUnit({ id: 'F', x: 10, y: 3 });
+    far.acted = true;
+    fakeK.B.units = [yunce, mate, far];
+    B3.applyOrderCommand.call(fakeK);
+    ok('号令后 3 格内友军解除行动', mate.acted === false);
+    ok('号令不动 3 格外', far.acted === true);
+    ok('号令消耗指挥次数', fakeK.B.commandUsed === true);
+    fakeK.B.commandUsed = false;
+    B3.applyHoldCommand.call(fakeK);
+    eq('坚守只护 3 格内', JSON.stringify(fakeK.B.holdUnits), JSON.stringify(['Y', 'M']));
+    ok('坚守消耗指挥次数', fakeK.B.commandUsed === true);
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

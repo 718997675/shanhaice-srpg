@@ -279,6 +279,8 @@ const Combat = {
     if (this.isEffective(attacker, defender)) raw *= 2;
     /* 护盾词缀：受伤 -30%（破盾期不生效；战斗预测同口径显示） */
     if (this.affixShieldActive(defender, ctx)) raw = Math.floor(raw * AFFIX_SHIELD_MUL);
+    /* 指挥技·坚守：受保护的我方单位受伤 -20%（ctx.holdActive 由 battle.js 给出） */
+    if (ctx.holdActive && ctx.holdActive(defender)) raw = Math.floor(raw * COMMAND_HOLD_MUL);
     return Math.max(0, Math.round(raw));
   },
 

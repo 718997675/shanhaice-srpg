@@ -103,6 +103,10 @@ const Battle = {
       visitedVillages: 0,
       loot: { gold: 0, items: [], seals: 0 },
       stats: { kills: 0, lost: 0, damage: 0, heals: 0, levels: 0, recruits: 0 },
+      /* 指挥技（每章 1 次）与连携（每单位每回合 1 次）状态 */
+      commandUsed: false,
+      volleyTarget: null,
+      holdUnits: [],
       supports: JSON.parse(JSON.stringify(this.campaign.supports || {})),
       recruited: [],
       summoned: [],
@@ -369,7 +373,11 @@ const Battle = {
       tileAt: (x, y) => this.tileAt(x, y),
       rng: RNG,
       /* 供护盾词缀判断破盾期（combat.affixShieldActive 读 ctx.phaseIndex） */
-      phaseIndex: this.B ? this.B.phaseIndex : 0
+      phaseIndex: this.B ? this.B.phaseIndex : 0,
+      /* 连携候选（战斗预测标注「可连携」用） */
+      chainAllies: (unit, foe) => this.chainAllies(unit, foe),
+      /* 指挥技·坚守：受保护单位判定（combat.damage 读） */
+      holdActive: unit => !!(this.B && (this.B.holdUnits || []).includes(unit.id))
     };
   },
 
@@ -492,6 +500,11 @@ const Battle = {
         if (!(e.affixes || []).includes('aura')) continue;
         if (Combat.distance(e.x, e.y, unit.x, unit.y) <= 2) m.hit += AFFIX_AURA_HIT;
       }
+    }
+
+    // 指挥技·集火：我方本回合对指定敌人命中 +15
+    if (unit.side === 'player' && this.B.volleyTarget && foe && foe.id === this.B.volleyTarget) {
+      m.hit += COMMAND_VOLLEY_HIT;
     }
 
     // 灵脉阵眼
@@ -661,8 +674,12 @@ const Battle = {
         u.acted = false;
         u.hasMoved = false;
         u.movedDist = 0;
+        u.chainUsed = false;   // 连携每单位每回合限 1 次
       }
     }
+    /* 集火/坚守只维持本回合；指挥次数每章 1 次不重置 */
+    B.volleyTarget = null;
+    B.holdUnits = [];
     this.startPhaseHealing('player');
     this.spawnReinforcements(B.turn);
     this.computeVisibility(false);
@@ -1113,6 +1130,23 @@ const Battle = {
         UI.unitCard(u, B, '');
         return;
       }
+      if (B.mode === 'command-target') {
+        if (u && u.side === 'enemy' && B.targetTiles && B.targetTiles.has(this.key(x, y))) {
+          await this.chooseVolleyTarget(u);
+          return;
+        }
+        if (!u) {
+          B.mode = 'idle';
+          B.targetTiles = null;
+          B.attackRange = null;
+          UI.hideActionBar();
+          UI.hideUnitCard();
+          UI.updateBattle(B);
+          return;
+        }
+        UI.unitCard(u, B, '');
+        return;
+      }
       if (B.mode === 'spell-select') {
         if (u && u.side === 'enemy' && B.targetTiles && B.targetTiles.has(this.key(x, y))) {
           await this.chooseSpellTarget(u);
@@ -1429,6 +1463,7 @@ const Battle = {
     UI.hideActionBar();
     await this.performCombat(u, target, false);
     B.busy = false;
+    if (!B.ending) await this.offerChain(u, target);
     if (!B.ending) {
       await this.finishUnitAction(u);
     }
@@ -1540,6 +1575,206 @@ const Battle = {
     if (staff.item.uses <= 0) UI.log(staff.w.name + '已用尽。', 'bad');
     B.busy = false;
     if (!B.ending) await this.finishUnitAction(u);
+  },
+
+  /* ============================================================
+   * 双人连携（P1.4）：A 攻击后，与 A 相距 ≤2、本回合未行动且射程
+   * 覆盖目标的友军 B 可追加一击。不获经验、不触发反击、每单位每回合 1 次。
+   * ============================================================ */
+  chainAllies(unit, foe) {
+    if (!unit || !foe || unit.side !== 'player') return [];
+    return this.B.units.filter(t =>
+      t.side === 'player' && t.hp > 0 && !t.escaped && !t.summoned &&
+      t.id !== unit.id && !t.acted && !t.chainUsed &&
+      Combat.distance(unit.x, unit.y, t.x, t.y) <= CHAIN_RANGE &&
+      Combat.canAttackRange(t, foe)
+    );
+  },
+
+  /* 连携追加攻击：单次结算（无反击/无追击/无经验），目标死亡照常走 handleDeath */
+  async performChainAttack(ally, target) {
+    const B = this.B;
+    if (!ally || !target || target.hp <= 0 || ally.hp <= 0) return false;
+    const ctx = this.combatCtx();
+    const w = Combat.weaponOf(ally);
+    if (!w) return false;
+    B.busy = true;
+    UI.hideActionBar();
+    const hitRate = Combat.hitChance(ally, target, ctx, true);
+    const critRate = Combat.critChance(ally, target, ctx, true);
+    const roll = (ctx.rng && ctx.rng.hitRoll) ? ctx.rng.hitRoll() : 0;
+    const hit = roll < hitRate;
+    let dmg = 0, crit = false;
+    if (hit) {
+      crit = (ctx.rng && ctx.rng.next) ? (ctx.rng.next() * 100 < critRate) : false;
+      dmg = Combat.damage(ally, target, ctx, true) * (crit ? 3 : 1);
+      target.hp = Math.max(0, target.hp - dmg);
+    }
+    Combat.consumeUse(ally, w.item);
+    ally.acted = true;
+    ally.chainUsed = true;
+    if (ally.side === 'player') B.stats.damage += dmg;
+    UI.log(ally.name + '连携出击' + (hit ? (crit ? '，必杀' : '') + '，造成 ' + dmg + ' 伤害。' : '，却被避开。'),
+      ally.side === 'player' ? 'good' : 'bad');
+    await Render.lunge(ally, target.x, target.y, B.speed);
+    if (hit) {
+      Render.slash(target.x, target.y, crit ? 'crit' : 'hit');
+      Render.shake(crit ? 8 : 3);
+      Render.floatText((crit ? '必杀 ' : '') + '-' + dmg, target.x, target.y, crit ? '#f1cd7a' : '#f0b8a8', crit ? 19 : 15);
+      Audio.sfx(crit ? 'crit' : 'hit');
+      if (target.hp <= 0) await this.handleDeath(target, ally);
+    } else {
+      Render.slash(target.x, target.y, 'miss');
+      Render.floatText('闪避', target.x, target.y, '#dfe6d7', 14);
+      Audio.sfx('miss');
+    }
+    await this.wait(260);
+    UI.updateBattle(B);
+    B.busy = false;
+    if (!B.ending) {
+      await this.checkVictory();
+      if (!B.ending) await this.checkDefeat();
+    }
+    return true;
+  },
+
+  /* 攻击结束后询问连携（chooseAttackTarget 在 performCombat 后调用） */
+  async offerChain(attacker, target) {
+    const B = this.B;
+    if (B.ending || !target || target.hp <= 0) return;
+    const cands = this.chainAllies(attacker, target);
+    if (!cands.length) return;
+    const pick = await UI.modal({
+      title: '双人连携',
+      sub: attacker.name + '得手 · 相邻友军可追加一击（不获经验、不触发反击）',
+      list: cands.map(u => {
+        const w = Combat.weaponOf(u);
+        const c = this.combatCtx();
+        return {
+          label: u.name + (w ? ' · ' + w.w.name : ''),
+          meta: '命中 ' + Combat.hitChance(u, target, c, true) + '% · 伤害 ' + Combat.damage(u, target, c, true),
+          value: u.id
+        };
+      })
+    });
+    if (!this.active || B.ending || pick == null) return;
+    const ally = this.unitById(pick);
+    if (ally) await this.performChainAttack(ally, target);
+  },
+
+  /* ============================================================
+   * 云策指挥技（P1.4）：每章 1 次，HUD「令」入口。
+   * 号令 = 3 格内友军本回合可再行动；集火 = 指定 5 格内敌人，本回合对其 +15 命中；
+   * 坚守 = 3 格内友军本回合受伤 -20%。云策阵亡/离队时不可用。
+   * ============================================================ */
+  yunceUnit() {
+    return this.B.units.find(u => u.charId === 'yunce' && u.side === 'player' && u.hp > 0 && !u.escaped) || null;
+  },
+
+  commandAvailable() {
+    const B = this.B;
+    if (!B || B.ending || B.commandUsed) return false;
+    if (B.phase !== 'player' || B.busy) return false;
+    return !!this.yunceUnit();
+  },
+
+  openCommandMenu() {
+    const B = this.B;
+    if (!this.commandAvailable()) {
+      UI.toast(B && B.commandUsed ? '指挥技本章已用过' : '云策不在阵中，无法指挥');
+      return;
+    }
+    const y = this.yunceUnit();
+    UI.modal({
+      title: '云策指挥技',
+      sub: '本章仅可发动一次 · 云策当前位于 (' + y.x + ',' + y.y + ')',
+      list: Object.keys(COMMAND_SKILLS).map(k => ({
+        label: COMMAND_SKILLS[k].name,
+        meta: COMMAND_SKILLS[k].desc,
+        value: k
+      }))
+    }).then(pick => {
+      if (!this.active || pick == null) return;
+      if (pick === 'order') this.applyOrderCommand();
+      else if (pick === 'volley') this.beginVolleySelect();
+      else if (pick === 'hold') this.applyHoldCommand();
+    });
+  },
+
+  applyOrderCommand() {
+    const B = this.B;
+    const y = this.yunceUnit();
+    if (!y || B.commandUsed) return;
+    let n = 0;
+    for (const u of B.units) {
+      if (u.side !== 'player' || u.hp <= 0 || u.escaped || u.summoned) continue;
+      if (Combat.distance(y.x, y.y, u.x, u.y) > 3) continue;
+      u.acted = false;
+      u.hasMoved = false;
+      u.movedDist = 0;
+      n++;
+    }
+    B.commandUsed = true;
+    UI.log('云策号令：' + n + ' 名友军本回合可再行动一次。', 'gold');
+    UI.toast('号令 · ' + n + ' 人可再动');
+    Audio.sfx('phase');
+    UI.updateBattle(B);
+  },
+
+  applyHoldCommand() {
+    const B = this.B;
+    const y = this.yunceUnit();
+    if (!y || B.commandUsed) return;
+    B.holdUnits = B.units.filter(u =>
+      u.side === 'player' && u.hp > 0 && !u.escaped &&
+      Combat.distance(y.x, y.y, u.x, u.y) <= 3).map(u => u.id);
+    B.commandUsed = true;
+    UI.log('云策坚守：' + B.holdUnits.length + ' 名友军本回合受伤 -20%。', 'gold');
+    UI.toast('坚守 · 受伤 -20%');
+    Audio.sfx('phase');
+    UI.updateBattle(B);
+  },
+
+  beginVolleySelect() {
+    const B = this.B;
+    const y = this.yunceUnit();
+    if (!y || B.commandUsed) return;
+    const targets = B.units.filter(t => t.side === 'enemy' && t.hp > 0 && !t.escaped &&
+      Combat.distance(y.x, y.y, t.x, t.y) <= 5);
+    if (!targets.length) { UI.toast('5 格内没有可集火的敌人'); return; }
+    B.mode = 'command-target';
+    B.targetTiles = new Set(targets.map(t => this.key(t.x, t.y)));
+    B.attackRange = new Set();
+    for (const t of Combat.tilesInRange(y.x, y.y, 1, 5, 16, 8)) B.attackRange.add(this.key(t.x, t.y));
+    UI.unitCard(y, B, '选择集火目标');
+    UI.actionBar([{
+      label: '返回', sub: '取消', cls: 'cancel', onClick: () => {
+        B.mode = 'idle';
+        B.targetTiles = null;
+        B.attackRange = null;
+        UI.hideActionBar();
+        UI.hideUnitCard();
+        UI.updateBattle(B);
+      }
+    }], '点击 5 格内要集火的敌人');
+    UI.updateBattle(B);
+  },
+
+  async chooseVolleyTarget(target) {
+    const B = this.B;
+    const y = this.yunceUnit();
+    if (!target || !y || B.commandUsed) return;
+    if (Combat.distance(y.x, y.y, target.x, target.y) > 5) { UI.toast('超出集火射程'); return; }
+    B.volleyTarget = target.id;
+    B.commandUsed = true;
+    B.mode = 'idle';
+    B.targetTiles = null;
+    B.attackRange = null;
+    UI.hideActionBar();
+    UI.log('云策集火' + target.name + '：友军本回合对其命中 +15。', 'gold');
+    UI.toast('集火 · ' + target.name);
+    Audio.sfx('phase');
+    UI.updateBattle(B);
   },
 
   /* ============================================================
