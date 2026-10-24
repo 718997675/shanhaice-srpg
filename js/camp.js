@@ -207,7 +207,9 @@ const Camp = {
       const prog = owned ? '' :
         '<div class="s-desc" style="color:#b08540;">本次讨伐掉率 ' + Math.round(d.chance * 100) + '%' +
         (d.guaranteed ? '（必掉）' : ' · 缘 ' + d.since + '/' + d.hardPity + (d.ngplus ? ' · 周目加成' : '')) + '</div>';
-      return '<div class="shop-row"><span class="s-name">' + UI.escape(w.name) +
+      return '<div class="shop-row"><span class="s-name">' +
+        '<img class="legend-icon" src="assets/icons/weapons/wpn_' + key + '.png" alt="" onerror="this.style.display=\'none\'">' +
+        UI.escape(w.name) +
         '<div class="s-desc">' + UI.escape((boss ? boss.name : w.source) + ' · ' + w.desc) + '</div>' + prog + '</span>' +
         '<span class="s-price" style="color:' + (owned ? '#9fd39a' : '#c9a37a') + '">' + (owned ? '已入手' : '未获得') + '</span>' +
         '<span class="s-desc" style="max-width:180px;text-align:right;">' + UI.escape(Legendary.hint(key)) + '</span></div>';
