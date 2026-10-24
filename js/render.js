@@ -621,6 +621,8 @@ const Render = {
 
     this.drawGrid(ctx);
     this.drawRanges(ctx, b);
+    this.drawWater(ctx, b);
+    this.drawDust(ctx);
     this.drawNodes(ctx, b);
     this.drawUnits(ctx, b);
     this.drawFog(ctx, b);
@@ -630,10 +632,61 @@ const Render = {
     ctx.restore();
   },
 
+  /* 水面波光：深水格上缓慢移的正弦高光 */
+  drawWater(ctx, b) {
+    if (!b.grid) return;
+    const t = this.tile;
+    const now = this.time;
+    ctx.save();
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 16; x++) {
+        if (TerrainFX.tileChar(b, x, y) !== '~') continue;
+        const px = this.ox + x * t, py = this.oy + y * t;
+        const off = Math.sin(now / 900 + x * 1.3 + y * 0.9) * t * 0.16;
+        const grd = ctx.createLinearGradient(px, py + off, px, py + t + off);
+        grd.addColorStop(0, 'rgba(220,238,235,.16)');
+        grd.addColorStop(0.5, 'rgba(220,238,235,.03)');
+        grd.addColorStop(1, 'rgba(220,238,235,.12)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(px, py, t, t);
+        ctx.strokeStyle = 'rgba(226,242,238,.14)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(px + t * 0.15, py + t * 0.5 + off * 0.6);
+        ctx.quadraticCurveTo(px + t * 0.5, py + t * 0.42 + off * 0.6, px + t * 0.85, py + t * 0.5 + off * 0.6);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  },
+
+  /* 灵尘：洪荒虚空中飘浮的金青微光（位置确定、随时间缓移） */
+  drawDust(ctx) {
+    const now = this.time;
+    ctx.save();
+    for (let i = 0; i < 26; i++) {
+      const hx = this.hash(i, 11, 5);
+      const hy = this.hash(i, 22, 6);
+      const sp = 0.4 + this.hash(i, 33, 7) * 0.8;
+      const drift = (now / 1000) * sp;
+      const x = (hx * this.W + Math.sin(drift + i) * 14 + this.W) % this.W;
+      const y = (hy * this.H - drift * 9 % this.H + this.H) % this.H;
+      const tw = 0.35 + 0.3 * Math.sin(now / 700 + i * 1.7);
+      const warm = this.hash(i, 44, 8) > 0.45;
+      ctx.fillStyle = warm
+        ? `rgba(240,209,137,${tw.toFixed(2)})`
+        : `rgba(127,181,154,${(tw * 0.8).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(x, y, 0.8 + this.hash(i, 55, 9) * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  },
+
   drawGrid(ctx) {
     const t = this.tile;
     ctx.save();
-    ctx.strokeStyle = 'rgba(48,55,44,.13)';
+    ctx.strokeStyle = 'rgba(120,96,54,.16)';
     ctx.lineWidth = 1;
     for (let x = 1; x < 16; x++) {
       ctx.beginPath();
@@ -651,13 +704,29 @@ const Render = {
   },
 
   drawFrame(ctx) {
+    const x0 = this.ox - 1.5, y0 = this.oy - 1.5;
+    const w = this.boardW + 3, h = this.boardH + 3;
     ctx.save();
-    ctx.strokeStyle = 'rgba(201,170,110,.4)';
+    ctx.strokeStyle = 'rgba(211,171,110,.45)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(this.ox - 1.5, this.oy - 1.5, this.boardW + 3, this.boardH + 3);
+    ctx.strokeRect(x0, y0, w, h);
     ctx.strokeStyle = 'rgba(20,24,20,.55)';
     ctx.lineWidth = 1;
     ctx.strokeRect(this.ox + 3, this.oy + 3, this.boardW - 6, this.boardH - 6);
+    // 四角云纹角花：双弧 + 一枚金点
+    const c = Math.min(16, this.tile * 0.4);
+    ctx.strokeStyle = 'rgba(240,209,137,.75)';
+    ctx.lineWidth = 1.4;
+    const corners = [[x0, y0, 1, 1], [x0 + w, y0, -1, 1], [x0, y0 + h, 1, -1], [x0 + w, y0 + h, -1, -1]];
+    for (const [cx, cy, sx, sy] of corners) {
+      ctx.beginPath();
+      ctx.arc(cx + sx * c, cy + sy * c, c, sx * sy > 0 ? Math.PI : 0, sx * sy > 0 ? Math.PI * 1.5 : Math.PI * 0.5, sy < 0);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(240,209,137,.9)';
+      ctx.beginPath();
+      ctx.arc(cx + sx * c * 0.72, cy + sy * c * 0.72, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   },
 
@@ -781,6 +850,17 @@ const Render = {
         ctx.arc(0, 0, t * 0.39, now / 1200, now / 1200 + Math.PI * 1.5);
         ctx.stroke();
         ctx.setLineDash([]);
+        // 符文环：六枚绕行的小印
+        const rr = t * 0.47;
+        for (let i = 0; i < 6; i++) {
+          const a = now / 2600 + (Math.PI * 2 / 6) * i;
+          const rx = Math.cos(a) * rr, ry = Math.sin(a) * rr * 0.96;
+          const dotA = 0.35 + 0.3 * Math.sin(now / 500 + i * 1.1);
+          ctx.fillStyle = `rgba(${base[0]},${base[1]},${base[2]},${dotA.toFixed(2)})`;
+          ctx.beginPath();
+          ctx.arc(rx, ry, 1.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       ctx.fillStyle = `rgba(${base[0]},${base[1]},${base[2]},${node.active ? 0.88 : 0.55})`;
       ctx.font = `600 ${Math.max(9, Math.round(t * 0.24))}px "Songti SC", "STSong", serif`;
@@ -837,6 +917,22 @@ const Render = {
     const maxHp = u.stats.hp || 1;
 
     ctx.save();
+    // 脚下灵环：我方青、敌军绛、可招募金，呼吸明灭
+    const aura = isPlayer ? '127,181,154' : (u.recruitable ? '211,171,94' : '196,96,74');
+    const auraA = 0.16 + 0.08 * Math.sin(now / 520 + u.x * 0.8 + u.y * 0.6);
+    const auraR = r * 1.32;
+    const ag = ctx.createRadialGradient(cx, cy, r * 0.9, cx, cy, auraR);
+    ag.addColorStop(0, `rgba(${aura},${auraA.toFixed(2)})`);
+    ag.addColorStop(1, `rgba(${aura},0)`);
+    ctx.fillStyle = ag;
+    ctx.beginPath();
+    ctx.arc(cx, cy, auraR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${aura},${(auraA * 1.6).toFixed(2)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + r * 0.82, r * 0.95, r * 0.34, 0, 0, Math.PI * 2);
+    ctx.stroke();
     // 影子
     ctx.fillStyle = 'rgba(20,25,20,.24)';
     ctx.beginPath();
