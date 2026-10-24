@@ -9,12 +9,14 @@ const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
 const ctx = vm.createContext({ console });
-for (const f of ['js/rng.js', 'js/data-core.js', 'js/combat.js']) {
+for (const f of ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/combat.js']) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
 }
 // 注意：脚本顶层 const 不挂到 context 对象，需用表达式从全局词法作用域取回
-const { Combat, TERRAIN, WEAPONS, SUPPORT_RANKS, STAT_ORDER, STAT_CAPS, TRIANGLE } =
-  vm.runInContext('({ Combat, TERRAIN, WEAPONS, SUPPORT_RANKS, STAT_ORDER, STAT_CAPS, TRIANGLE })', ctx);
+const { Combat, TERRAIN, WEAPONS, SUPPORT_RANKS, STAT_ORDER, STAT_CAPS, TRIANGLE,
+        ELEMENTS, ELEMENT_COUNTERS, ELEMENT_MULTIPLIER, SPELLS, LEGENDARY_WEAPONS,
+        SUMMON_TIERS, SUMMON_FIELD_CAP, SUMMON_WEAPONS, SUMMON_TIER_NAMES } =
+  vm.runInContext('({ Combat, TERRAIN, WEAPONS, SUPPORT_RANKS, STAT_ORDER, STAT_CAPS, TRIANGLE, ELEMENTS, ELEMENT_COUNTERS, ELEMENT_MULTIPLIER, SPELLS, LEGENDARY_WEAPONS, SUMMON_TIERS, SUMMON_FIELD_CAP, SUMMON_WEAPONS, SUMMON_TIER_NAMES })', ctx);
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {
@@ -387,6 +389,104 @@ console.log('\n== 12. 冰面滑行与地形动态层（P1.2） ==');
   eq('解析网格其他格原样', rg[0][7], '.');
   const B2 = { grid: ICE_ROW.slice(), overlays: {}, turn: 1 };
   eq('无覆盖层时解析网格等于原图', TerrainFX.resolvedGrid(B2).join(''), ICE_ROW.join(''));
+}
+
+console.log('\n== 13. 五行相克与进阶系统数据表 ==');
+{
+  // 13.1 相克矩阵：5×5 = 25 组合全覆盖
+  const els = Object.keys(ELEMENTS);
+  eq('五行共 5 系', els.length, 5);
+  let strong = 0, weak = 0, neutral = 0;
+  for (const atk of els) {
+    for (const def of els) {
+      const r = Combat.elementMul(atk, def);
+      if (atk === def) { neutral++; eq('同系 ' + atk + '→' + def + ' 中性', r.state + '/' + r.mul, 'neutral/1'); }
+      else if (ELEMENT_COUNTERS[atk] === def) { strong++; eq(atk + ' 克 ' + def + ' → strong/1.25', r.state + '/' + r.mul, 'strong/1.25'); }
+      else if (ELEMENT_COUNTERS[def] === atk) { weak++; eq(atk + ' 被 ' + def + ' 克 → weak/0.8', r.state + '/' + r.mul, 'weak/0.8'); }
+      else { neutral++; eq(atk + ' 与 ' + def + ' 互不相克 → 中性', r.state + '/' + r.mul, 'neutral/1'); }
+    }
+  }
+  eq('相克组合共 5 对', strong, 5);
+  eq('被克组合共 5 对', weak, 5);
+  eq('中性组合共 15 个（同系 5 + 互不相克 10）', neutral, 15);
+  // 相克链自洽：沿链走 5 步回到自身
+  {
+    let cur = els[0];
+    for (let i = 0; i < 5; i++) cur = ELEMENT_COUNTERS[cur];
+    eq('相克链 5 步闭环', cur, els[0]);
+  }
+
+  // 13.2 边界与文案
+  eq('空攻击元素 → 中性', Combat.elementMul(null, 'fire').state, 'neutral');
+  eq('空防御元素 → 中性', Combat.elementMul('fire', null).state, 'neutral');
+  eq('未知攻击元素 → 中性', Combat.elementMul('nope', 'fire').state, 'neutral');
+  eq('未知防御元素 → 中性', Combat.elementMul('fire', 'nope').state, 'neutral');
+  eq('未知元素倍率 = 1', Combat.elementMul('nope', 'fire').mul, 1);
+  eq('相克文案：金 克 木', Combat.elementMul('metal', 'wood').text, '金 克 木');
+  eq('被克文案：木 被 金 克', Combat.elementMul('wood', 'metal').text, '金 克 木');
+
+  // 13.3 SPELLS 完整性
+  const { CHARS, ENEMY_TYPES, WEAPON_TYPES } = vm.runInContext('({ CHARS, ENEMY_TYPES, WEAPON_TYPES })', ctx);
+  eq('法术共 15 条', Object.keys(SPELLS).length, 15);
+  const perEl = {};
+  for (const k in SPELLS) {
+    const s = SPELLS[k];
+    ok('法术 ' + k + ' 元素合法', !!ELEMENTS[s.element], s.element);
+    ok('法术 ' + k + ' 射程合法', Array.isArray(s.rng) && s.rng.length === 2 && s.rng[0] >= 1 && s.rng[0] <= s.rng[1]);
+    ok('法术 ' + k + ' 每章次数 > 0', s.uses > 0);
+    ok('法术 ' + k + ' 有威力与命中', s.mt > 0 && s.hit > 0);
+    ok('法术 ' + k + ' 有描述', !!s.desc);
+    ok('法术 ' + k + ' key 自洽', s.key === k);
+    for (const l of (s.learnBy || [])) ok('法术 ' + k + ' 习得角色存在', !!CHARS[l.char], l.char);
+    for (const h of (s.holders || [])) ok('法术 ' + k + ' 持法敌军存在', !!ENEMY_TYPES[h], h);
+    perEl[s.element] = (perEl[s.element] || 0) + 1;
+  }
+  eq('每系各 3 条', Object.keys(perEl).map(e => e + ':' + perEl[e]).sort().join(' '), 'earth:3 fire:3 metal:3 water:3 wood:3');
+  eq('范围逐目标法术 5 条', Object.values(SPELLS).filter(s => s.aoe).length, 5);
+  ok('全部 A 阶法术均为范围逐目标', Object.values(SPELLS).every(s => s.rank !== 'A' || !!s.aoe));
+  ok('A 阶法术每系一条', Object.values(SPELLS).filter(s => s.rank === 'A').length === 5);
+
+  // 13.4 LEGENDARY_WEAPONS 完整性
+  eq('传说武器共 7 把', Object.keys(LEGENDARY_WEAPONS).length, 7);
+  const bosses = Object.keys(ENEMY_TYPES).filter(k => ENEMY_TYPES[k].boss);
+  const sources = [];
+  for (const k in LEGENDARY_WEAPONS) {
+    const w = LEGENDARY_WEAPONS[k];
+    ok('传说 ' + k + ' key 自洽', w.key === k);
+    ok('传说 ' + k + ' 类型合法', !!WEAPON_TYPES[w.type], w.type);
+    ok('传说 ' + k + ' 阶位 S', w.rank === 'S');
+    ok('传说 ' + k + ' 不可打造', w.forgeable === false);
+    ok('传说 ' + k + ' 无购价', w.price === 0);
+    ok('传说 ' + k + ' 来源是 Boss', ENEMY_TYPES[w.source] && ENEMY_TYPES[w.source].boss === true, w.source);
+    ok('传说 ' + k + ' 重打保底', w.drop && w.drop.rematch === true);
+    ok('传说 ' + k + ' 二周目保底', w.drop && w.drop.ngplus === true);
+    ok('传说 ' + k + ' 多词条 ≥2', Array.isArray(w.traits) && w.traits.length >= 2);
+    ok('传说 ' + k + ' 附带技能有名有述', !!(w.skill && w.skill.name && w.skill.desc));
+    ok('传说 ' + k + ' 有描述', !!w.desc);
+    ok('传说 ' + k + ' 射程合法', Array.isArray(w.rng) && w.rng.length === 2 && w.rng[0] >= 1 && w.rng[0] <= w.rng[1]);
+    sources.push(w.source);
+  }
+  eq('传说武器来源互不重复', new Set(sources).size, 7);
+  eq('已覆盖 8 个 Boss 中的 7 个', bosses.filter(b => sources.includes(b)).length, 7);
+
+  // 13.5 SUMMON_TIERS 完整性
+  eq('召唤共 3 阶', SUMMON_TIERS.length, 3);
+  eq('场上召唤物上限 2', SUMMON_FIELD_CAP, 2);
+  const tierNums = SUMMON_TIERS.map(t => t.tier);
+  eq('阶位 1/2/3', tierNums.join(','), '1,2,3');
+  eq('阶位名称 异兽/灵兽/神兽', SUMMON_TIERS.map(t => t.name).join('/'), '异兽/灵兽/神兽');
+  for (const t of SUMMON_TIERS) {
+    ok('阶 ' + t.tier + ' 有三态指令', t.orders.length === 3);
+    ok('阶 ' + t.tier + ' 指令键正确', t.orders.map(o => o.key).join(',') === 'assault,guard,escort');
+    ok('阶 ' + t.tier + ' 武器存在', !!WEAPONS[t.weapon] || !!SUMMON_WEAPONS[t.weapon], t.weapon);
+    ok('阶 ' + t.tier + ' 模板 8 维齐全', ['hp','str','mag','skl','spd','lck','def','res'].every(k => typeof t.base[k] === 'number' && typeof t.growth[k] === 'number'));
+    ok('阶 ' + t.tier + ' 移动力 > 0', t.move > 0);
+    ok('阶 ' + t.tier + ' 有描述', !!t.desc);
+    ok('阶 ' + t.tier + ' 阶名表一致', SUMMON_TIER_NAMES[t.tier] === t.name);
+  }
+  ok('阶位越高基础生命越高', SUMMON_TIERS[1].base.hp > SUMMON_TIERS[0].base.hp && SUMMON_TIERS[2].base.hp > SUMMON_TIERS[1].base.hp);
+  ok('召唤新武器 2 把', Object.keys(SUMMON_WEAPONS).length === 2);
+  for (const k in SUMMON_WEAPONS) ok('召唤武器 ' + k + ' 类型合法', !!WEAPON_TYPES[SUMMON_WEAPONS[k].type]);
 }
 
 console.log('\n----------------------------------------');

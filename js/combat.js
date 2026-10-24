@@ -126,6 +126,20 @@ const Combat = {
     return w.w.effective.some(t => tags.includes(t));
   },
 
+  /* 五行相克：金克木、木克土、土克水、水克火、火克金；同系与互不相克均为中性。
+   * 返回 { state, mul, text }——spells.js 结算法术伤害时乘 mul。 */
+  elementMul(atkEl, defEl) {
+    const neutral = { state: 'neutral', mul: ELEMENT_MULTIPLIER.neutral, text: '' };
+    if (!atkEl || !defEl || !ELEMENTS[atkEl] || !ELEMENTS[defEl] || atkEl === defEl) return neutral;
+    if (ELEMENT_COUNTERS[atkEl] === defEl) {
+      return { state: 'strong', mul: ELEMENT_MULTIPLIER.strong, text: ELEMENTS[atkEl].name + ' 克 ' + ELEMENTS[defEl].name };
+    }
+    if (ELEMENT_COUNTERS[defEl] === atkEl) {
+      return { state: 'weak', mul: ELEMENT_MULTIPLIER.weak, text: ELEMENTS[defEl].name + ' 克 ' + ELEMENTS[atkEl].name };
+    }
+    return neutral;
+  },
+
   hitChance(attacker, defender, ctx) {
     const w = this.weaponOf(attacker);
     if (!w) return 0;

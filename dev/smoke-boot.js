@@ -52,7 +52,7 @@ sandboxWindow.window = sandboxWindow;
 sandboxWindow.globalThis = sandboxWindow;
 sandboxWindow.console = console;
 
-const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-maps.js', 'js/combat.js',
+const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
                'js/audio.js', 'js/render.js', 'js/ui.js', 'js/battle.js',
                'js/systems/terrain.js', 'js/camp.js', 'js/game.js'];
 
