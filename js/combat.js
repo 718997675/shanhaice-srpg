@@ -166,6 +166,28 @@ const Combat = {
     return out;
   },
 
+  /* 传送落点（纯函数）：渡厄杖把友军传到施法者四邻空格。
+   * 候选 = 施法者四邻中 blocked(x,y) 为假的格子（越界/地形/占位由调用方判断）；
+   * 取离「友军原位置」曼哈顿距离最近者，平局按 右/左/下/上 次序，保证可复现。
+   * 返回 { x, y } 或 null（四邻全堵）。 */
+  warpDestination(caster, ally, blocked) {
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    let best = null, bestD = Infinity;
+    for (const d of dirs) {
+      const nx = caster.x + d[0], ny = caster.y + d[1];
+      if (blocked(nx, ny)) continue;
+      const dist = Math.abs(nx - ally.x) + Math.abs(ny - ally.y);
+      if (dist < bestD) { bestD = dist; best = { x: nx, y: ny }; }
+    }
+    return best;
+  },
+
+  /* 追影刃换位判定（纯函数）：攻击方在本次交战事件里至少命中过防守方一次。 */
+  swapOnHitLanded(events, attackerId, defenderId) {
+    return (events || []).some(e =>
+      e.type === 'strike' && e.attacker === attackerId && e.defender === defenderId && e.hit);
+  },
+
   /* 五行相克：金克木、木克土、土克水、水克火、火克金；同系与互不相克均为中性。
    * 返回 { state, mul, text }——spells.js 结算法术伤害时乘 mul。 */
   elementMul(atkEl, defEl) {

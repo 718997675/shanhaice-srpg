@@ -1047,6 +1047,15 @@ const Battle = {
         UI.unitCard(u, B, '');
         return;
       }
+      if (B.mode === 'warp-select') {
+        if (u && u.side === 'player' && B.targetTiles && B.targetTiles.has(this.key(x, y))) {
+          await this.chooseWarpTarget(u);
+          return;
+        }
+        if (!u) { this.openActionMenu(); return; }
+        UI.unitCard(u, B, '');
+        return;
+      }
       if (B.mode === 'spell-select') {
         if (u && u.side === 'enemy' && B.targetTiles && B.targetTiles.has(this.key(x, y))) {
           await this.chooseSpellTarget(u);
@@ -1182,12 +1191,20 @@ const Battle = {
         onClick: () => this.beginAttackSelect()
       });
     }
-    if (staff) {
+    if (staff && !staff.w.warp) {
       const st = this.staffTargets(u);
       buttons.push({
         label: '杖', sub: st.length ? st.length + ' 个目标' : '无目标',
         disabled: !st.length,
         onClick: () => this.beginStaffSelect()
+      });
+    }
+    if (staff && staff.w.warp) {
+      const wt = this.warpTargets(u);
+      buttons.push({
+        label: '渡厄', sub: wt.length ? wt.length + ' 个目标' : '无目标',
+        disabled: !wt.length,
+        onClick: () => this.beginWarpSelect()
       });
     }
     const healItems = (u.items || []).filter(it => {
@@ -1296,6 +1313,17 @@ const Battle = {
       Combat.distance(unit.x, unit.y, t.x, t.y) === 1);
   },
 
+  /* 渡厄杖目标：射程内所有存活友军（含自己以外的满血单位——传送不挑伤情） */
+  warpTargets(unit) {
+    const st = Combat.staffOf(unit);
+    if (!st || !st.w.warp) return [];
+    return this.B.units.filter(t =>
+      t.side === 'player' && t.hp > 0 && !t.escaped && t.id !== unit.id &&
+      Combat.distance(unit.x, unit.y, t.x, t.y) >= st.w.rng[0] &&
+      Combat.distance(unit.x, unit.y, t.x, t.y) <= st.w.rng[1]
+    );
+  },
+
   villageAt(x, y) { return (this.chapter.villages || []).find(v => v.x === x && v.y === y); },
   chestAt(x, y) { return (this.chapter.chests || []).find(v => v.x === x && v.y === y); },
   shrineAt(x, y) { return (this.chapter.shrines || []).find(v => v.x === x && v.y === y); },
@@ -1398,6 +1426,63 @@ const Battle = {
       this.B.stats.levels += levels.length;
       await UI.levelUp(unit, levels);
     }
+  },
+
+  /* ============================================================
+   * 传送武器：渡厄杖（唤回友军）
+   * ============================================================ */
+  beginWarpSelect() {
+    const B = this.B;
+    const u = B.selectedUnit;
+    if (!u) return;
+    const targets = this.warpTargets(u);
+    if (!targets.length) return;
+    B.mode = 'warp-select';
+    B.targetTiles = new Set(targets.map(t => this.key(t.x, t.y)));
+    const st = Combat.staffOf(u);
+    B.attackRange = new Set();
+    for (const t of Combat.tilesInRange(u.x, u.y, st.w.rng[0], st.w.rng[1], 16, 8)) {
+      B.attackRange.add(this.key(t.x, t.y));
+    }
+    UI.unitCard(u, B, '选择传送目标');
+    UI.actionBar([{ label: '返回', sub: '行动菜单', cls: 'cancel', onClick: () => this.backToActionMenu() }], '点击需要唤回身侧的友军');
+    UI.updateBattle(B);
+  },
+
+  async chooseWarpTarget(target) {
+    const B = this.B;
+    const u = B.selectedUnit;
+    if (!u || !target) return;
+    const staff = Combat.staffOf(u);
+    if (!staff || !staff.w.warp) return;
+    B.busy = true;
+    B.targetTiles = null;
+    B.attackRange = null;
+    UI.hideActionBar();
+    const dest = Combat.warpDestination(u, target, (x, y) => {
+      if (!this.inBounds(x, y)) return true;
+      const tile = this.tileAt(x, y);
+      if (!tile || tile.blocked) return true;
+      return !!this.unitAt(x, y);
+    });
+    if (!dest) {
+      UI.toast('身侧没有空地，渡厄杖无法施展');
+      UI.log(u.name + '身侧没有空地，渡厄杖无法施展。', 'bad');
+      B.busy = false;
+      this.openActionMenu();
+      return;
+    }
+    const from = { x: target.x, y: target.y };
+    target.x = dest.x;
+    target.y = dest.y;
+    Combat.consumeUse(u, staff.item);
+    Audio.sfx('heal');
+    Render.floatText('渡厄', dest.x, dest.y, '#9ec5e0', 16);
+    UI.log(u.name + '展开渡厄杖：把' + target.name + '从 (' + from.x + ',' + from.y + ') 唤回身侧 (' + dest.x + ',' + dest.y + ')。', 'good');
+    await this.grantStaffExp(u);
+    if (staff.item.uses <= 0) UI.log(staff.w.name + '已用尽。', 'bad');
+    B.busy = false;
+    if (!B.ending) await this.finishUnitAction(u);
   },
 
   /* ============================================================
@@ -1902,6 +1987,11 @@ const Battle = {
     B.hpView = null;
     Render.hpView = {};
     for (const u of B.units) if (u.hp > 0) Render.hpView[u.id] = u.hp;
+    /* 追影刃换位：先捕获攻击方武器（交战可能把它耗尽，换位判定要在结算后仍认得出它） */
+    const swapWeapon = (() => {
+      const aw = Combat.weaponOf(attacker);
+      return aw && aw.w.swapOnHit ? aw : null;
+    })();
     UI.log(attacker.name + ' 与 ' + defender.name + ' 交战。', '');
     Audio.sfx('select');
     const events = Combat.resolve(attacker, defender, ctx);
@@ -1967,6 +2057,17 @@ const Battle = {
     for (const d of deaths) {
       const dead = this.unitById(d.unit);
       if (dead) await this.handleDeath(dead, this.unitById(d.killer));
+    }
+    /* 追影刃：攻击方命中过防守方、双方俱在、目标非 Boss → 交换位置 */
+    if (swapWeapon && !B.ending && attacker.hp > 0 && defender.hp > 0 && !defender.boss &&
+        Combat.swapOnHitLanded(events, attacker.id, defender.id)) {
+      const ox = attacker.x, oy = attacker.y;
+      attacker.x = defender.x;
+      attacker.y = defender.y;
+      defender.x = ox;
+      defender.y = oy;
+      UI.log(attacker.name + '的' + swapWeapon.w.name + '：与' + defender.name + '交换了位置。', 'gold');
+      Render.floatText('换位', attacker.x, attacker.y, '#9ec5e0', 14);
     }
     Render.hpView = null;
     await this.wait(180);

@@ -119,7 +119,8 @@ const CHAPTERS = [
       { x: 13, y: 4, name: '望归村', item: 'potion' }
     ],
     chests: [
-      { x: 0, y: 7, name: '沉船古匣', item: 'silver_lance' }
+      { x: 0, y: 7, name: '沉船古匣', item: 'silver_lance' },
+      { x: 15, y: 7, name: '渡口秘匣', item: 'staff_duo' }
     ],
     shrines: [],
     enemies: [
@@ -248,7 +249,9 @@ const CHAPTERS = [
     villages: [
       { x: 12, y: 6, name: '泽畔村', recruit: 'aman', talk: 'join_aman' }
     ],
-    chests: [], shrines: [],
+    chests: [
+      { x: 14, y: 4, name: '泽底秘匣', item: 'staff_duo' }
+    ], shrines: [],
     enemies: [
       { type: 'wolf', lv: 10, x: 7, y: 3 },
       { type: 'shaman', lv: 10, x: 10, y: 2 },

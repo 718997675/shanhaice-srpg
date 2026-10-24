@@ -265,9 +265,12 @@ const Camp = {
     const stock = isWeapon ? this.weaponStock() : (tab === 'mat' ? this.matStock() : this.itemStock());
     const rows = stock.map(s => {
       const def = s.def;
-      const desc = WEAPONS[s.key]
+      let desc = WEAPONS[s.key]
         ? (WEAPON_TYPES[def.type] ? WEAPON_TYPES[def.type].name : '') + ' · ' + def.rank + ' · 威力 ' + def.mt + ' · 命中 ' + def.hit + (def.uses ? ' · 耐久 ' + def.uses : '')
         : def.desc;
+      /* 传送武器的机制说明直接上架（读得懂才有人买） */
+      if (def.warp) desc += ' · 射程 ' + def.rng[1] + ' · 把友军传到身侧（耗行动）';
+      if (def.swapOnHit) desc += ' · 命中后与目标换位（对 Boss 无效）';
       return '<div class="shop-row"><span class="s-name">' + UI.escape(def.name) +
         '<div class="s-desc">' + UI.escape(desc) + '</div></span>' +
         '<span class="s-price">' + def.price + '</span>' +
@@ -316,9 +319,20 @@ const Camp = {
       return 8;
     };
     const order = { sword: 1, axe: 2, lance: 3, bow: 4, tome: 5, talisman: 6, dagger: 7, staff: 8 };
+    const rosterIds = (Game.campaign.roster || []).map(r => r.id);
     return Object.keys(WEAPONS)
       .map(key => ({ key, def: WEAPONS[key] }))
-      .filter(s => s.def.price > 0 && !s.def.unique && s.def.type !== 'beast' && gate(s.def.rank) <= chapter)
+      .filter(s => {
+        if (!(s.def.price > 0) || s.def.unique || s.def.type === 'beast') return false;
+        /* 传送武器等特殊上架：shopGate 可指定章节门槛与前置角色（说得墨鸦后售追影刃） */
+        const g = s.def.shopGate;
+        if (g) {
+          if (chapter < (g.chapter || 1)) return false;
+          if (g.char && !rosterIds.includes(g.char)) return false;
+          return true;
+        }
+        return gate(s.def.rank) <= chapter;
+      })
       .sort((a, b) => (order[a.def.type] || 9) - (order[b.def.type] || 9) || (a.def.mt || 0) - (b.def.mt || 0));
   },
 

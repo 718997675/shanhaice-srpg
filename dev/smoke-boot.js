@@ -201,11 +201,12 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     /* 从干净状态起验证三条分支（本块自洽，不受前文测试副作用影响） */
     camp.legendary = {};
     camp.legendaryPity = {};
-    /* 命运注定的 miss：3% 未中，缘值 +1 */
-    const origRandom = Math.random;
-    Math.random = () => 0.99;
+    /* 命运注定的 miss：3% 未中，缘值 +1。
+     * 注意：Math.random 必须在 vm 内部打补丁——vm 语境有自己的 Math 内置对象，
+     * 在Node 外层改 Math.random 对 vm 里的代码无效（曾因此偶发 flaky）。 */
+    vm.runInContext('globalThis.__origRandom = Math.random; Math.random = () => 0.99;', ctx);
     await Battle.handleDeath(boss, null);
-    Math.random = origRandom;
+    vm.runInContext('Math.random = globalThis.__origRandom;', ctx);
     const missPity = camp.legendaryPity['bamboo'];
     console.log('竹妖讨伐未掉（缘 +1 =', missPity, '）；持有数 =', Legendary.ownedCount(camp));
     if (missPity !== 1 || Legendary.isOwned(camp, 'lw_wanbi')) {
@@ -296,6 +297,76 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (legendRow.indexOf('data-act="strengthen"') >= 0) throw new Error('传说兵装不应有强化钮');
     camp.convoy = [];
     Camp.shopTab = 'weapon';
+  }
+
+  /* 传送武器：渡厄杖（唤回友军）+ 追影刃（命中换位）+ 商店按章/角色闸门 */
+  {
+    const CB = vm.runInContext('Combat', ctx);
+    const Camp2 = vm.runInContext('Camp', ctx);
+    /* 商店闸门：渡厄杖 ch3 上架；追影刃 ch4 且墨鸦入队 */
+    camp.chapter = 1;
+    const stock1 = Camp2.weaponStock().map(s => s.key);
+    if (stock1.includes('staff_duo') || stock1.includes('dagger_zhuiying')) throw new Error('第 1 章不应上架传送武器');
+    camp.chapter = 3;
+    const stock3 = Camp2.weaponStock().map(s => s.key);
+    if (!stock3.includes('staff_duo')) throw new Error('第 3 章应上架渡厄杖');
+    if (stock3.includes('dagger_zhuiying')) throw new Error('墨鸦未入队不应上架追影刃');
+    camp.roster.push(Game.makeRec('moya'));
+    camp.chapter = 4;
+    const stock4 = Camp2.weaponStock().map(s => s.key);
+    if (!stock4.includes('dagger_zhuiying')) throw new Error('墨鸦入队第 4 章应上架追影刃');
+    console.log('商店闸门：渡厄杖 ch3 / 追影刃 ch4+墨鸦，均按章解锁');
+    camp.chapter = 1;
+    camp.roster = camp.roster.filter(r => r.id !== 'moya');
+
+    /* 渡厄杖流程：目标列表 → 唤到施法者邻位 → 扣耐久 → 消耗行动 */
+    const heroes = B.units.filter(x => x.side === 'player' && x.hp > 0 && x.charId);
+    const caster = heroes[0], mate = heroes[1];
+    caster.items = [{ key: 'staff_duo', uses: 5 }];
+    caster.weaponIndex = 0;
+    caster.ranks.staff = 'A';
+    caster.x = 2; caster.y = 2; caster.acted = false;
+    mate.x = 2; mate.y = 4; mate.acted = false;
+    B.selectedUnit = caster;
+    const wt = Battle.warpTargets(caster);
+    console.log('渡厄目标：', wt.map(t => t.name).join('/'), '（共 ' + wt.length + '）');
+    if (wt.length !== 1 || wt[0].id !== mate.id) throw new Error('渡厄目标列表异常');
+    const origExp = Battle.grantStaffExp;
+    Battle.grantStaffExp = async () => {};   // 防升级弹窗挂起冒烟
+    await Battle.chooseWarpTarget(mate);
+    Battle.grantStaffExp = origExp;
+    console.log('唤回后：' + mate.name + ' (' + mate.x + ',' + mate.y + ')，施法者 (' + caster.x + ',' + caster.y + ')');
+    if (CB.distance(mate.x, mate.y, caster.x, caster.y) !== 1) throw new Error('友军未被唤到施法者邻位');
+    if (caster.items[0].uses !== 4) throw new Error('渡厄杖耐久未扣');
+    if (!caster.acted) throw new Error('渡厄未消耗行动');
+
+    /* 追影刃换位：stub Combat.resolve 做确定性三分支 */
+    const origResolve = CB.resolve;
+    const mkStrike = (aId, dId, hit) => [{ type: 'strike', attacker: aId, defender: dId,
+      attackerName: '甲', defenderName: '乙', hit: hit === undefined ? true : !!hit, crit: false, dmg: 3, hpAfter: 17 }];
+    const runSwap = async (events, bossFlag) => {
+      const a = { id: 9001, name: '甲', side: 'player', charId: 'testA', hp: 20, x: 3, y: 3,
+        stats: { hp: 20, str: 10, mag: 0, skl: 10, spd: 10, lck: 5, def: 5, res: 5 },
+        items: [{ key: 'dagger_zhuiying', uses: 20 }], weaponIndex: 0, ranks: { dagger: 'A' },
+        statuses: {}, tags: ['human'] };
+      const d = { id: 9002, name: '乙', side: 'enemy', charId: 'testB', hp: 20, x: 4, y: 3, boss: !!bossFlag,
+        stats: { hp: 20, str: 8, mag: 0, skl: 8, spd: 8, lck: 5, def: 5, res: 5 },
+        items: [], ranks: {}, statuses: {}, tags: ['human'] };
+      B.units.push(a, d);
+      CB.resolve = () => events(a.id, d.id);
+      await Battle.performCombat(a, d, false);
+      B.units = B.units.filter(u => u.id !== 9001 && u.id !== 9002);
+      return { ax: a.x, ay: a.y, dx: d.x, dy: d.y };
+    };
+    let r = await runSwap(mkStrike, false);
+    console.log('追影刃命中换位：甲 (' + r.ax + ',' + r.ay + ')  乙 (' + r.dx + ',' + r.dy + ')');
+    if (r.ax !== 4 || r.ay !== 3 || r.dx !== 3 || r.dy !== 3) throw new Error('追影刃命中未换位');
+    r = await runSwap((aId, dId) => mkStrike(aId, dId, false), false);
+    if (r.ax !== 3 || r.dx !== 4) throw new Error('未命中不应换位');
+    r = await runSwap(mkStrike, true);
+    if (r.ax !== 3 || r.dx !== 4) throw new Error('对 Boss 不应换位');
+    CB.resolve = origResolve;
+    console.log('追影刃三分支：命中换位 / 未中不动 / Boss 不动，均正确');
   }
 
   console.log('\n冒烟通过：无引用错误');

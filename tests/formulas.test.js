@@ -1231,6 +1231,47 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('优选强化后的同款', Combat.weaponOf(two).idx, 1);
   }
 
+  /* ---------------- 19. 传送武器：渡厄杖 + 追影刃 ---------------- */
+  {
+    const { WEAPONS: W2 } = vm.runInContext('({ WEAPONS })', ctx);
+    /* 19.1 数据 */
+    const duo = W2['staff_duo'], zhui = W2['dagger_zhuiying'];
+    ok('渡厄杖存在', !!duo);
+    ok('渡厄杖是传送杖', !!duo && duo.warp === true && duo.type === 'staff');
+    eq('渡厄杖射程 1-3', duo && duo.rng[1], 3);
+    ok('渡厄杖有售价', !!duo && duo.price > 0);
+    eq('渡厄杖第 3 章上架', duo && duo.shopGate && duo.shopGate.chapter, 3);
+    ok('追影刃存在', !!zhui);
+    ok('追影刃命中换位', !!zhui && zhui.swapOnHit === true && zhui.type === 'dagger');
+    eq('追影刃射程 1-1', zhui && zhui.rng[1], 1);
+    eq('追影刃第 4 章 + 墨鸦入队后上架', zhui && zhui.shopGate && zhui.shopGate.char, 'moya');
+    eq('追影刃上架章节 = 4', zhui && zhui.shopGate && zhui.shopGate.chapter, 4);
+    /* 19.2 传送落点纯函数 */
+    const never = () => false;
+    const blocker = set => (x, y) => set.has(x + ',' + y);
+    eq('全空时落在离友军最近的邻位', JSON.stringify(Combat.warpDestination({ x: 5, y: 5 }, { x: 5, y: 7 }, never)), JSON.stringify({ x: 5, y: 6 }));
+    eq('最近位被占 → 取次近（右先于左）', JSON.stringify(Combat.warpDestination({ x: 5, y: 5 }, { x: 5, y: 7 }, blocker(new Set(['5,6'])))), JSON.stringify({ x: 6, y: 5 }));
+    eq('全被占 → null', Combat.warpDestination({ x: 5, y: 5 }, { x: 5, y: 7 }, blocker(new Set(['6,5', '4,5', '5,6', '5,4']))), null);
+    eq('四邻等距 → 按 右/左/下/上 定序', JSON.stringify(Combat.warpDestination({ x: 5, y: 5 }, { x: 5, y: 5 }, never)), JSON.stringify({ x: 6, y: 5 }));
+    /* 19.3 换位判定纯函数 */
+    const mkEv = (a, d, hit) => ({ type: 'strike', attacker: a, defender: d, hit: !!hit });
+    ok('攻击方命中过 → 换位', Combat.swapOnHitLanded([mkEv(1, 2, true)], 1, 2));
+    ok('攻击方未中 → 不换位', !Combat.swapOnHitLanded([mkEv(1, 2, false)], 1, 2));
+    ok('仅对方命中我 → 不换位', !Combat.swapOnHitLanded([mkEv(2, 1, true)], 1, 2));
+    ok('空事件 → 不换位', !Combat.swapOnHitLanded([], 1, 2));
+    /* 19.4 装备语义：渡厄杖走 staffOf（无攻击），追影刃走 weaponOf */
+    const cleric = give(mkUnit(), 'staff_duo');
+    ok('渡厄杖被 staffOf 识别', !!Combat.staffOf(cleric) && Combat.staffOf(cleric).w.warp === true);
+    eq('渡厄杖不进武器优选', Combat.weaponOf(cleric), null);
+    const rogue = give(mkUnit(), 'dagger_zhuiying');
+    ok('追影刃被 weaponOf 识别', !!Combat.weaponOf(rogue) && Combat.weaponOf(rogue).w.swapOnHit === true);
+    eq('追影刃不进 staffOf', Combat.staffOf(rogue), null);
+    eq('追影刃命中 88', Combat.hitChance(rogue, mkUnit({ side: 'enemy', x: 1, y: 0 }), FLAT), 85);
+    /* 19.5 商店闸门数据（weaponStock 在 camp.js，此处锁数据侧前提） */
+    ok('渡厄杖闸门仅章节', duo.shopGate.char === undefined);
+    ok('追影刃闸门含角色', typeof zhui.shopGate.char === 'string');
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

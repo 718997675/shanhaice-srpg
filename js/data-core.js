@@ -105,6 +105,10 @@ const WEAPONS = {
 
   heal_staff: { key: 'heal_staff', name: '治疗杖', type: 'staff', rank: 'D', mt: 0, hit: 100, crit: 0, wt: 3, rng: [1, 1], uses: 20, price: 600, desc: '引草木生气，愈合轻伤。', heal: 10, magic: true },
   greater_heal_staff: { key: 'greater_heal_staff', name: '灵愈杖', type: 'staff', rank: 'C', mt: 0, hit: 100, crit: 0, wt: 5, rng: [1, 1], uses: 15, price: 1200, desc: '以灵脉之水洗伤，续命于须臾。', heal: 20, magic: true },
+  /* 传送武器：渡厄杖（把友军唤回身侧，一次性行动，不可对敌方使用）；
+   * 追影刃（命中后与目标交换位置，对 Boss 无效）。耐久 + 商店限量限强。 */
+  staff_duo: { key: 'staff_duo', name: '渡厄杖', type: 'staff', rank: 'C', mt: 0, hit: 100, crit: 0, wt: 5, rng: [1, 3], uses: 15, price: 900, desc: '引渡厄之脉，把命悬一线的友军唤回身侧。', warp: true, magic: true, shopGate: { chapter: 3 } },
+  dagger_zhuiying: { key: 'dagger_zhuiying', name: '追影刃', type: 'dagger', rank: 'B', mt: 7, hit: 88, crit: 15, wt: 4, rng: [1, 1], uses: 25, price: 1400, desc: '出手无影，命中之际已与敌易位。', swapOnHit: true, shopGate: { chapter: 4, char: 'moya' } },
 
   beast_claw: { key: 'beast_claw', name: '山灵爪', type: 'beast', rank: 'S', mt: 7, hit: 85, crit: 0, wt: 4, rng: [1, 1], uses: 99, price: 0, desc: '阿蛮与山灵共生的爪印。' },
   wolf_claw: { key: 'wolf_claw', name: '山灵牙', type: 'beast', rank: 'S', mt: 6, hit: 90, crit: 5, wt: 3, rng: [1, 1], uses: 99, price: 0, desc: '召唤而来的山灵，牙爪带风。' },
