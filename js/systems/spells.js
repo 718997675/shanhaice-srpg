@@ -52,12 +52,13 @@ const Spells = {
 
   canUse(unit, key) { return this.usesLeft(unit, key) > 0; },
 
-  /* aoe：以目标格为圆心、曼哈顿半径内的敌方存活单位（不含逃脱者） */
+  /* aoe：以目标格为圆心、曼哈顿半径内的单位（ally 歌取友军，其余取敌军；不含逃脱者） */
   aoeTargets(B, center, spell, casterSide) {
     if (!spell || !spell.aoe) return [];
     const r = spell.aoe.radius || 1;
     return B.units.filter(u =>
-      u.hp > 0 && !u.escaped && u.side !== casterSide &&
+      u.hp > 0 && !u.escaped &&
+      (spell.ally ? u.side === casterSide : u.side !== casterSide) &&
       Combat.distance(u.x, u.y, center.x, center.y) <= r);
   },
 
@@ -70,7 +71,9 @@ const Spells = {
     return { dist, inRange, f, aoe, spell };
   },
 
-  /* 效果落地：root 定身 / debuffDef 破甲 / debuffAvoid 迷眼，turns 持续回合 */
+  /* 效果落地：root 定身 / debuffDef 破甲 / debuffAvoid 迷眼 /
+   * debuffAtk 力量下降 / debuffHit 命中下降 / buffHit 命中提升，turns 持续回合。
+   * atk/hit 状态的 val 表示扣减值（增益存负值，modsFor 做减法）。 */
   applyEffect(unit, effect, phaseIndex) {
     if (!unit || !effect) return;
     if (!unit.statuses) unit.statuses = {};
@@ -79,6 +82,9 @@ const Spells = {
     if (effect.root) unit.statuses.root = { until };
     if (effect.debuffDef) unit.statuses.def = { val: effect.debuffDef, until };
     if (effect.debuffAvoid) unit.statuses.avoid = { val: effect.debuffAvoid, until };
+    if (effect.debuffAtk) unit.statuses.atk = { val: effect.debuffAtk, until };
+    if (effect.debuffHit) unit.statuses.hit = { val: effect.debuffHit, until };
+    if (effect.buffHit) unit.statuses.hit = { val: -effect.buffHit, until };
   },
 
   effectText(effect) {
@@ -87,12 +93,22 @@ const Spells = {
     if (effect.root) parts.push('定身');
     if (effect.debuffDef) parts.push('护甲 -' + effect.debuffDef);
     if (effect.debuffAvoid) parts.push('回避 -' + effect.debuffAvoid);
+    if (effect.debuffAtk) parts.push('力量 -' + effect.debuffAtk);
+    if (effect.debuffHit) parts.push('命中 -' + effect.debuffHit);
+    if (effect.buffHit) parts.push('命中 +' + effect.buffHit);
     return parts.join('·');
   },
 
-  /* 施法编排：扣次数 → 逐目标结算（主目标 + aoe）→ 伤害/效果/死亡。
+  /* 歌的增强等级（潮音娘子 songPower：效果数值 +N、治疗量 +2N） */
+  songPowerOf(caster) {
+    const cls = caster && CLASSES[caster.cls];
+    return (cls && cls.skill && cls.skill.songPower) || 0;
+  },
+
+  /* 施法编排：扣次数 → 逐目标结算（主目标 + aoe）→ 伤害/治疗/效果/死亡。
    * host 需提供：B, ctx（combatCtx）, log, float, sfx, wait, kill, exp。
-   * 命中 2RN、暴击 ×3，与 Combat.resolve 保持一致。 */
+   * 命中 2RN、暴击 ×3，与 Combat.resolve 保持一致。
+   * song 法术不造成伤害；ally 法术以友军为目标；heal 法术必中并回复。 */
   async cast(host, caster, target, spell) {
     const B = host.B;
     const rng = (host.ctx && host.ctx.rng) || RNG;
@@ -103,8 +119,37 @@ const Spells = {
     host.float(spell.name, caster.x, caster.y, el ? el.color : '#dfe6d7', 15);
     const targets = [target].concat(this.aoeTargets(B, target, spell, caster.side).filter(u => u !== target));
     let total = 0;
+    /* 歌增强（潮音娘子）：效果数值 +N，治疗量 +2N */
+    const power = this.songPowerOf(caster);
+    const boost = eff => {
+      if (!power || !eff) return eff;
+      const out = JSON.parse(JSON.stringify(eff));
+      for (const k of ['debuffAtk', 'debuffHit', 'buffHit', 'debuffDef', 'debuffAvoid']) {
+        if (out[k]) out[k] += power;
+      }
+      return out;
+    };
     for (const t of targets) {
       if (t.hp <= 0 || t.escaped) continue;
+      /* —— 治疗歌：必中，回血 + 效果 —— */
+      if (spell.heal) {
+        const heal = spell.heal + 2 * power;
+        const before = t.hp;
+        t.hp = Math.min(t.stats.hp, t.hp + heal);
+        const gained = t.hp - before;
+        await host.wait(150);
+        host.float('+' + gained, t.x, t.y, '#9fd39a', 15);
+        host.sfx('heal');
+        host.log(spell.name + '拂过' + t.name + '，回复 ' + gained + ' 生命。', caster.side === 'player' ? 'good' : 'bad');
+        if (spell.effect) {
+          const eff = boost(spell.effect);
+          this.applyEffect(t, eff, B.phaseIndex);
+          const et = this.effectText(eff);
+          if (et) host.log(t.name + '获得' + et + '。', 'gold');
+        }
+        continue;
+      }
+      /* —— 伤害/减益歌：距离检定 + 命中 2RN + 暴击 ×3 —— */
       const f = Combat.spellAttack(caster, t, spell, host.ctx);
       const hit = rng.hitRoll() < f.hit;
       await host.wait(150);
@@ -115,21 +160,28 @@ const Spells = {
         continue;
       }
       const crit = (rng.next() * 100) < f.crit;
-      const dmg = f.dmg * (crit ? 3 : 1);
-      t.hp = Math.max(0, t.hp - dmg);
-      total += dmg;
-      host.float((crit ? '必杀 ' : '') + '-' + dmg, t.x, t.y, crit ? '#f1cd7a' : '#b8cfe0', crit ? 19 : 15);
-      host.sfx(crit ? 'crit' : 'hit');
+      const dmg = spell.song ? 0 : f.dmg * (crit ? 3 : 1);
+      if (dmg > 0) {
+        t.hp = Math.max(0, t.hp - dmg);
+        total += dmg;
+        host.float((crit ? '必杀 ' : '') + '-' + dmg, t.x, t.y, crit ? '#f1cd7a' : '#b8cfe0', crit ? 19 : 15);
+        host.sfx(crit ? 'crit' : 'hit');
+        host.log(spell.name + '命中' + t.name + '，造成 ' + dmg + ' 伤害。', caster.side === 'player' ? 'good' : 'bad');
+      } else {
+        host.float(spell.name, t.x, t.y, '#cbb7e0', 15);
+        host.sfx('hit');
+        host.log(spell.name + '笼罩' + t.name + '。', caster.side === 'player' ? 'good' : 'bad');
+      }
       if (f.element.text) host.log(f.element.text + '，伤害加深。', 'gold');
-      host.log(spell.name + '命中' + t.name + '，造成 ' + dmg + ' 伤害。', caster.side === 'player' ? 'good' : 'bad');
       if (spell.effect) {
-        this.applyEffect(t, spell.effect, B.phaseIndex);
-        const et = this.effectText(spell.effect);
+        const eff = boost(spell.effect);
+        this.applyEffect(t, eff, B.phaseIndex);
+        const et = this.effectText(eff);
         if (et) host.log(t.name + '陷入' + et + '。', 'gold');
       }
       if (t.hp <= 0) await host.kill(t, caster);
     }
-    if (caster.side === 'player' && B.stats) B.stats.damage += total;
+    if (caster.side === 'player' && B.stats && total > 0) B.stats.damage += total;
     if (caster.side === 'player') host.exp(caster, 10);
     return total;
   }

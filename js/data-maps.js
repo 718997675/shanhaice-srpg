@@ -3,6 +3,9 @@
  * 地图宽 16、高 8。字符含义见 data-core.js 的 TERRAIN。
  * ============================================================ */
 
+/* 章末自动入队（保险网）：地图招募点之外的补充，键为章 id */
+const AUTO_JOINS = { 1: ['qingluo'], 2: ['bailu'], 3: ['xuanyi'], 5: ['chisang', 'jiangsi'], 6: ['aman', 'yusqiu'], 7: ['yunling'] };
+
 const CHAPTERS = [
   {
     id: 1, name: '青岚山门', theme: 'mountain',

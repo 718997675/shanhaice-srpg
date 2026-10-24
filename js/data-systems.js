@@ -156,6 +156,31 @@ const SPELLS = {
     learnBy: [{ char: 'xuanyi', level: 16 }],
     holders: ['turbidgeneral'],
     desc: '群山之重加于敌身，连呼吸都费力。'
+  },
+
+  /* —— 谣（歌者 · 虞素秋）——
+   * song: 纯效果法术，不造成伤害；ally: 以友军为目标；
+   * heal: 治疗量。歌不吃五行、不进武器三角。 */
+  song_ansoul: {
+    key: 'song_ansoul', name: '安魂曲', element: 'none', rank: 'C',
+    mt: 0, hit: 90, crit: 0, rng: [1, 2], uses: 5, wt: 3, song: true,
+    effect: { debuffAtk: 2, turns: 1 },
+    learnBy: [{ char: 'yusqiu', level: 1 }],
+    desc: '低吟入耳，敌兵的手就再也抬不起来。'
+  },
+  song_pozhen: {
+    key: 'song_pozhen', name: '破阵歌', element: 'none', rank: 'C',
+    mt: 0, hit: 85, crit: 0, rng: [1, 2], uses: 5, wt: 3, song: true,
+    effect: { debuffHit: 10, turns: 1 },
+    learnBy: [{ char: 'yusqiu', level: 1 }],
+    desc: '一曲破阵，敌军眼里只剩虚影。'
+  },
+  song_suguang: {
+    key: 'song_suguang', name: '溯光歌', element: 'none', rank: 'C',
+    mt: 0, hit: 100, crit: 0, rng: [1, 2], uses: 4, wt: 3, song: true, ally: true, heal: 8,
+    effect: { buffHit: 5, turns: 1 },
+    learnBy: [{ char: 'yusqiu', level: 1 }],
+    desc: '逆流而上的光，落在伤口上，也落进眼睛里。'
   }
 };
 

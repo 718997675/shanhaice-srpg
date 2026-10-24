@@ -38,6 +38,10 @@ const Summon = {
     for (const k of ['hp', 'str', 'mag', 'skl', 'spd', 'lck', 'def', 'res']) {
       stats[k] = Math.max(1, Math.round((info.base[k] || 0) + (info.growth[k] || 0) * (level - 1)));
     }
+    // 职业加持（通灵师灵犀：所召灵兽生命/伤害加成）
+    const cls = caster && CLASSES[caster.cls];
+    const buff = (cls && cls.skill && cls.skill.summonBuff) || null;
+    if (buff && buff.hp) { stats.hp += buff.hp; }
     const et = ENEMY_TYPES[info.unitType];
     return {
       id: 'u' + uid, charId: null, name: (et && et.name) || info.name, side: 'player', cls: null,
@@ -48,7 +52,7 @@ const Summon = {
       escaped: false, recruitable: false, summoned: true, boss: false,
       rawType: info.unitType,
       element: et ? et.element : undefined,
-      summon: { tier: info.tier, order: SUMMON_ORDER_DEFAULT, caster: caster.id }
+      summon: { tier: info.tier, order: SUMMON_ORDER_DEFAULT, caster: caster.id, buff: buff || null }
     };
   },
 
@@ -81,6 +85,10 @@ const Summon = {
     if (e.dmg) m.dmg += e.dmg;
     if (e.def) m.def += e.def;
     if (e.avoid) m.avoid += e.avoid;
+    // 职业加持（通灵师灵犀）
+    const b = unit.summon && unit.summon.buff;
+    if (b && b.dmg) m.dmg += b.dmg;
+    if (b && b.def) m.def += b.def;
   },
 
   /* 随行：护卫召唤者周围友军；返回真正受击者（无则 null） */

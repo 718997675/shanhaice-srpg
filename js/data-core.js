@@ -21,7 +21,8 @@ const WEAPON_TYPES = {
   talisman: { name: '符', icon: '符' },
   dagger: { name: '匕', icon: '匕' },
   staff: { name: '杖', icon: '杖' },
-  beast: { name: '爪', icon: '爪' }
+  beast: { name: '爪', icon: '爪' },
+  voice: { name: '谣', icon: '谣' }
 };
 
 const STAT_NAMES = {
@@ -107,6 +108,11 @@ const WEAPONS = {
 
   beast_claw: { key: 'beast_claw', name: '山灵爪', type: 'beast', rank: 'S', mt: 7, hit: 85, crit: 0, wt: 4, rng: [1, 1], uses: 99, price: 0, desc: '阿蛮与山灵共生的爪印。' },
   wolf_claw: { key: 'wolf_claw', name: '山灵牙', type: 'beast', rank: 'S', mt: 6, hit: 90, crit: 5, wt: 3, rng: [1, 1], uses: 99, price: 0, desc: '召唤而来的山灵，牙爪带风。' },
+
+  /* 谣（音波）：不吃武器三角、无五行属性 */
+  bone_flute: { key: 'bone_flute', name: '兽骨笛', type: 'voice', rank: 'C', mt: 4, hit: 85, crit: 0, wt: 3, rng: [1, 1], uses: 30, price: 480, desc: '巫咸氏传下的骨笛，吹响时百兽侧耳。', unique: 'jiangsi' },
+  tide_voice: { key: 'tide_voice', name: '潮声', type: 'voice', rank: 'C', mt: 6, hit: 80, crit: 0, wt: 4, rng: [1, 2], uses: 25, price: 900, desc: '鲛人织绦时的低吟，声浪可及两丈。', unique: 'yusqiu' },
+  moon_tide: { key: 'moon_tide', name: '月汐谣', type: 'voice', rank: 'B', mt: 9, hit: 85, crit: 5, wt: 5, rng: [1, 2], uses: 20, price: 1900, desc: '月下潮音成谣，闻者心神动摇。' },
 
   /* 敌军武器（无耐久消耗） */
   bandit_axe: { key: 'bandit_axe', name: '山斧', type: 'axe', rank: 'D', mt: 7, hit: 80, crit: 0, wt: 7, rng: [1, 1], uses: 99, price: 0, desc: '劫道者的粗斧。' },
@@ -245,6 +251,42 @@ const CLASSES = {
     name: '天羽游侠', tier: 2, moveType: 'flying', move: 7, weapons: ['bow', 'lance'], tags: ['flying'],
     skill: { name: '凌风', desc: '移动 +1，回避 +10，对飞行目标命中 +15。', move: 1, avoidFlat: 10, hitVsFlying: 15 },
     desc: '云上是她的归路。'
+  },
+  /* 召唤师线（姜姒）：武器兽骨笛只是触媒，输出靠召唤兽 */
+  summoner: {
+    name: '召唤师', tier: 1, moveType: 'foot', move: 5, weapons: ['voice'],
+    skill: { name: '驭兽', desc: '每章两次，召唤异兽助战。', summon: 1, summonUses: 2 },
+    promote: 'spiritcaller', promotes: ['spiritcaller', 'divinetamer'],
+    promoGain: { hp: 4, mag: 2, skl: 2, spd: 2, def: 2, res: 3 },
+    promoRanks: { voice: 1 }, desc: '骨笛声起，山野回应。'
+  },
+  spiritcaller: {
+    name: '通灵师', tier: 2, moveType: 'foot', move: 5, weapons: ['voice'],
+    skill: { name: '灵犀', desc: '每章两次召唤灵兽；所召灵兽生命 +6、伤害 +2。', summon: 2, summonUses: 2, summonBuff: { hp: 6, dmg: 2 } },
+    desc: '与灵兽共息，笛声即是契约。'
+  },
+  divinetamer: {
+    name: '神御师', tier: 2, moveType: 'foot', move: 6, weapons: ['voice'],
+    skill: { name: '神御', desc: '每章一次召唤神兽；神兽登场时周围敌军命中 -5。', summon: 3, summonUses: 1, summonAuraHit: 5 },
+    desc: '上古神兽的名字，只敢低声念。'
+  },
+  /* 歌者线（虞素秋）：音波远程软控辅助 */
+  songstress: {
+    name: '歌者', tier: 1, moveType: 'foot', move: 5, weapons: ['voice'],
+    skill: { name: '浅吟', desc: '咏唱歌谣时命中 +10。', hit: 10 },
+    promote: 'tidelady', promotes: ['tidelady', 'celestialsage'],
+    promoGain: { hp: 3, mag: 3, skl: 2, spd: 2, def: 1, res: 4 },
+    promoRanks: { voice: 1 }, desc: '歌不是唱给人听的，是唱给潮听的。'
+  },
+  tidelady: {
+    name: '潮音娘子', tier: 2, moveType: 'foot', move: 6, weapons: ['voice'],
+    skill: { name: '踏潮', desc: '歌的效果增强一级；回避 +5。', songPower: 1, avoidFlat: 5 },
+    desc: '立于潮头而歌，浪花替她披上绡纱。'
+  },
+  celestialsage: {
+    name: '天籁巫', tier: 2, moveType: 'foot', move: 5, weapons: ['voice'],
+    skill: { name: '天籁', desc: '歌的射程 +1；灵力 +2。', songRange: 1, mag: 2 },
+    desc: '天籁入耳，三伏天也会落雪。'
   }
 };
 
@@ -332,10 +374,26 @@ const CHARS = {
     ranks: { bow: 'C', lance: 'D' }, personal: { name: '御风', desc: '站在阵眼上时回避 +15。', avoidOnNode: 15 },
     items: [{ key: 'iron_bow', uses: 30 }, { key: 'iron_lance', uses: 30 }, { key: 'potion', uses: 3 }],
     bio: '天柱废墟的羽人游侠，翅羽在月光下是银色的。她答应过一个人，要替他把山外的天看完。'
+  },
+  jiangsi: {
+    id: 'jiangsi', name: '姜姒', cls: 'summoner', level: 9, exp: 0, portrait: 'jiangsi', element: 'earth',
+    stats: { hp: 24, str: 4, mag: 9, skl: 8, spd: 6, lck: 6, def: 5, res: 9 },
+    growth: { hp: 55, str: 25, mag: 50, skl: 45, spd: 35, lck: 40, def: 30, res: 50 },
+    ranks: { voice: 'C' }, personal: { name: '通兽语', desc: '己方每有 1 只召唤兽在场，自身与相邻友军伤害 +2。', dmgPerSummon: 2 },
+    items: [{ key: 'bone_flute', uses: 30 }, { key: 'potion', uses: 3 }],
+    bio: '巫咸氏最后的祭裔，笛声一起，山野百兽都认得她。她说兽比人守信，所以宁愿和兽说话。'
+  },
+  yusqiu: {
+    id: 'yusqiu', name: '虞素秋', cls: 'songstress', level: 8, exp: 0, portrait: 'yusqiu', element: 'none',
+    stats: { hp: 20, str: 2, mag: 10, skl: 9, spd: 8, lck: 7, def: 3, res: 8 },
+    growth: { hp: 45, str: 15, mag: 55, skl: 50, spd: 45, lck: 45, def: 20, res: 50 },
+    ranks: { voice: 'C' }, personal: { name: '鲛绡', desc: '相邻友军回避 +5；歌类法术命中 +5。', adjacentAllyAvoid: 5, hit: 5 },
+    items: [{ key: 'tide_voice', uses: 25 }, { key: 'potion', uses: 3 }],
+    bio: '溯游而上的鲛人歌者，尾鳍在月下是淡水色的。她的歌能安魂，也能让千军静默一瞬。'
   }
 };
 
-const HERO_ORDER = ['yunce', 'yankui', 'luming', 'qingluo', 'bailu', 'xuanyi', 'moya', 'chisang', 'aman', 'yunling'];
+const HERO_ORDER = ['yunce', 'yankui', 'luming', 'qingluo', 'bailu', 'xuanyi', 'moya', 'chisang', 'aman', 'yunling', 'jiangsi', 'yusqiu'];
 const INITIAL_ROSTER = ['yunce', 'yankui', 'luming'];
 
 /* ---------------- 敌人模板 ----------------
@@ -578,6 +636,47 @@ const SUPPORTS = [
         { who: 'bailu', text: '医师，你给那么多人治过伤，自己疼了怎么办？' },
         { who: 'luming', text: '熬一锅药，分给路过的人。闻着药香就不疼了。' },
         { who: 'bailu', text: '那我把马蹄声放慢些。多闻一会儿。' }
+      ]
+    }
+  },
+  {
+    id: 'jiangsi_yunce', a: 'jiangsi', b: 'yunce', name: '笛与剑',
+    dialogues: {
+      C: [
+        { who: 'jiangsi', text: '守脉人，你的剑在哭。它跟着你，很累了。' },
+        { who: 'yunce', text: '剑不会哭。' },
+        { who: 'jiangsi', text: '会。我听得见。今晚我吹笛给它听，你别握那么紧。' }
+      ],
+      B: [
+        { who: 'yunce', text: '姜姒，你召唤的东西……认得路吗？' },
+        { who: 'jiangsi', text: '认得。兽比人认路，也认人。它说你心里有一条河，还没结冰。' },
+        { who: 'yunce', text: '……那是因为还没到冬天。' }
+      ],
+      A: [
+        { who: 'jiangsi', text: '守脉人，如果有一天笛声停了，你会记得我吗？' },
+        { who: 'yunce', text: '笛声不会停。' },
+        { who: 'jiangsi', text: '那你可要听一辈子了。' },
+        { who: 'yunce', text: '好。' }
+      ]
+    }
+  },
+  {
+    id: 'yusqiu_xuanyi', a: 'yusqiu', b: 'xuanyi', name: '潮与冰',
+    dialogues: {
+      C: [
+        { who: 'yusqiu', text: '你的渡口结冰了。这么冷的水，你怎么待了这么多年？' },
+        { who: 'xuanyi', text: '习惯了。' },
+        { who: 'yusqiu', text: '习惯是最冷的咒。我唱一首歌，替你暖一暖？' }
+      ],
+      B: [
+        { who: 'xuanyi', text: '素秋，你的歌……能让死人安息吗？' },
+        { who: 'yusqiu', text: '不能。我只能让活人别哭。你想念的那个名字，叫什么？' },
+        { who: 'xuanyi', text: '……下一个渡河人，我会告诉你。' }
+      ],
+      A: [
+        { who: 'yusqiu', text: '玄漪，如果灵脉通了，冰化了，你的渡口怎么办？' },
+        { who: 'xuanyi', text: '那就造船。' },
+        { who: 'yusqiu', text: '我游了这么远，等的就是这句话。' }
       ]
     }
   }

@@ -412,8 +412,7 @@ const Game = {
       this.campaign.gold += gold;
       this.campaign.seals += seals;
 
-      const autoJoins = { 1: ['qingluo'], 2: ['bailu'], 3: ['xuanyi'], 5: ['chisang'], 6: ['aman'], 7: ['yunling'] };
-      for (const id of autoJoins[ch.id] || []) {
+      for (const id of AUTO_JOINS[ch.id] || []) {
         if (this.campaign.roster.some(r => r.id === id)) continue;
         const rec = this.makeRec(id);
         if (rec) {

@@ -402,6 +402,11 @@ const Battle = {
     if (skills.move) m.move += skills.move;
     if (skills.selfDamageOnNode && this.nodeAt(unit.x, unit.y)) m.dmg += skills.selfDamageOnNode;
     if (skills.selfDamageIfSummon && this.B.units.some(u => u.summoned && u.side === 'player' && u.hp > 0)) m.dmg += skills.selfDamageIfSummon;
+    // 通兽语（姜姒）：己方每有 1 只召唤兽在场，自身伤害 +N
+    if (skills.dmgPerSummon) {
+      const n = this.B.units.filter(u => u.summoned && u.side === unit.side && u.hp > 0 && !u.escaped).length;
+      if (n > 0) m.dmg += n * skills.dmgPerSummon;
+    }
 
     // 召唤指令态修正（猛攻/守御/随行）
     if (unit.summoned && unit.summon) Summon.applyOrderMods(unit, m);
@@ -411,6 +416,10 @@ const Battle = {
       const s = this.skillFieldsOf(ally);
       if (s.adjacentAllyHit) m.hit += s.adjacentAllyHit;
       if (s.adjacentAllyAvoid) m.avoid += s.adjacentAllyAvoid;
+      if (s.dmgPerSummon) {
+        const n = this.B.units.filter(u => u.summoned && u.side === unit.side && u.hp > 0 && !u.escaped).length;
+        if (n > 0) m.dmg += n * s.dmgPerSummon;
+      }
     }
 
     // 敌方寒气光环
@@ -448,6 +457,8 @@ const Battle = {
     if (st.avoid && pi <= st.avoid.until) m.avoid -= st.avoid.val;
     if (st.movePenalty && pi <= st.movePenalty.until) m.move -= st.movePenalty.val;
     if (st.root && pi <= st.root.until) m.move -= 99;
+    if (st.atk && pi <= st.atk.until) m.dmg -= st.atk.val;
+    if (st.hit && pi <= st.hit.until) m.hit -= st.hit.val;
 
     return m;
   },
@@ -1198,13 +1209,14 @@ const Battle = {
       buttons.push({ label: '撤离', sub: '东岸', cls: 'wait', onClick: () => this.doEscape() });
     }
     const summonSkill = this.skillFieldsOf(u).summon;
-    if (summonSkill && !u.summonUsed) {
+    if (summonSkill && !u.summonUsed && this.summonUsesLeft(u) > 0) {
       const spot = this.findFreeAdjacent(u.x, u.y);
       const slots = SUMMON_FIELD_CAP - Summon.fieldCount(B);
       const topTier = Summon.tierInfo(Summon.maxTier(summonSkill));
       const beastName = ENEMY_TYPES[topTier.unitType] ? ENEMY_TYPES[topTier.unitType].name : topTier.name;
       buttons.push({
-        label: '召唤', sub: spot ? (beastName + ' ' + slots + '/' + SUMMON_FIELD_CAP) : '无空地', disabled: !spot || slots <= 0,
+        label: '召唤', sub: spot ? (beastName + ' ' + slots + '/' + SUMMON_FIELD_CAP + ' · 余 ' + this.summonUsesLeft(u)) : '无空地',
+        disabled: !spot || slots <= 0,
         onClick: () => this.doSummon()
       });
     }
@@ -1423,10 +1435,14 @@ const Battle = {
     const B = this.B;
     const u = B.selectedUnit;
     if (!u || !spell) return;
-    const targets = B.units.filter(t => t.side !== u.side && t.hp > 0 && !t.escaped &&
-      Combat.distance(u.x, u.y, t.x, t.y) >= spell.rng[0] &&
-      Combat.distance(u.x, u.y, t.x, t.y) <= spell.rng[1]);
-    if (!targets.length) { UI.toast('射程内没有目标'); return; }
+    const rangeBonus = this.skillFieldsOf(u).songRange || 0;
+    const lo = spell.rng[0] + (spell.ally ? rangeBonus : 0);
+    const hi = spell.rng[1] + (spell.ally ? rangeBonus : 0);
+    const targets = B.units.filter(t => (spell.ally ? t.side === u.side : t.side !== u.side) &&
+      t.hp > 0 && !t.escaped &&
+      Combat.distance(u.x, u.y, t.x, t.y) >= lo &&
+      Combat.distance(u.x, u.y, t.x, t.y) <= hi);
+    if (!targets.length) { UI.toast(spell.ally ? '射程内没有友军' : '射程内没有目标'); return; }
     B.mode = 'spell-select';
     B.pendingSpell = spell;
     B.targetTiles = new Set(targets.map(t => this.key(t.x, t.y)));
@@ -1441,7 +1457,8 @@ const Battle = {
     }
     Audio.sfx('select');
     UI.unitCard(u, B, '选择法术目标');
-    UI.actionBar([{ label: '返回', sub: '行动菜单', cls: 'cancel', onClick: () => this.backToActionMenu() }], '点击红框中的敌人');
+    UI.actionBar([{ label: '返回', sub: '行动菜单', cls: 'cancel', onClick: () => this.backToActionMenu() }],
+      spell.ally ? '点击蓝框中的友军' : '点击红框中的敌人');
     UI.updateBattle(B);
   },
 
@@ -1452,12 +1469,19 @@ const Battle = {
     if (!u || !target || !spell) return;
     const fc = Spells.forecast(this.combatCtx(), u, target, spell, B);
     const aoeNames = fc.aoe.filter(t => t !== target).map(t => t.name);
+    const power = Spells.songPowerOf(u);
+    const effectDesc = spell.effect ? Spells.effectText(spell.effect) : '';
+    const statLine = spell.heal
+      ? '治疗 ' + (spell.heal + 2 * power)
+      : spell.song
+        ? '效果 ' + effectDesc + (power ? '（增强）' : '')
+        : '命中 ' + (fc.f ? fc.f.hit : 0) + ' · 预估伤害 ' + (fc.f ? fc.f.dmg : 0) +
+          (fc.f && fc.f.element.text ? ' · ' + fc.f.element.text : '') +
+          (effectDesc ? ' · ' + effectDesc : '');
     const ok = await UI.modal({
       title: '咏唱《' + spell.name + '》',
       sub: u.name + ' → ' + target.name + '（距离 ' + fc.dist + '）',
-      body: '命中 ' + (fc.f ? fc.f.hit : 0) + ' · 预估伤害 ' + (fc.f ? fc.f.dmg : 0) +
-            (fc.f && fc.f.element.text ? ' · ' + fc.f.element.text : '') +
-            (spell.effect ? ' · ' + Spells.effectText(spell.effect) : '') +
+      body: statLine +
             (aoeNames.length ? ' · 波及：' + aoeNames.join('、') : '') +
             ' · 剩余次数 ' + Spells.usesLeft(u, spell.key),
       buttons: [{ label: '取消', value: false }, { label: '咏唱', value: true, cls: 'primary' }]
@@ -1709,10 +1733,20 @@ const Battle = {
     if (!B.ending) await this.checkDefeat();
   },
 
+  /* 每章召唤剩余次数：单位按职业 skill.summonUses 记（缺省 1 次）。
+   * 单位每章从战役存档重建，计数器自然每章重置；summonUsed 兼容旧语义。 */
+  summonUsesLeft(unit) {
+    if (!unit) return 0;
+    if (unit.summonUsed) return 0;
+    const per = (this.skillFieldsOf(unit).summonUses) || 1;
+    if (unit.summonUsesLeft === undefined) unit.summonUsesLeft = per;
+    return Math.max(0, unit.summonUsesLeft);
+  },
+
   async doSummon() {
     const B = this.B;
     const u = B.selectedUnit;
-    if (!u || u.summonUsed) return;
+    if (!u || u.summonUsed || this.summonUsesLeft(u) <= 0) return;
     if (!Summon.canSpawn(B)) { UI.toast('场上召唤物已达上限（' + SUMMON_FIELD_CAP + ' 只）'); return; }
     const spot = this.findFreeAdjacent(u.x, u.y);
     if (!spot) { UI.toast('周围没有空位'); return; }
@@ -1722,7 +1756,7 @@ const Battle = {
     if (tiers.length > 1) {
       const pick = await UI.modal({
         title: '召唤',
-        sub: '选择阶位 · 场上同时最多 ' + SUMMON_FIELD_CAP + ' 只',
+        sub: '选择阶位 · 场上同时最多 ' + SUMMON_FIELD_CAP + ' 只 · 本章余 ' + this.summonUsesLeft(u) + ' 次',
         list: tiers.map(t => ({
           label: t.name + ' · ' + (ENEMY_TYPES[t.unitType] ? ENEMY_TYPES[t.unitType].name : ''),
           meta: t.desc,
@@ -1740,10 +1774,22 @@ const Battle = {
     pet.x = spot.x; pet.y = spot.y;
     B.units.push(pet);
     B.summoned.push(pet.id);
-    u.summonUsed = true;
-    UI.log(u.name + '召唤了' + info.name + '。', 'gold');
+    u.summonUsesLeft = this.summonUsesLeft(u) - 1;
+    if (u.summonUsesLeft <= 0) u.summonUsed = true;
+    UI.log(u.name + '召唤了' + info.name + '（本章余 ' + this.summonUsesLeft(u) + ' 次）。', 'gold');
     Audio.sfx('node');
     Render.floatText(info.name, spot.x, spot.y, '#b8d6b0', 14);
+    // 神御（神御师）：神兽登场时周围敌军命中 -5（一回合）
+    const aura = this.skillFieldsOf(u).summonAuraHit;
+    if (aura && tier >= 3) {
+      for (const e of B.units) {
+        if (e.side === 'enemy' && e.hp > 0 && !e.escaped && Combat.distance(e.x, e.y, pet.x, pet.y) <= 2) {
+          e.statuses = e.statuses || {};
+          e.statuses.hit = { val: aura, until: B.phaseIndex + 1 };
+          UI.log(e.name + '震慑于神兽之威，命中下降。', 'gold');
+        }
+      }
+    }
     B.busy = false;
     await this.finishUnitAction(u);
   },

@@ -119,12 +119,14 @@ const Camp = {
         '<button class="mini-btn" data-act="take" data-i="' + i + '"' + (full ? ' disabled' : '') + '>携带</button></div>';
     }).join('') || '<div class="item-empty">行囊里没有多余兵装。</div>';
     const canLevel = rec.level >= PROMO_LEVEL;
+    const branches = this.promoteBranches(cls);
     const promoBtn = nextCls
-      ? '<button class="mini-btn gold" data-act="promote" data-id="' + rec.id + '"' + (canLevel && Game.campaign.seals > 0 ? '' : ' disabled') + '>转职 · ' + nextCls.name + '</button>'
+      ? '<button class="mini-btn gold" data-act="promote" data-id="' + rec.id + '"' + (canLevel && Game.campaign.seals > 0 ? '' : ' disabled') + '>转职 · ' + (branches.length > 1 ? branches.map(b => b.name).join(' / ') : nextCls.name) + '</button>'
       : '';
     const promoHint = nextCls
       ? '<div class="promo-hint">' + (canLevel ? '' : '需 Lv.' + PROMO_LEVEL + '。') +
-        '消耗脉印 1 枚（现有 ' + Game.campaign.seals + '）。转职后习得「' + (nextCls.skill ? nextCls.skill.name : '新技') + '」。</div>'
+        '消耗脉印 1 枚（现有 ' + Game.campaign.seals + '）。转职后习得「' +
+        (branches.length > 1 ? branches.map(b => b.name + '（' + (b.skill ? b.skill.name : '新技') + '）').join(' 或 ') : (nextCls.skill ? nextCls.skill.name : '新技')) + '」。</div>'
       : '<div class="promo-hint">此职业已至化境。</div>';
 
     return '<div class="unit-hero">' +
@@ -593,18 +595,38 @@ const Camp = {
     return Game.campaign.roster.find(r => r.id === this.selectedId) || null;
   },
 
+  /* 转职分支：单线用 cls.promote；双线用 cls.promotes（姜姒/虞素秋） */
+  promoteBranches(cls) {
+    if (!cls) return [];
+    if (Array.isArray(cls.promotes) && cls.promotes.length) {
+      return cls.promotes.map(k => CLASSES[k]).filter(Boolean);
+    }
+    return cls.promote && CLASSES[cls.promote] ? [CLASSES[cls.promote]] : [];
+  },
+
   async promote(rec) {
     const c = Game.campaign;
     const cls = CLASSES[rec.cls];
     if (!cls || !cls.promote) return;
-    const next = CLASSES[cls.promote];
-    if (!next) return;
+    const branches = this.promoteBranches(cls);
+    if (!branches.length) return;
+    let next = branches[0];
     if (rec.level < PROMO_LEVEL) { UI.toast('需达到 Lv.' + PROMO_LEVEL); return; }
     if (c.seals <= 0) { UI.toast('没有脉印，可在市集购得'); return; }
+    if (branches.length > 1) {
+      const pick = await UI.modal({
+        title: '转职 · ' + CHARS[rec.id].name,
+        sub: '选择前路 · 消耗 1 枚脉印',
+        list: branches.map(b => ({ label: b.name, meta: (b.skill ? b.skill.name + '：' + b.skill.desc : b.desc), value: b.name })),
+        buttons: [{ label: '再等等', value: null }]
+      });
+      if (pick === null || pick === undefined) return;
+      next = branches.find(b => b.name === pick) || branches[0];
+    }
     const ok = await UI.confirm('转职 · ' + next.name, '消耗 1 枚脉印，' + CHARS[rec.id].name + ' 将转职为「' + next.name + '」。', '转职', '再等等');
     if (!ok) return;
     c.seals--;
-    rec.cls = cls.promote;
+    rec.cls = Object.keys(CLASSES).find(k => CLASSES[k] === next) || cls.promote;
     for (const k of Object.keys(cls.promoGain || {})) {
       rec.stats[k] = Math.min(STAT_CAPS[k] || 99, (rec.stats[k] || 0) + cls.promoGain[k]);
     }

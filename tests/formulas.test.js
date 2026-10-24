@@ -428,21 +428,21 @@ console.log('\n== 13. 五行相克与进阶系统数据表 ==');
 
   // 13.3 SPELLS 完整性
   const { CHARS, ENEMY_TYPES, WEAPON_TYPES } = vm.runInContext('({ CHARS, ENEMY_TYPES, WEAPON_TYPES })', ctx);
-  eq('法术共 15 条', Object.keys(SPELLS).length, 15);
+  eq('法术共 18 条', Object.keys(SPELLS).length, 18);
   const perEl = {};
   for (const k in SPELLS) {
     const s = SPELLS[k];
-    ok('法术 ' + k + ' 元素合法', !!ELEMENTS[s.element], s.element);
+    ok('法术 ' + k + ' 元素合法', s.song ? (s.element === 'none') : !!ELEMENTS[s.element], s.element);
     ok('法术 ' + k + ' 射程合法', Array.isArray(s.rng) && s.rng.length === 2 && s.rng[0] >= 1 && s.rng[0] <= s.rng[1]);
     ok('法术 ' + k + ' 每章次数 > 0', s.uses > 0);
-    ok('法术 ' + k + ' 有威力与命中', s.mt > 0 && s.hit > 0);
+    ok('法术 ' + k + ' 有威力与命中', s.song ? (s.hit > 0) : (s.mt > 0 && s.hit > 0));
     ok('法术 ' + k + ' 有描述', !!s.desc);
     ok('法术 ' + k + ' key 自洽', s.key === k);
     for (const l of (s.learnBy || [])) ok('法术 ' + k + ' 习得角色存在', !!CHARS[l.char], l.char);
     for (const h of (s.holders || [])) ok('法术 ' + k + ' 持法敌军存在', !!ENEMY_TYPES[h], h);
     perEl[s.element] = (perEl[s.element] || 0) + 1;
   }
-  eq('每系各 3 条', Object.keys(perEl).map(e => e + ':' + perEl[e]).sort().join(' '), 'earth:3 fire:3 metal:3 water:3 wood:3');
+  eq('五行系各 3 条 + 歌 3 条', Object.keys(perEl).map(e => e + ':' + perEl[e]).sort().join(' '), 'earth:3 fire:3 metal:3 none:3 water:3 wood:3');
   eq('范围逐目标法术 5 条', Object.values(SPELLS).filter(s => s.aoe).length, 5);
   ok('全部 A 阶法术均为范围逐目标', Object.values(SPELLS).every(s => s.rank !== 'A' || !!s.aoe));
   ok('A 阶法术每系一条', Object.values(SPELLS).filter(s => s.rank === 'A').length === 5);
@@ -725,7 +725,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
 
   // 15. 战役内容接线：入队点完整、对话存在、冰面几何
   {
-    const { CHAPTERS, DIALOGUES, CHARS, TERRAIN } = vm.runInContext('({ CHAPTERS, DIALOGUES, CHARS, TERRAIN })', ctx);
+    const { CHAPTERS, DIALOGUES, CHARS, TERRAIN, AUTO_JOINS } = vm.runInContext('({ CHAPTERS, DIALOGUES, CHARS, TERRAIN, AUTO_JOINS })', ctx);
     const STARTERS = ['yunce', 'yankui', 'luming'];   // game.js newCampaign 初始队
     const obtainable = new Set(STARTERS);
     const recruitSpots = [];
@@ -743,6 +743,16 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
         }
       });
     });
+    // 章末保险网 autoJoins（data-maps.js）：姜姒第 5 章后、虞素秋第 6 章后
+    for (const chId in AUTO_JOINS) {
+      ok('autoJoins 章 ' + chId + ' 存在', !!CHAPTERS[+chId - 1]);
+      for (const id of AUTO_JOINS[chId]) {
+        ok('autoJoins ' + id + ' 是有效角色', !!CHARS[id], id);
+        obtainable.add(id);
+      }
+    }
+    eq('姜姒第 5 章后入队', (AUTO_JOINS[5] || []).includes('jiangsi'), true);
+    eq('虞素秋第 6 章后入队', (AUTO_JOINS[6] || []).includes('yusqiu'), true);
     const missing = Object.keys(CHARS).filter(k => !obtainable.has(k));
     eq('全部角色都有入队路径', missing.join(',') || '无', '无');
     eq('招募点共 7 处（2 村 + 5 图）', recruitSpots.length, 7);
@@ -866,6 +876,185 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     }
     ok('可打造兵装数量 > 10', craftableCount > 10, '实际 ' + craftableCount);
     ok('打造列表不含传说', !Forge.canCraft('lw_yunque'));
+  }
+
+  /* ---------------- 17. 姜姒/虞素秋：召唤师与歌者 ---------------- */
+  {
+    const { CHARS, CLASSES, SUPPORTS, SUPPORT_PAIR_MAP, AUTO_JOINS, WEAPON_TYPES, ITEMS, HERO_ORDER, RANK_ORDER, Spells, Summon } =
+      vm.runInContext('({ CHARS, CLASSES, SUPPORTS, SUPPORT_PAIR_MAP, AUTO_JOINS, WEAPON_TYPES, ITEMS, HERO_ORDER, RANK_ORDER, Spells, Summon })', ctx);
+
+    /* 17.1 人物数据完整性 */
+    eq('人物共 12 名', Object.keys(CHARS).length, 12);
+    for (const id of ['jiangsi', 'yusqiu']) {
+      const c = CHARS[id];
+      ok(id + ' 职业存在', !!CLASSES[c.cls], c.cls);
+      ok(id + ' 五行合法（none 或已定义）', c.element === 'none' || !!ELEMENTS[c.element], c.element);
+      ok(id + ' 八维齐全', Object.keys(c.stats).length === 8 && Object.keys(c.growth).length === 8);
+      ok(id + ' 有个人技', !!c.personal && !!c.personal.name);
+      ok(id + ' 初始装备有效', (c.items || []).every(it => !!WEAPONS[it.key] || !!ITEMS[it.key]), JSON.stringify(c.items));
+      ok(id + ' 装备可持（资质匹配）', (c.items || []).every(it => {
+        const w = WEAPONS[it.key];
+        if (!w) return true;
+        const r = RANK_ORDER[c.ranks[w.type]] || 0;
+        return r >= RANK_ORDER[w.rank];
+      }));
+      ok(id + ' HERO_ORDER 覆盖', HERO_ORDER.indexOf(id) >= 0);
+    }
+    eq('姜姒元素为土', CHARS.jiangsi.element, 'earth');
+    eq('虞素秋无五行（音波不进相克）', CHARS.yusqiu.element, 'none');
+    eq('虞素秋个人技含相邻回避', CHARS.yusqiu.personal.adjacentAllyAvoid, 5);
+    eq('姜姒个人技为通兽语', CHARS.jiangsi.personal.name, '通兽语');
+
+    /* 17.2 职业线与分支 */
+    const sm = CLASSES.summoner, sc2 = CLASSES.spiritcaller, dt = CLASSES.divinetamer;
+    eq('召唤师每章 2 次', sm.skill.summonUses, 2);
+    eq('召唤师可召 1 阶', sm.skill.summon, 1);
+    ok('召唤师双分支', Array.isArray(sm.promotes) && sm.promotes.length === 2);
+    eq('分支一 通灵师', sc2.skill.summon, 2);
+    eq('通灵师每章 2 次', sc2.skill.summonUses, 2);
+    ok('通灵师有灵犀加持', !!sc2.skill.summonBuff && sc2.skill.summonBuff.hp === 6 && sc2.skill.summonBuff.dmg === 2);
+    eq('分支二 神御师', dt.skill.summon, 3);
+    eq('神御师每章 1 次', dt.skill.summonUses, 1);
+    eq('神御光环 -5 命中', dt.skill.summonAuraHit, 5);
+    ok('两个二阶分支均无再转职', !sc2.promote && !dt.promote);
+    const ss = CLASSES.songstress, tl = CLASSES.tidelady, cs = CLASSES.celestialsage;
+    ok('歌者双分支', Array.isArray(ss.promotes) && ss.promotes.length === 2);
+    eq('潮音娘子歌增强', tl.skill.songPower, 1);
+    eq('天籁巫歌射程 +1', cs.skill.songRange, 1);
+    ok('天籁巫灵力 +2', cs.skill.mag === 2);
+    ok('全部新职业武器类型合法', [sm, sc2, dt, ss, tl, cs].every(k => k.weapons.every(w => !!WEAPON_TYPES[w])));
+
+    /* 17.3 谣系武器：有售价、不吃三角 */
+    ok('谣武器类型存在', !!WEAPON_TYPES.voice);
+    ok('谣不进武器三角', !TRIANGLE.voice);
+    for (const k of ['bone_flute', 'tide_voice', 'moon_tide']) {
+      const w = WEAPONS[k];
+      ok('谣武器 ' + k + ' 类型为 voice', w.type === 'voice');
+      ok('谣武器 ' + k + ' 有售价（可购/可打造）', w.price > 0);
+    }
+    ok('兽骨笛为姜姒专属', WEAPONS.bone_flute.unique === 'jiangsi');
+    ok('潮声为虞素秋专属', WEAPONS.tide_voice.unique === 'yusqiu');
+
+    /* 17.4 支援组 */
+    ok('支援对 姜姒×云策 存在', !!SUPPORT_PAIR_MAP['jiangsi_yunce']);
+    ok('支援对 虞素秋×玄漪 存在', !!SUPPORT_PAIR_MAP['yusqiu_xuanyi']);
+    for (const id of ['jiangsi_yunce', 'yusqiu_xuanyi']) {
+      const s = SUPPORT_PAIR_MAP[id];
+      ok('支援 ' + id + ' 三角色对话齐全', !!s.dialogues.C && !!s.dialogues.B && !!s.dialogues.A);
+    }
+
+    /* 17.5 歌：可用性 / 不吃五行 / 效果 / cast 全流程 */
+    const mkCaster = (cls, level) => ({ id: 'c', name: '测试', side: 'player', level: level || 1, charId: 'yusqiu',
+      cls: cls, x: 2, y: 2, hp: 20, spellUses: {}, statuses: {},
+      stats: { hp: 20, mag: 10, skl: 8, spd: 8, lck: 6, def: 3, res: 8 } });
+    const yq = mkCaster('songstress', 1);
+    const songs = Spells.forUnit(yq).map(s => s.key);
+    eq('虞素秋入队即会三首歌', songs.slice().sort().join(','), 'song_ansoul,song_pozhen,song_suguang');
+    eq('云策无歌', Spells.forUnit({ charId: 'yunce', level: 20, side: 'player' }).filter(s => s.song).length, 0);
+    ok('歌不吃五行（倍率 1）', Combat.elementMul('none', 'fire').mul === 1 && Combat.elementMul('fire', 'none').mul === 1);
+    eq('歌增强等级：歌者 0', Spells.songPowerOf(yq), 0);
+    eq('歌增强等级：潮音娘子 1', Spells.songPowerOf(mkCaster('tidelady', 10)), 1);
+
+    const mkHost = (rng) => {
+      const logs = [];
+      return {
+        logs,
+        B: { units: [], stats: { damage: 0 }, phaseIndex: 5 },
+        ctx: { mods: () => Combat.zeroMods(), tileAt: () => ({ avoid: 0, def: 0, cost: 1 }), rng: rng || RNG },
+        log: m => logs.push(m), float: () => {}, sfx: () => {}, wait: () => Promise.resolve(),
+        kill: () => {}, exp: () => {}
+      };
+    };
+    const mkFoe = (hp) => ({ id: 'e', name: '敌', side: 'enemy', x: 3, y: 2, hp: hp === undefined ? 40 : hp,
+      stats: { res: 3, lck: 5, spd: 6, hp: 40 }, statuses: {} });
+
+    // 安魂曲：命中 → 力量 -2，零伤害
+    const h1 = mkHost({ hitRoll: () => 0, next: () => 0.99 });
+    const f1 = mkFoe();
+    h1.B.units = [yq, f1];
+    const dealt1 = await Spells.cast(h1, yq, f1, SPELLS.song_ansoul);
+    eq('安魂曲零伤害', dealt1, 0);
+    eq('安魂曲不掉血', f1.hp, 40);
+    ok('安魂曲附力量 -2', !!f1.statuses.atk && f1.statuses.atk.val === 2, JSON.stringify(f1.statuses));
+    eq('安魂曲扣 1 次', Spells.usesLeft(yq, 'song_ansoul'), 4);
+
+    // 破阵歌：未命中 → 无状态
+    const h2 = mkHost({ hitRoll: () => 99, next: () => 0.99 });
+    const f2 = mkFoe();
+    h2.B.units = [yq, f2];
+    await Spells.cast(h2, yq, f2, SPELLS.song_pozhen);
+    ok('破阵歌未命中无状态', !f2.statuses.hit);
+
+    // 溯光歌：治疗友军必中，不超上限
+    const h3 = mkHost();
+    const ally = { id: 'a', name: '友', side: 'player', x: 3, y: 2, hp: 30, stats: { hp: 40, res: 3, lck: 5, spd: 6 }, statuses: {} };
+    h3.B.units = [yq, ally];
+    await Spells.cast(h3, yq, ally, SPELLS.song_suguang);
+    eq('溯光歌回 8 点', ally.hp, 38);
+    ok('溯光歌附命中 +5', !!ally.statuses.hit && ally.statuses.hit.val === -5, JSON.stringify(ally.statuses));
+    ally.hp = 34;
+    await Spells.cast(h3, yq, ally, SPELLS.song_suguang);
+    eq('溯光歌不超上限（40）', ally.hp, 40);
+    // 潮音娘子增强：治疗 +2、效果 +1
+    const tlC = mkCaster('tidelady', 10);
+    const ally2 = { id: 'a2', name: '友2', side: 'player', x: 3, y: 2, hp: 20, stats: { hp: 40, res: 3, lck: 5, spd: 6 }, statuses: {} };
+    const h4 = mkHost();
+    h4.B.units = [tlC, ally2];
+    await Spells.cast(h4, tlC, ally2, SPELLS.song_suguang);
+    eq('潮音娘子治疗 10', ally2.hp, 30);
+    ok('潮音娘子命中 +6', ally2.statuses.hit.val === -6, JSON.stringify(ally2.statuses));
+
+    // aoe 目标收集：ally 歌只取友军
+    const aoeSpell = { key: 'x', aoe: { radius: 1 }, ally: true };
+    const near = h3.B.units.concat([mkFoe(), { id: 'a3', name: '友3', side: 'player', x: 3, y: 3, hp: 10 }]);
+    const got = Spells.aoeTargets({ units: near }, { x: 3, y: 2 }, aoeSpell, 'player').map(u => u.id);
+    ok('ally aoe 只收友军', got.indexOf('a3') >= 0 && got.indexOf('e') < 0, got.join(','));
+
+    /* 17.6 召唤：每章次数 / 灵犀加持 / 神御数据 */
+    const btl = Object.create(Battle);
+    btl.B = { units: [], nodes: [], supports: {} };
+    const jiangsiU = { id: 'p1', cls: 'summoner', level: 9 };
+    eq('召唤师本章余 2 次', Battle.summonUsesLeft.call(btl, jiangsiU), 2);
+    const amanU = { id: 'p2', cls: 'beastcaller', level: 9 };
+    eq('兽使本章余 1 次', Battle.summonUsesLeft.call(btl, amanU), 1);
+    jiangsiU.summonUsesLeft = 1;
+    eq('消耗一次后余 1', Battle.summonUsesLeft.call(btl, jiangsiU), 1);
+    jiangsiU.summonUsed = true;
+    eq('标记用尽后余 0', Battle.summonUsesLeft.call(btl, jiangsiU), 0);
+    // 通灵师召唤加持
+    const pet = Summon.spawn(btl.B, 99, { id: 'c', level: 9, cls: 'spiritcaller' }, 2);
+    const plain = Summon.spawn(btl.B, 98, { id: 'c', level: 9, cls: 'beastcaller' }, 2);
+    ok('灵犀加持生命 +6', pet.stats.hp === plain.stats.hp + 6, pet.stats.hp + ' vs ' + plain.stats.hp);
+    ok('灵犀记录在 summon.buff', !!pet.summon.buff && pet.summon.buff.dmg === 2);
+    Summon.setOrder(pet, 'guard');   // 先切守御，排除默认猛攻 +3 的干扰
+    const pm = Combat.zeroMods();
+    Summon.applyOrderMods(pet, pm);
+    eq('守御下灵犀伤害 +2', pm.dmg, 2);
+
+    /* 17.7 新状态与通兽语光环进 modsFor */
+    const fake = Object.create(Battle);
+    const jsUnit = mkUnit({ id: 'js', cls: 'summoner', level: 9, x: 1, y: 1, charId: 'jiangsi',
+      personal: { dmgPerSummon: 2 }, stats: { hp: 24, str: 4, mag: 9, skl: 8, spd: 6, lck: 6, def: 5, res: 9 } });
+    const near_ally = mkUnit({ id: 'na', side: 'player', x: 2, y: 1 });
+    const petOn = mkUnit({ id: 'pet', side: 'player', x: 5, y: 5, summoned: true, hp: 10 });
+    fake.B = { units: [jsUnit, near_ally, petOn], nodes: [], supports: {}, phaseIndex: 3 };
+    const mjs = Battle.modsFor.call(fake, jsUnit);
+    eq('通兽语：1 只召唤兽自身伤害 +2', mjs.dmg, 2);
+    const mna = Battle.modsFor.call(fake, near_ally);
+    eq('通兽语：相邻友军同样 +2', mna.dmg, 2);
+    petOn.hp = 0;
+    eq('召唤兽倒下后光环消失', Battle.modsFor.call(fake, jsUnit).dmg, 0);
+    // atk / hit 状态
+    const stU = mkUnit({ x: 1, y: 1 });
+    stU.statuses = { atk: { val: 3, until: 4 }, hit: { val: 10, until: 4 } };
+    fake.B.units = [stU];
+    const mst = Battle.modsFor.call(fake, stU);
+    eq('力量状态 -3 进伤害修正', mst.dmg, -3);
+    eq('命中状态 -10', mst.hit, -10);
+    stU.statuses.atk.until = 2; stU.statuses.hit.until = 2;   // 已过期
+    const mst2 = Battle.modsFor.call(fake, stU);
+    eq('过期力量状态失效', mst2.dmg, 0);
+    eq('过期命中状态失效', mst2.hit, 0);
   }
 
   console.log('\n----------------------------------------');
