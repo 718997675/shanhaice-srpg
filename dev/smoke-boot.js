@@ -54,7 +54,8 @@ sandboxWindow.console = console;
 
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
                'js/audio.js', 'js/render.js', 'js/ui.js', 'js/battle.js',
-               'js/systems/terrain.js', 'js/camp.js', 'js/game.js'];
+               'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
+               'js/camp.js', 'js/game.js'];
 
 (async () => {
   for (const f of FILES) {
@@ -140,6 +141,46 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
       console.log('竖带下滑后单位停在：', '(' + mover.x + ',' + mover.y + ')');
       console.log(mover.x === 2 && mover.y === 7 ? '竖带滑行正确（滑出冰带落上 2,7）' : '!! 竖带滑行异常');
     }
+  }
+
+  /* 法术与召唤系统集成验证 */
+  {
+    const { Spells, Summon, SUMMON_FIELD_CAP } = vm.runInContext('({ Spells, Summon, SUMMON_FIELD_CAP })', ctx);
+    for (const m of ['beginSpellSelect', 'beginSpellTargetSelect', 'chooseSpellTarget', 'bestEnemySpell', 'spellHost', 'doSummon']) {
+      if (typeof Battle[m] !== 'function') throw new Error('Battle 缺少方法 ' + m);
+    }
+    // 敌方法术 AI：竹妖进场，附近有我方单位 → 有法术方案
+    const bamboo = { id: 'boss1', name: '竹妖', side: 'enemy', rawType: 'bamboo', level: 8, ai: 'guard',
+      x: 3, y: 5, hp: 34, move: 4, moveType: 'plant', stats: { hp: 34, str: 2, mag: 11, skl: 8, spd: 6, lck: 4, def: 6, res: 8 },
+      items: [{ key: 'boss_vine', uses: 30 }], weaponIndex: 0, ranks: { tome: 'C' }, tags: ['plant'],
+      spellUses: {}, statuses: {}, escaped: false, hasMoved: false, movedDist: 0, acted: false, boss: true };
+    B.units.push(bamboo);
+    const plan = Battle.bestEnemySpell(bamboo, Battle.reachFor(bamboo));
+    console.log('竹妖法术 AI：', plan ? plan.spell.name + ' → ' + plan.target.name + ' @(' + plan.x + ',' + plan.y + ')' : '无');
+    if (!plan) throw new Error('敌方法术 AI 无解');
+
+    // 召唤三阶 + 场上上限
+    const casterU = B.units.find(x => x.side === 'player' && x.hp > 0);
+    const pet1 = Summon.spawn(B, Battle.uid++, casterU, 2);
+    pet1.x = casterU.x; pet1.y = Math.min(7, casterU.y + 1);
+    B.units.push(pet1);
+    const pet2 = Summon.spawn(B, Battle.uid++, casterU, 3);
+    pet2.x = casterU.x; pet2.y = Math.max(0, casterU.y - 1);
+    B.units.push(pet2);
+    console.log('召唤上场：', pet1.name, '/', pet2.name, '；场上', Summon.fieldCount(B), '/', SUMMON_FIELD_CAP);
+    if (Summon.fieldCount(B) !== 2 || Summon.canSpawn(B)) throw new Error('召唤上限计数异常');
+
+    // 指令态进 modsFor + 随行拦截
+    Summon.setOrder(pet1, 'assault');
+    const ma = Battle.modsFor(pet1, null);
+    console.log('灵兽猛攻修正：dmg +' + ma.dmg + ' / def ' + ma.def);
+    if (ma.dmg !== 3 || ma.def !== -2) throw new Error('召唤指令修正异常');
+    Summon.setOrder(pet1, 'escort');
+    const victim = B.units.find(x => x.side === 'player' && x.hp > 0 && x.id !== pet1.id && x.id !== pet2.id);
+    pet1.x = victim.x; pet1.y = Math.min(7, victim.y + 1);
+    const guard = Summon.interceptTarget(B, bamboo, victim);
+    console.log('随行拦截：', guard ? guard.name + ' 替 ' + victim.name : '无');
+    if (!guard || guard.id !== pet1.id) throw new Error('随行拦截异常');
   }
 
   console.log('\n冒烟通过：无引用错误');

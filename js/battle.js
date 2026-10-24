@@ -403,6 +403,9 @@ const Battle = {
     if (skills.selfDamageOnNode && this.nodeAt(unit.x, unit.y)) m.dmg += skills.selfDamageOnNode;
     if (skills.selfDamageIfSummon && this.B.units.some(u => u.summoned && u.side === 'player' && u.hp > 0)) m.dmg += skills.selfDamageIfSummon;
 
+    // 召唤指令态修正（猛攻/守御/随行）
+    if (unit.summoned && unit.summon) Summon.applyOrderMods(unit, m);
+
     // 邻近友军光环（彼此都受益）
     for (const ally of this.adjacentAllies(unit)) {
       const s = this.skillFieldsOf(ally);
@@ -442,7 +445,9 @@ const Battle = {
     const pi = this.B.phaseIndex;
     if (st.def && pi <= st.def.until) m.def -= st.def.val;
     if (st.res && pi <= st.res.until) m.res -= st.res.val;
+    if (st.avoid && pi <= st.avoid.until) m.avoid -= st.avoid.val;
     if (st.movePenalty && pi <= st.movePenalty.until) m.move -= st.movePenalty.val;
+    if (st.root && pi <= st.root.until) m.move -= 99;
 
     return m;
   },
@@ -804,7 +809,22 @@ const Battle = {
     }
     const range = this.reachFor(unit);
     const best = this.bestEnemyAttack(unit, range);
-    if (best) {
+    const spellPlan = this.bestEnemySpell(unit, range);
+    if (spellPlan && (!best || spellPlan.score >= best.score)) {
+      const path = this.pathBetween(range, unit, spellPlan.x, spellPlan.y);
+      if (path) {
+        const oldX = unit.x, oldY = unit.y;
+        unit.x = spellPlan.x; unit.y = spellPlan.y;
+        unit.hasMoved = spellPlan.x !== oldX || spellPlan.y !== oldY;
+        unit.movedDist = Math.max(0, path.length - 1);
+        this.computeVisibility(false);
+        Audio.sfx('move');
+        await Render.animateMove(unit, path, B.speed);
+        this.computeVisibility(false);
+        UI.updateBattle(B);
+      }
+      await Spells.cast(this.spellHost(), unit, spellPlan.target, spellPlan.spell);
+    } else if (best) {
       const path = this.pathBetween(range, unit, best.x, best.y);
       if (path) {
         const oldX = unit.x, oldY = unit.y;
@@ -1005,6 +1025,15 @@ const Battle = {
         UI.unitCard(u, B, '');
         return;
       }
+      if (B.mode === 'spell-select') {
+        if (u && u.side === 'enemy' && B.targetTiles && B.targetTiles.has(this.key(x, y))) {
+          await this.chooseSpellTarget(u);
+          return;
+        }
+        if (!u) { this.openActionMenu(); return; }
+        UI.unitCard(u, B, '');
+        return;
+      }
       if (B.mode === 'action') {
         if (u) UI.unitCard(u, B, '');
         return;
@@ -1171,9 +1200,19 @@ const Battle = {
     const summonSkill = this.skillFieldsOf(u).summon;
     if (summonSkill && !u.summonUsed) {
       const spot = this.findFreeAdjacent(u.x, u.y);
+      const slots = SUMMON_FIELD_CAP - Summon.fieldCount(B);
+      const topTier = Summon.tierInfo(Summon.maxTier(summonSkill));
+      const beastName = ENEMY_TYPES[topTier.unitType] ? ENEMY_TYPES[topTier.unitType].name : topTier.name;
       buttons.push({
-        label: '召唤', sub: spot ? '山灵狼' : '无空地', disabled: !spot,
+        label: '召唤', sub: spot ? (beastName + ' ' + slots + '/' + SUMMON_FIELD_CAP) : '无空地', disabled: !spot || slots <= 0,
         onClick: () => this.doSummon()
+      });
+    }
+    const usableSpells = Spells.forUnit(u).filter(sp => Spells.canUse(u, sp.key));
+    if (usableSpells.length) {
+      buttons.push({
+        label: '法术', sub: usableSpells.length + ' 种', cls: 'attack',
+        onClick: () => this.beginSpellSelect()
       });
     }
     buttons.push({ label: '待机', sub: '结束行动', cls: 'wait', onClick: () => this.finishUnitAction(u) });
@@ -1336,6 +1375,147 @@ const Battle = {
       this.B.stats.levels += levels.length;
       await UI.levelUp(unit, levels);
     }
+  },
+
+  /* ============================================================
+   * 五行法术（systems/spells.js 编排）
+   * ============================================================ */
+  spellHost() {
+    return {
+      B: this.B,
+      ctx: this.combatCtx(),
+      log: (m, c) => UI.log(m, c),
+      float: (t, x, y, c, s) => Render.floatText(t, x, y, c, s),
+      sfx: (n) => Audio.sfx(n),
+      wait: (ms) => this.wait(ms),
+      kill: (unit, killer) => this.handleDeath(unit, killer),
+      exp: (unit, amount) => {
+        const lv = Combat.levelUp(unit, amount);
+        if (lv && lv.length) { this.B.stats.levels += lv.length; return UI.levelUp(unit, lv); }
+      }
+    };
+  },
+
+  beginSpellSelect() {
+    const B = this.B;
+    const u = B.selectedUnit;
+    if (!u) return;
+    const spells = Spells.forUnit(u).filter(sp => Spells.canUse(u, sp.key));
+    if (!spells.length) { UI.toast('没有可用的法术'); return; }
+    UI.modal({
+      title: '五行法术',
+      sub: u.name + ' · 次数每章重置',
+      list: spells.map(sp => ({
+        label: sp.name + '（' + (ELEMENTS[sp.element] ? ELEMENTS[sp.element].name : '') + '·' + sp.rank + '阶）',
+        meta: '剩 ' + Spells.usesLeft(u, sp.key) + ' 次 · 射程 ' + sp.rng[0] + '-' + sp.rng[1] +
+              (sp.aoe ? ' · 范围半径 ' + sp.aoe.radius : '') +
+              (sp.effect ? ' · ' + Spells.effectText(sp.effect) : ''),
+        value: sp.key
+      })),
+      buttons: [{ label: '返回', value: null }]
+    }).then(key => {
+      if (!key || !this.active || !this.B) return;
+      this.beginSpellTargetSelect(SPELLS[key]);
+    });
+  },
+
+  beginSpellTargetSelect(spell) {
+    const B = this.B;
+    const u = B.selectedUnit;
+    if (!u || !spell) return;
+    const targets = B.units.filter(t => t.side !== u.side && t.hp > 0 && !t.escaped &&
+      Combat.distance(u.x, u.y, t.x, t.y) >= spell.rng[0] &&
+      Combat.distance(u.x, u.y, t.x, t.y) <= spell.rng[1]);
+    if (!targets.length) { UI.toast('射程内没有目标'); return; }
+    B.mode = 'spell-select';
+    B.pendingSpell = spell;
+    B.targetTiles = new Set(targets.map(t => this.key(t.x, t.y)));
+    B.attackRange = new Set();
+    for (const t of targets) {
+      B.attackRange.add(this.key(t.x, t.y));
+      if (spell.aoe) {
+        for (const p of Combat.tilesInRange(t.x, t.y, 0, spell.aoe.radius, 16, 8)) {
+          B.attackRange.add(this.key(p.x, p.y));
+        }
+      }
+    }
+    Audio.sfx('select');
+    UI.unitCard(u, B, '选择法术目标');
+    UI.actionBar([{ label: '返回', sub: '行动菜单', cls: 'cancel', onClick: () => this.backToActionMenu() }], '点击红框中的敌人');
+    UI.updateBattle(B);
+  },
+
+  async chooseSpellTarget(target) {
+    const B = this.B;
+    const u = B.selectedUnit;
+    const spell = B.pendingSpell;
+    if (!u || !target || !spell) return;
+    const fc = Spells.forecast(this.combatCtx(), u, target, spell, B);
+    const aoeNames = fc.aoe.filter(t => t !== target).map(t => t.name);
+    const ok = await UI.modal({
+      title: '咏唱《' + spell.name + '》',
+      sub: u.name + ' → ' + target.name + '（距离 ' + fc.dist + '）',
+      body: '命中 ' + (fc.f ? fc.f.hit : 0) + ' · 预估伤害 ' + (fc.f ? fc.f.dmg : 0) +
+            (fc.f && fc.f.element.text ? ' · ' + fc.f.element.text : '') +
+            (spell.effect ? ' · ' + Spells.effectText(spell.effect) : '') +
+            (aoeNames.length ? ' · 波及：' + aoeNames.join('、') : '') +
+            ' · 剩余次数 ' + Spells.usesLeft(u, spell.key),
+      buttons: [{ label: '取消', value: false }, { label: '咏唱', value: true, cls: 'primary' }]
+    });
+    if (!this.active || B.ending) return;
+    if (!ok) {
+      if (B.mode === 'spell-select') UI.updateBattle(B);
+      return;
+    }
+    B.busy = true;
+    B.targetTiles = null;
+    B.attackRange = null;
+    B.pendingSpell = null;
+    UI.hideActionBar();
+    await Spells.cast(this.spellHost(), u, target, spell);
+    B.busy = false;
+    if (!B.ending) await this.finishUnitAction(u);
+  },
+
+  /* 敌方法术 AI：在可达位中为每本法术找期望伤害最高的目标 */
+  bestEnemySpell(unit, range) {
+    const spells = Spells.forUnit(unit).filter(sp => Spells.canUse(unit, sp.key));
+    if (!spells.length) return null;
+    const players = this.livingPlayers();
+    if (!players.length) return null;
+    const oldX = unit.x, oldY = unit.y, oldMoved = unit.hasMoved, oldDist = unit.movedDist;
+    let best = null;
+    for (const node of range.values()) {
+      if (!node.endable) continue;
+      for (const sp of spells) {
+        for (const target of players) {
+          const d = Combat.distance(node.x, node.y, target.x, target.y);
+          if (d < sp.rng[0] || d > sp.rng[1]) continue;
+          unit.x = node.x; unit.y = node.y;
+          unit.hasMoved = !(node.x === oldX && node.y === oldY);
+          unit.movedDist = node.cost;
+          const ctx = this.combatCtx();
+          const f = Combat.spellAttack(unit, target, sp, ctx);
+          let expDmg = (f.hit / 100) * f.dmg;
+          if (sp.aoe) {
+            for (const extra of Spells.aoeTargets(this.B, target, sp, unit.side)) {
+              if (extra === target) continue;
+              const f2 = Combat.spellAttack(unit, extra, sp, ctx);
+              expDmg += (f2.hit / 100) * f2.dmg;
+            }
+          }
+          let score = expDmg * 2.2 + (f.crit / 100) * f.dmg;
+          if (expDmg >= target.hp) score += 55;
+          if (target.charId === 'yunce') score += 26;
+          score += (1 - target.hp / target.stats.hp) * 12;
+          if (sp.aoe) score += 18 * Math.max(0, Spells.aoeTargets(this.B, target, sp, unit.side).length - 1);
+          if (f.element.state === 'strong') score += 10;
+          if (!best || score > best.score) best = { x: node.x, y: node.y, target, spell: sp, score };
+        }
+      }
+    }
+    unit.x = oldX; unit.y = oldY; unit.hasMoved = oldMoved; unit.movedDist = oldDist;
+    return best;
   },
 
   async useItem() {
@@ -1533,40 +1713,47 @@ const Battle = {
     const B = this.B;
     const u = B.selectedUnit;
     if (!u || u.summonUsed) return;
+    if (!Summon.canSpawn(B)) { UI.toast('场上召唤物已达上限（' + SUMMON_FIELD_CAP + ' 只）'); return; }
     const spot = this.findFreeAdjacent(u.x, u.y);
     if (!spot) { UI.toast('周围没有空位'); return; }
+    const skill = this.skillFieldsOf(u).summon;
+    const tiers = Summon.tiersFor(skill);
+    let tier = tiers[tiers.length - 1].tier;
+    if (tiers.length > 1) {
+      const pick = await UI.modal({
+        title: '召唤',
+        sub: '选择阶位 · 场上同时最多 ' + SUMMON_FIELD_CAP + ' 只',
+        list: tiers.map(t => ({
+          label: t.name + ' · ' + (ENEMY_TYPES[t.unitType] ? ENEMY_TYPES[t.unitType].name : ''),
+          meta: t.desc,
+          value: t.tier
+        })),
+        buttons: [{ label: '取消', value: null }]
+      });
+      if (pick === null || pick === undefined) return;
+      tier = pick;
+    }
     B.busy = true;
     UI.hideActionBar();
-    const skill = this.skillFieldsOf(u).summon;
-    const wolfSpec = { type: 'ally_wolf', lv: u.level };
-    const wolf = this.makeAllyWolf(wolfSpec, spot.x, spot.y, typeof skill === 'number' ? skill : 1);
-    B.units.push(wolf);
-    B.summoned.push(wolf.id);
+    const info = Summon.tierInfo(tier);
+    const pet = Summon.spawn(B, this.uid++, u, tier);
+    pet.x = spot.x; pet.y = spot.y;
+    B.units.push(pet);
+    B.summoned.push(pet.id);
     u.summonUsed = true;
-    UI.log(u.name + '召唤了山灵狼。', 'gold');
+    UI.log(u.name + '召唤了' + info.name + '。', 'gold');
     Audio.sfx('node');
-    Render.floatText('山灵', spot.x, spot.y, '#b8d6b0', 14);
+    Render.floatText(info.name, spot.x, spot.y, '#b8d6b0', 14);
     B.busy = false;
     await this.finishUnitAction(u);
   },
 
+  /* 兼容旧调用的山灵狼工厂（阶位表现由 SUMMON_TIERS 驱动） */
   makeAllyWolf(spec, x, y, tier) {
-    const type = ENEMY_TYPES.ally_wolf;
-    const diffMul = 1;
-    const level = Math.max(1, spec.lv || 1);
-    const stats = {};
-    for (const k of ['hp', 'str', 'mag', 'skl', 'spd', 'lck', 'def', 'res']) {
-      stats[k] = Math.max(1, Math.round((type.base[k] || 0) + (type.growth[k] || 0) * (level - 1)));
-    }
-    if (tier === 2) { stats.hp += 8; stats.str += 3; stats.def += 2; }
-    return {
-      id: 'u' + (this.uid++), charId: null, name: tier === 2 ? '山灵狼·王' : '山灵狼',
-      side: 'player', cls: null, level, exp: 0, stats,
-      growth: {}, ranks: { beast: 'S' }, items: [{ key: 'wolf_claw', uses: 99 }], weaponIndex: 0,
-      personal: {}, move: type.move, moveType: type.moveType, tags: type.tags.slice(),
-      hp: stats.hp, acted: true, hasMoved: false, movedDist: 0, statuses: {},
-      escaped: false, recruitable: false, summoned: true, boss: false, rawType: 'ally_wolf'
-    };
+    const caster = { id: 'legacy', level: (spec && spec.lv) || 1 };
+    const wolf = Summon.spawn(this.B, this.uid++, caster, tier || 1);
+    wolf.x = x; wolf.y = y;
+    return wolf;
   },
 
   async finishUnitAction(unit, opts) {
@@ -1576,6 +1763,10 @@ const Battle = {
     unit.hasMoved = false;
     unit.movedDist = 0;
     if (!opts || !opts.noCapture) this.captureNode(unit);
+    // 随行召唤：护卫召唤者移动落位
+    Summon.followCaster(B, unit,
+      (m, c) => UI.log(m, c),
+      (t, x, y, col, s) => Render.floatText(t, x, y, col, s));
     B.selectedUnit = null;
     B.mode = 'idle';
     B.moveRange = null;
@@ -1645,6 +1836,12 @@ const Battle = {
     const ctx = this.combatCtx();
     B.busy = true;
     UI.hideActionBar();
+    // 随行召唤拦截：敌军攻击我方时，相邻的随行召唤物替友军挡击
+    const guard = Summon.interceptTarget(B, attacker, defender);
+    if (guard && guard !== defender) {
+      UI.log(guard.name + '挺身替' + defender.name + '挡下这一击。', 'good');
+      defender = guard;
+    }
     B.hpView = null;
     Render.hpView = {};
     for (const u of B.units) if (u.hp > 0) Render.hpView[u.id] = u.hp;

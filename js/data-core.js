@@ -254,7 +254,7 @@ const MAX_LEVEL = 20;
 /* ---------------- 人物 ---------------- */
 const CHARS = {
   yunce: {
-    id: 'yunce', name: '云策', cls: 'swordsman', level: 4, exp: 0, portrait: 'yunce',
+    id: 'yunce', name: '云策', cls: 'swordsman', level: 4, exp: 0, portrait: 'yunce', element: 'metal',
     stats: { hp: 23, str: 8, mag: 0, skl: 9, spd: 9, lck: 7, def: 6, res: 3 },
     growth: { hp: 62, str: 45, mag: 5, skl: 55, spd: 50, lck: 40, def: 35, res: 25 },
     ranks: { sword: 'C' }, personal: { name: '守脉人', desc: '相邻友军命中与回避 +5；站在阵眼上时伤害 +2。', adjacentAllyHit: 5, adjacentAllyAvoid: 5, selfDamageOnNode: 2 },
@@ -262,7 +262,7 @@ const CHARS = {
     bio: '青岚宗最后的守脉人。剑不出鞘时像个沉默的书生，出鞘后山风都会让路。'
   },
   yankui: {
-    id: 'yankui', name: '岩隈', cls: 'axeman', level: 3, exp: 0, portrait: 'yankui',
+    id: 'yankui', name: '岩隈', cls: 'axeman', level: 3, exp: 0, portrait: 'yankui', element: 'earth',
     stats: { hp: 27, str: 9, mag: 0, skl: 4, spd: 4, lck: 3, def: 11, res: 1 },
     growth: { hp: 75, str: 55, mag: 0, skl: 30, spd: 25, lck: 25, def: 45, res: 15 },
     ranks: { axe: 'C' }, personal: { name: '山岳之骨', desc: '生命低于一半时护甲 +3。', defIfWounded: 3 },
@@ -270,7 +270,7 @@ const CHARS = {
     bio: '青岚宗守山弟子，话少，饭量大。他说石头不会骗人，人比石头难懂。'
   },
   luming: {
-    id: 'luming', name: '鹿鸣', cls: 'physician', level: 2, exp: 0, portrait: 'luming',
+    id: 'luming', name: '鹿鸣', cls: 'physician', level: 2, exp: 0, portrait: 'luming', element: 'wood',
     stats: { hp: 18, str: 2, mag: 6, skl: 6, spd: 7, lck: 8, def: 3, res: 7 },
     growth: { hp: 45, str: 15, mag: 55, skl: 45, spd: 45, lck: 50, def: 20, res: 45 },
     ranks: { staff: 'C' }, personal: { name: '药心', desc: '相邻友军回避 +5。', adjacentAllyAvoid: 5 },
@@ -278,7 +278,7 @@ const CHARS = {
     bio: '背着比人还高的药篓，走到哪里都能认出能入药的草。怕血，却从不后退。'
   },
   qingluo: {
-    id: 'qingluo', name: '青萝', cls: 'archer', level: 3, exp: 0, portrait: 'qingluo',
+    id: 'qingluo', name: '青萝', cls: 'archer', level: 3, exp: 0, portrait: 'qingluo', element: 'wood',
     stats: { hp: 19, str: 5, mag: 0, skl: 8, spd: 8, lck: 6, def: 4, res: 4 },
     growth: { hp: 50, str: 35, mag: 0, skl: 60, spd: 55, lck: 40, def: 25, res: 25 },
     ranks: { bow: 'D' }, personal: { name: '鹰眼', desc: '对飞行目标命中 +20；未移动时暴击 +10。', hitVsFlying: 20, critIfNoMove: 10 },
@@ -286,7 +286,7 @@ const CHARS = {
     bio: '青岚山下的猎户之女。她说射箭和看人一样，急不得，看准了再松手。'
   },
   bailu: {
-    id: 'bailu', name: '白鹭', cls: 'lancer', level: 5, exp: 0, portrait: 'bailu',
+    id: 'bailu', name: '白鹭', cls: 'lancer', level: 5, exp: 0, portrait: 'bailu', element: 'metal',
     stats: { hp: 24, str: 8, mag: 0, skl: 7, spd: 7, lck: 5, def: 7, res: 3 },
     growth: { hp: 55, str: 45, mag: 0, skl: 45, spd: 40, lck: 35, def: 35, res: 20 },
     ranks: { lance: 'C' }, personal: { name: '踏浪', desc: '本回合移动 4 格以上时命中 +10。', hitIfMoved4: 10 },
@@ -294,7 +294,7 @@ const CHARS = {
     bio: '游历四方的骑将，曾在断桥边救下整村人。笑起来很响，心事却从不外露。'
   },
   xuanyi: {
-    id: 'xuanyi', name: '玄漪', cls: 'mage', level: 5, exp: 0, portrait: 'xuanyi',
+    id: 'xuanyi', name: '玄漪', cls: 'mage', level: 5, exp: 0, portrait: 'xuanyi', element: 'water',
     stats: { hp: 19, str: 1, mag: 10, skl: 8, spd: 8, lck: 4, def: 3, res: 8 },
     growth: { hp: 40, str: 10, mag: 60, skl: 50, spd: 45, lck: 30, def: 20, res: 50 },
     ranks: { tome: 'C' }, personal: { name: '霜心', desc: '命中后使目标下回合移动 -1。', movePenaltyOnHit: 1 },
@@ -302,7 +302,7 @@ const CHARS = {
     bio: '断桥古渡的守渡人，性子冷，咒也冷。她记得每一个渡河人的名字。'
   },
   moya: {
-    id: 'moya', name: '墨鸦', cls: 'rogue', level: 7, exp: 0, portrait: 'moya',
+    id: 'moya', name: '墨鸦', cls: 'rogue', level: 7, exp: 0, portrait: 'moya', element: 'metal',
     stats: { hp: 22, str: 7, mag: 0, skl: 10, spd: 12, lck: 7, def: 5, res: 4 },
     growth: { hp: 45, str: 40, mag: 0, skl: 60, spd: 65, lck: 50, def: 25, res: 25 },
     ranks: { dagger: 'B' }, personal: { name: '无影', desc: '相邻无友军时回避 +15。', avoidIfLone: 15 },
@@ -310,7 +310,7 @@ const CHARS = {
     bio: '赤砂关里谁的账都敢偷的人。没人知道他从哪来，包括他自己。'
   },
   chisang: {
-    id: 'chisang', name: '赤桑', cls: 'talisman', level: 8, exp: 0, portrait: 'chisang',
+    id: 'chisang', name: '赤桑', cls: 'talisman', level: 8, exp: 0, portrait: 'chisang', element: 'fire',
     stats: { hp: 23, str: 2, mag: 11, skl: 10, spd: 7, lck: 5, def: 5, res: 8 },
     growth: { hp: 45, str: 10, mag: 55, skl: 55, spd: 40, lck: 30, def: 25, res: 45 },
     ranks: { talisman: 'C' }, personal: { name: '引雷', desc: '对披甲目标暴击 +10。', critVsArmor: 10 },
@@ -318,7 +318,7 @@ const CHARS = {
     bio: '玄冰祭坛的守符人，画符时从不说话。他说雷落下来之前，天地会先安静一瞬。'
   },
   aman: {
-    id: 'aman', name: '阿蛮', cls: 'beastcaller', level: 9, exp: 0, portrait: 'aman',
+    id: 'aman', name: '阿蛮', cls: 'beastcaller', level: 9, exp: 0, portrait: 'aman', element: 'earth',
     stats: { hp: 30, str: 11, mag: 4, skl: 7, spd: 6, lck: 4, def: 9, res: 4 },
     growth: { hp: 70, str: 55, mag: 10, skl: 40, spd: 35, lck: 25, def: 40, res: 20 },
     ranks: { beast: 'S' }, personal: { name: '兽语', desc: '山灵狼存活时自身伤害 +2。', selfDamageIfSummon: 2 },
@@ -326,7 +326,7 @@ const CHARS = {
     bio: '云梦泽长大的兽使，能和山灵说话。她不太会说人的客套话，但会分你半只烤鱼。'
   },
   yunling: {
-    id: 'yunling', name: '云翎', cls: 'wingman', level: 10, exp: 0, portrait: 'yunling',
+    id: 'yunling', name: '云翎', cls: 'wingman', level: 10, exp: 0, portrait: 'yunling', element: 'metal',
     stats: { hp: 24, str: 8, mag: 2, skl: 11, spd: 12, lck: 7, def: 5, res: 6 },
     growth: { hp: 50, str: 40, mag: 10, skl: 60, spd: 60, lck: 40, def: 25, res: 35 },
     ranks: { bow: 'C', lance: 'D' }, personal: { name: '御风', desc: '站在阵眼上时回避 +15。', avoidOnNode: 15 },
@@ -385,42 +385,42 @@ const ENEMY_TYPES = {
 
   /* ---- 首领 ---- */
   shanxiao: {
-    name: '山魈王', ai: 'guard', moveType: 'beast', move: 5, weapons: ['boss_axe'], tags: ['beast'], boss: true,
+    name: '山魈王', ai: 'guard', moveType: 'beast', move: 5, weapons: ['boss_axe'], tags: ['beast'], boss: true, element: 'metal',
     base: { hp: 38, str: 12, mag: 0, skl: 7, spd: 5, lck: 3, def: 8, res: 3 },
     growth: { hp: 2.2, str: 0.7, mag: 0, skl: 0.45, spd: 0.3, lck: 0.2, def: 0.5, res: 0.2 }
   },
   bamboo: {
-    name: '竹妖', ai: 'guard', moveType: 'plant', move: 4, weapons: ['boss_vine'], tags: ['plant'], boss: true,
+    name: '竹妖', ai: 'guard', moveType: 'plant', move: 4, weapons: ['boss_vine'], tags: ['plant'], boss: true, element: 'wood',
     base: { hp: 34, str: 2, mag: 11, skl: 8, spd: 6, lck: 4, def: 6, res: 8 },
     growth: { hp: 2, str: 0.1, mag: 0.7, skl: 0.5, spd: 0.35, lck: 0.2, def: 0.4, res: 0.55 }
   },
   waterghost: {
-    name: '水鬼', ai: 'aggressive', moveType: 'amphibious', move: 5, weapons: ['boss_trident'], tags: ['undead'], boss: true,
+    name: '水鬼', ai: 'aggressive', moveType: 'amphibious', move: 5, weapons: ['boss_trident'], tags: ['undead'], boss: true, element: 'water',
     base: { hp: 38, str: 11, mag: 2, skl: 8, spd: 7, lck: 3, def: 8, res: 6 },
     growth: { hp: 2.2, str: 0.6, mag: 0.2, skl: 0.5, spd: 0.4, lck: 0.15, def: 0.45, res: 0.4 }
   },
   chisha: {
-    name: '赤砂将军', ai: 'guard', moveType: 'horse', move: 6, weapons: ['boss_saber'], tags: ['human'], boss: true,
+    name: '赤砂将军', ai: 'guard', moveType: 'horse', move: 6, weapons: ['boss_saber'], tags: ['human'], boss: true, element: 'fire',
     base: { hp: 42, str: 14, mag: 0, skl: 11, spd: 10, lck: 6, def: 10, res: 5 },
     growth: { hp: 2.2, str: 0.7, mag: 0, skl: 0.6, spd: 0.5, lck: 0.3, def: 0.5, res: 0.3 }
   },
   icexiao: {
-    name: '冰魈', ai: 'guard', moveType: 'beast', move: 5, weapons: ['boss_claw'], tags: ['beast'], boss: true,
+    name: '冰魈', ai: 'guard', moveType: 'beast', move: 5, weapons: ['boss_claw'], tags: ['beast'], boss: true, element: 'water',
     base: { hp: 44, str: 13, mag: 6, skl: 9, spd: 8, lck: 4, def: 11, res: 8 },
     growth: { hp: 2.4, str: 0.7, mag: 0.35, skl: 0.5, spd: 0.4, lck: 0.2, def: 0.55, res: 0.45 }
   },
   swampdragon: {
-    name: '沼龙', ai: 'aggressive', moveType: 'amphibious', move: 5, weapons: ['boss_jaw'], tags: ['beast'], boss: true,
+    name: '沼龙', ai: 'aggressive', moveType: 'amphibious', move: 5, weapons: ['boss_jaw'], tags: ['beast'], boss: true, element: 'earth',
     base: { hp: 50, str: 15, mag: 4, skl: 8, spd: 7, lck: 4, def: 12, res: 7 },
     growth: { hp: 2.6, str: 0.75, mag: 0.3, skl: 0.5, spd: 0.4, lck: 0.2, def: 0.6, res: 0.4 }
   },
   turbidgeneral: {
-    name: '浊将', ai: 'guard', moveType: 'armor', move: 4, weapons: ['boss_turbid'], tags: ['armor', 'undead'], boss: true,
+    name: '浊将', ai: 'guard', moveType: 'armor', move: 4, weapons: ['boss_turbid'], tags: ['armor', 'undead'], boss: true, element: 'earth',
     base: { hp: 52, str: 16, mag: 5, skl: 10, spd: 5, lck: 4, def: 16, res: 10 },
     growth: { hp: 2.8, str: 0.8, mag: 0.35, skl: 0.55, spd: 0.3, lck: 0.2, def: 0.7, res: 0.5 }
   },
   xuanque: {
-    name: '玄阙', ai: 'guard', moveType: 'foot', move: 5, weapons: ['boss_ritual'], tags: ['human'], boss: true, phases: 2,
+    name: '玄阙', ai: 'guard', moveType: 'foot', move: 5, weapons: ['boss_ritual'], tags: ['human'], boss: true, phases: 2, element: 'metal',
     base: { hp: 58, str: 6, mag: 18, skl: 14, spd: 12, lck: 8, def: 12, res: 14 },
     growth: { hp: 3, str: 0.4, mag: 0.85, skl: 0.65, spd: 0.5, lck: 0.3, def: 0.5, res: 0.6 },
     phase2: {
@@ -435,6 +435,16 @@ const ENEMY_TYPES = {
     name: '山灵狼', ai: 'ally', moveType: 'beast', move: 6, weapons: ['wolf_claw'], tags: ['beast'], ally: true,
     base: { hp: 20, str: 8, mag: 0, skl: 8, spd: 10, lck: 5, def: 5, res: 3 },
     growth: { hp: 1.8, str: 0.6, mag: 0, skl: 0.55, spd: 0.6, lck: 0.3, def: 0.35, res: 0.25 }
+  },
+  ally_leopard: {
+    name: '云豹', ai: 'ally', moveType: 'beast', move: 7, weapons: ['leopard_claw'], tags: ['beast'], ally: true,
+    base: { hp: 26, str: 11, mag: 0, skl: 11, spd: 13, lck: 6, def: 6, res: 5 },
+    growth: { hp: 2.1, str: 0.7, mag: 0, skl: 0.65, spd: 0.75, lck: 0.35, def: 0.4, res: 0.3 }
+  },
+  ally_baize: {
+    name: '白泽', ai: 'ally', moveType: 'flying', move: 7, weapons: ['baize_horn'], tags: ['beast', 'flying'], ally: true,
+    base: { hp: 34, str: 13, mag: 8, skl: 13, spd: 12, lck: 10, def: 9, res: 10 },
+    growth: { hp: 2.6, str: 0.8, mag: 0.5, skl: 0.7, spd: 0.6, lck: 0.5, def: 0.5, res: 0.55 }
   }
 };
 

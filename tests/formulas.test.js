@@ -489,6 +489,240 @@ console.log('\n== 13. 五行相克与进阶系统数据表 ==');
   for (const k in SUMMON_WEAPONS) ok('召唤武器 ' + k + ' 类型合法', !!WEAPON_TYPES[SUMMON_WEAPONS[k].type]);
 }
 
-console.log('\n----------------------------------------');
-console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
-process.exit(fail ? 1 : 0);
+console.log('\n== 14. 法术与召唤系统落地（P2） ==');
+(async () => {
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/systems/spells.js'), 'utf8'), ctx, { filename: 'js/systems/spells.js' });
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/systems/summon.js'), 'utf8'), ctx, { filename: 'js/systems/summon.js' });
+  const { Spells, Summon, Battle, RNG } = vm.runInContext('({ Spells, Summon, Battle, RNG })', ctx);
+
+  const zeroCtx = {
+    mods: () => Combat.zeroMods(),
+    tileAt: () => ({ avoid: 0, def: 0, cost: 1 }),
+    rng: RNG
+  };
+
+  // 14.1 Combat.spellAttack：mag+mt-res，乘相克倍率；命中/暴击钳制
+  const caster = { id: 'c1', name: '玄漪', side: 'player', level: 16, charId: 'xuanyi',
+    stats: { mag: 10, skl: 8, lck: 4, spd: 8, hp: 20 } };
+  const mkFoe = (el) => ({ id: 'e1', name: '敌', side: 'enemy', x: 0, y: 0,
+    stats: { res: 3, skl: 0, lck: 3, spd: 6, hp: 30 }, element: el });
+  const metalEdge = SPELLS.metal_edge;   // mt5 hit90 crit0
+  let f = Combat.spellAttack(caster, mkFoe(undefined), metalEdge, zeroCtx);
+  eq('法术中性伤害 = mag+mt-res = 12', f.dmg, 12);
+  eq('中性无相克文本', f.element.state, 'neutral');
+  f = Combat.spellAttack(caster, mkFoe('wood'), metalEdge, zeroCtx);
+  eq('金克木伤害 ×1.25 = 15', f.dmg, 15);
+  eq('相克状态 strong', f.element.state, 'strong');
+  f = Combat.spellAttack(caster, mkFoe('fire'), metalEdge, zeroCtx);
+  eq('火克金伤害 ×0.8 = 10', f.dmg, 10);
+  eq('被克状态 weak', f.element.state, 'weak');
+  f = Combat.spellAttack(caster, mkFoe('metal'), metalEdge, zeroCtx);
+  eq('同系中性 = 12', f.dmg, 12);
+  eq('命中 = 90+16+2-(12+3) = 93', f.hit, 93);
+  eq('暴击 = 0+4-3 = 1', f.crit, 1);
+  const fatCaster = { stats: { mag: 10, skl: 60, lck: 40, spd: 8 } };
+  f = Combat.spellAttack(fatCaster, mkFoe(undefined), metalEdge, zeroCtx);
+  eq('命中钳制 100', f.hit, 100);
+  eq('暴击钳制下限 0', Combat.spellAttack(fatCaster, { stats: { res: 0, lck: 60, spd: 2, hp: 10 } }, SPELLS.metal_break, zeroCtx).crit, 0);
+  eq('伤害不为负（高抗目标）', Combat.spellAttack({ stats: { mag: 1, skl: 0, lck: 0, spd: 1 } }, { stats: { res: 99, lck: 0, spd: 1, hp: 10 } }, SPELLS.earth_rock, zeroCtx).dmg, 0);
+
+  // 14.2 Spells 可用性：我方按 charId+level，敌方按 holders
+  eq('玄漪 5 级会 5 门初阶', Spells.forUnit({ side: 'player', charId: 'xuanyi', level: 5 }).length, 5);
+  eq('玄漪 10 级会 10 门', Spells.forUnit({ side: 'player', charId: 'xuanyi', level: 10 }).length, 10);
+  eq('玄漪 16 级会全 15 门', Spells.forUnit({ side: 'player', charId: 'xuanyi', level: 16 }).length, 15);
+  eq('赤桑 8 级会 3 门（流火 9 级未到）', Spells.forUnit({ side: 'player', charId: 'chisang', level: 8 }).length, 3);
+  eq('鹿鸣 2 级还不会法术', Spells.forUnit({ side: 'player', charId: 'luming', level: 2 }).length, 0);
+  eq('云策不能习得任何法术', Spells.forUnit({ side: 'player', charId: 'yunce', level: 20 }).length, 0);
+  eq('竹妖持 2 门木法', Spells.forUnit({ side: 'enemy', rawType: 'bamboo' }).map(s => s.key).join(','), 'wood_vine,wood_final');
+  eq('玄阙持 3 门高阶', Spells.forUnit({ side: 'enemy', rawType: 'xuanque' }).length, 3);
+  eq('山贼不持法', Spells.forEnemyType('bandit').length, 0);
+
+  // 14.3 次数：默认满、扣减、耗尽不可用
+  const u1 = { side: 'player', charId: 'xuanyi', level: 16, spellUses: {} };
+  eq('默认满次数 4', Spells.usesLeft(u1, 'metal_final'), 4);
+  Spells.consume(u1, 'metal_final');
+  eq('扣一次剩 3', Spells.usesLeft(u1, 'metal_final'), 3);
+  ok('还有次数可用', Spells.canUse(u1, 'metal_final'));
+  for (let i = 0; i < 3; i++) Spells.consume(u1, 'metal_final');
+  ok('耗尽后不可用', !Spells.canUse(u1, 'metal_final'));
+  eq('次数不会扣成负数', Spells.usesLeft(u1, 'metal_final'), 0);
+  Spells.resetUses(u1);
+  eq('resetUses 后恢复满次数', Spells.usesLeft(u1, 'metal_final'), 4);
+
+  // 14.4 aoeTargets：曼哈顿半径、死活/逃脱/同侧过滤
+  const B0 = { units: [
+    { id: 'c', side: 'player', x: 1, y: 1, hp: 10 },
+    { id: 't', side: 'enemy', x: 5, y: 5, hp: 10 },
+    { id: 'x1', side: 'enemy', x: 6, y: 5, hp: 10 },
+    { id: 'x2', side: 'enemy', x: 5, y: 6, hp: 10 },
+    { id: 'far', side: 'enemy', x: 8, y: 8, hp: 10 },
+    { id: 'dead', side: 'enemy', x: 4, y: 5, hp: 0 },
+    { id: 'gone', side: 'enemy', x: 5, y: 4, hp: 10, escaped: true }
+  ] };
+  const aoe = Spells.aoeTargets(B0, { x: 5, y: 5 }, SPELLS.wood_final, 'player');
+  eq('aoe 收 3 个敌方存活单位', aoe.length, 3);
+  ok('aoe 含主目标', aoe.some(t => t.id === 't'));
+  ok('aoe 排除死者', !aoe.some(t => t.id === 'dead'));
+  ok('aoe 排除逃脱者', !aoe.some(t => t.id === 'gone'));
+  ok('aoe 排除超距', !aoe.some(t => t.id === 'far'));
+  ok('aoe 排除同侧', !aoe.some(t => t.id === 'c'));
+  eq('单体法术无 aoe', Spells.aoeTargets(B0, { x: 5, y: 5 }, SPELLS.metal_edge, 'player').length, 0);
+
+  // 14.5 applyEffect：定身/破甲/迷眼 + 过期回合
+  const tgt = {};
+  Spells.applyEffect(tgt, { root: 1, debuffDef: 2, debuffAvoid: 10, turns: 1 }, 5);
+  eq('定身到第 6 阶段', tgt.statuses.root.until, 6);
+  eq('破甲值 2', tgt.statuses.def.val, 2);
+  eq('破甲到期 6', tgt.statuses.def.until, 6);
+  eq('迷眼值 10', tgt.statuses.avoid.val, 10);
+  eq('效果描述文本', Spells.effectText({ root: 1, debuffDef: 2 }), '定身·护甲 -2');
+  eq('无效果返回空串', Spells.effectText(null), '');
+
+  // 14.6 cast 全流程（假 host）：命中、波及、效果、死亡、次数、经验
+  const logs = [];
+  const host = {
+    B: { units: [], stats: { damage: 0 }, phaseIndex: 5 },
+    ctx: zeroCtx,
+    log: (m) => logs.push(m),
+    float: () => {}, sfx: () => {}, wait: () => Promise.resolve(),
+    kill: (unit) => { unit.dead = true; },
+    exp: (unit, n) => { unit.expGained = (unit.expGained || 0) + n; }
+  };
+  const wf = SPELLS.wood_final;   // mt11 aoe1 root，木
+  const sc = { id: 'c1', name: '玄漪', side: 'player', level: 16, charId: 'xuanyi', x: 3, y: 3, hp: 20, spellUses: {},
+    stats: { mag: 10, skl: 50, lck: 4, spd: 8 } };
+  const e1 = { id: 'e1', name: '竹妖', side: 'enemy', x: 5, y: 5, hp: 10, stats: { res: 3, lck: 30, spd: 6, hp: 34 }, element: 'earth', statuses: {} };
+  const e2 = { id: 'e2', name: '山贼', side: 'enemy', x: 6, y: 5, hp: 100, stats: { res: 3, lck: 30, spd: 6, hp: 21 }, statuses: {} };
+  host.B.units = [sc, e1, e2];
+  await Spells.cast(host, sc, e1, wf);
+  eq('施法后扣 1 次', Spells.usesLeft(sc, 'wood_final'), 3);
+  eq('主目标受 木克土 23 伤害致死', e1.hp, 0);
+  ok('主目标死亡回调', e1.dead === true);
+  eq('波及目标受 18 中性伤害', e2.hp, 82);
+  ok('主目标被定身', e1.statuses.root && e1.statuses.root.until === 6);
+  ok('波及目标也被定身', e2.statuses.root && e2.statuses.root.until === 6);
+  eq('我方统计伤害累计 41', host.B.stats.damage, 41);
+  eq('施法者获得 10 经验', sc.expGained, 10);
+  ok('日志含咏唱', logs.some(m => m.indexOf('咏唱') >= 0));
+  ok('日志含相克', logs.some(m => m.indexOf('木 克 土') >= 0));
+  ok('日志含定身', logs.some(m => m.indexOf('定身') >= 0));
+
+  // 敌方法术：不加我方统计、不给经验
+  const logs2 = [];
+  const host2 = {
+    B: { units: [], stats: { damage: 0 }, phaseIndex: 2 },
+    ctx: zeroCtx,
+    log: (m) => logs2.push(m), float: () => {}, sfx: () => {}, wait: () => Promise.resolve(),
+    kill: () => {}, exp: (unit, n) => { unit.expGained = (unit.expGained || 0) + n; }
+  };
+  const boss = { id: 'b1', name: '竹妖', side: 'enemy', rawType: 'bamboo', level: 8, x: 3, y: 3, hp: 34, spellUses: {},
+    stats: { mag: 11, skl: 8, lck: 4, spd: 6 } };
+  const victim = { id: 'p1', name: '云策', side: 'player', charId: 'yunce', x: 5, y: 3, hp: 23, stats: { res: 3, lck: 7, spd: 9, hp: 23 }, element: 'metal', statuses: {} };
+  host2.B.units = [boss, victim];
+  await Spells.cast(host2, boss, victim, SPELLS.wood_vine);
+  ok('敌方命中并造成伤害', victim.hp < 23);
+  eq('敌方施法不计我方伤害统计', host2.B.stats.damage, 0);
+  eq('敌方不给经验', boss.expGained, undefined);
+  ok('敌方缠魂藤附定身', victim.statuses.root && victim.statuses.root.until === 3);
+
+  // 14.7 Summon：阶位查表、实例化、场上上限、指令态、拦截、随行
+  eq('技能 2 阶最高召 2', Summon.maxTier(2), 2);
+  eq('无技能数字回退 1 阶', Summon.maxTier(undefined), 1);
+  eq('true 回退 1 阶', Summon.maxTier(true), 1);
+  eq('超范围钳到 3 阶', Summon.maxTier(9), 3);
+  eq('2 阶技能给出 2 个阶位', Summon.tiersFor(2).length, 2);
+  eq('边界处向右找空格', Summon.freeAdjacent({ units: [] }, 0, 0, null).x, 1);
+
+  const c5 = { id: 'c1', level: 5, x: 4, y: 4 };
+  const w = Summon.spawn({ units: [] }, 7, c5, 1);
+  eq('异兽按表取名山灵狼', w.name, '山灵狼');
+  eq('异兽生命 20+1.8×4 = 27', w.stats.hp, 27);
+  eq('异兽魔力下限 1', w.stats.mag, 1);
+  eq('异兽武器狼爪', w.items[0].key, 'wolf_claw');
+  eq('召唤物 id 取 uid', w.id, 'u7');
+  eq('默认指令猛攻', w.summon.order, 'assault');
+  eq('记录召唤者', w.summon.caster, 'c1');
+  ok('召唤当回合不可再行动', w.acted === true);
+  eq('生命等于满值', w.hp, w.stats.hp);
+  const p = Summon.spawn({ units: [] }, 8, c5, 2);
+  eq('灵兽取名云豹', p.name, '云豹');
+  eq('灵兽生命 26+2.1×4 = 34', p.stats.hp, 34);
+  eq('灵兽武器雷纹爪', p.items[0].key, 'leopard_claw');
+  ok('雷纹爪已并入 WEAPONS', !!WEAPONS.leopard_claw);
+  const bz = Summon.spawn({ units: [] }, 9, c5, 3);
+  eq('神兽取名白泽', bz.name, '白泽');
+  eq('神兽生命 34+2.6×4 = 44', bz.stats.hp, 44);
+  eq('神兽武器通明角', bz.items[0].key, 'baize_horn');
+  ok('通明角已并入 WEAPONS', !!WEAPONS.baize_horn);
+  ok('阶位越界回退 1 阶', Summon.spawn({ units: [] }, 10, c5, 9).summon.tier === 1);
+
+  const B1 = { units: [
+    { id: 'a', summoned: true, hp: 10, escaped: false },
+    { id: 'b', summoned: true, hp: 0, escaped: false },
+    { id: 'c', summoned: true, hp: 10, escaped: true },
+    { id: 'd', summoned: false, hp: 10, escaped: false }
+  ] };
+  eq('场上只算存活未逃脱的召唤物', Summon.fieldCount(B1), 1);
+  ok('未达上限可召', Summon.canSpawn(B1));
+  B1.units.push({ id: 'e', summoned: true, hp: 5, escaped: false });
+  eq('达到 2 只上限', Summon.fieldCount(B1), 2);
+  ok('达到上限不可召', !Summon.canSpawn(B1));
+
+  const wolf = Summon.spawn({ units: [] }, 1, { id: 'c', level: 1 }, 1);
+  eq('默认猛攻效果', JSON.stringify(Summon.orderEffect(wolf)), JSON.stringify({ dmg: 2, def: -2 }));
+  ok('切到守御', Summon.setOrder(wolf, 'guard'));
+  eq('守御效果', JSON.stringify(Summon.orderEffect(wolf)), JSON.stringify({ def: 3, avoid: 10, hold: true }));
+  ok('非法指令被拒', !Summon.setOrder(wolf, 'fly'));
+  eq('指令未被改动', Summon.orderOf(wolf), 'guard');
+  const mm = Combat.zeroMods();
+  Summon.applyOrderMods(wolf, mm);
+  eq('守御护甲 +3', mm.def, 3);
+  eq('守御回避 +10', mm.avoid, 10);
+
+  const B2 = { units: [
+    { id: 'p', side: 'player', x: 5, y: 5, hp: 20 },
+    { id: 's1', side: 'player', summoned: true, hp: 20, x: 6, y: 5, summon: { tier: 1, order: 'escort', caster: 'p' } },
+    { id: 's2', side: 'player', summoned: true, hp: 20, x: 4, y: 5, summon: { tier: 1, order: 'assault', caster: 'p' } }
+  ] };
+  eq('随行召唤替友军挡击', Summon.interceptTarget(B2, { side: 'enemy' }, B2.units[0]).id, 's1');
+  Summon.setOrder(B2.units[1], 'assault');
+  ok('无非随行相邻则不拦截', Summon.interceptTarget(B2, { side: 'enemy' }, B2.units[0]) === null);
+  ok('我方互殴不触发拦截', Summon.interceptTarget(B2, { side: 'player' }, B2.units[0]) === null);
+  B2.units[2].x = 8;
+  ok('不相邻不拦截', Summon.interceptTarget(B2, { side: 'enemy' }, B2.units[0]) === null);
+
+  const B3 = { units: [
+    { id: 'c1', side: 'player', x: 5, y: 5, hp: 20 },
+    { id: 's1', side: 'player', summoned: true, hp: 20, x: 5, y: 9, summon: { tier: 1, order: 'escort', caster: 'c1' } },
+    { id: 's2', side: 'player', summoned: true, hp: 20, x: 5, y: 6, summon: { tier: 1, order: 'assault', caster: 'c1' } }
+  ] };
+  const fl = [];
+  Summon.followCaster(B3, B3.units[0], (m) => fl.push(m), () => {});
+  eq('随行召唤贴近到 (5,4)', B3.units[1].x + ',' + B3.units[1].y, '5,4');
+  ok('非随行指令不跟随', B3.units[2].x === 5 && B3.units[2].y === 6);
+  ok('有随行日志', fl.length === 1);
+  B3.units[1].x = 6; B3.units[1].y = 5;
+  eq('已相邻不重复移动', Summon.followCaster(B3, B3.units[0], () => {}, () => {}).length, 0);
+  B3.units[1].x = 5; B3.units[1].y = 9;
+  B3.units.push({ id: 'block', side: 'player', hp: 20, x: 5, y: 4 });
+  Summon.followCaster(B3, B3.units[0], () => {}, () => {});
+  eq('上方被占改去 (6,5)', B3.units[1].x + ',' + B3.units[1].y, '6,5');
+
+  // 14.8 battle.modsFor 集成：状态与指令态进修正链
+  const bt = Object.create(Battle);
+  bt.B = { units: [], nodes: [], phaseIndex: 5, supports: {} };
+  eq('定身使移动力 -99', bt.modsFor({ side: 'enemy', stats: {}, statuses: { root: { until: 6 } } }, null).move, -99);
+  eq('过期定身不减速', bt.modsFor({ side: 'enemy', stats: {}, statuses: { root: { until: 4 } } }, null).move, 0);
+  eq('迷眼回避 -10', bt.modsFor({ side: 'enemy', stats: {}, statuses: { avoid: { val: 10, until: 6 } } }, null).avoid, -10);
+  eq('破甲护甲 -2', bt.modsFor({ side: 'enemy', stats: {}, statuses: { def: { val: 2, until: 6 } } }, null).def, -2);
+  const ma = bt.modsFor({ side: 'player', summoned: true, summon: { tier: 1, order: 'assault', caster: 'c' }, stats: {} }, null);
+  eq('猛攻伤害 +2', ma.dmg, 2);
+  eq('猛攻护甲 -2', ma.def, -2);
+  const mg = bt.modsFor({ side: 'player', summoned: true, summon: { tier: 3, order: 'guard', caster: 'c' }, stats: {} }, null);
+  eq('神兽守御护甲 +5', mg.def, 5);
+  eq('神兽守御回避 +15', mg.avoid, 15);
+
+  console.log('\n----------------------------------------');
+  console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
+  process.exit(fail ? 1 : 0);
+})();

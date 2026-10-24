@@ -180,6 +180,12 @@ const UI = {
     if (unit.escaped) tags.push('已撤离');
     if (unit.statuses && unit.statuses.movePenalty) tags.push('移速下降');
     if (unit.statuses && (unit.statuses.def || unit.statuses.res)) tags.push('破甲');
+    if (unit.statuses && unit.statuses.avoid) tags.push('迷眼');
+    if (unit.statuses && unit.statuses.root) tags.push('定身');
+    if (unit.summoned && unit.summon) {
+      const oi = Summon.orderInfo(unit);
+      if (oi) tags.push(oi.name);
+    }
     const weaponLine = w
       ? '<span class="wchip">' + this.escape(WEAPON_TYPES[w.w.type] ? WEAPON_TYPES[w.w.type].name : '') + '</span>' +
         this.escape(w.w.name) + ' <span class="wchip">耐久 ' + w.item.uses + '</span>'

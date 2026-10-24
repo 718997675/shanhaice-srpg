@@ -292,5 +292,8 @@ const SUMMON_WEAPONS = {
   baize_horn: { key: 'baize_horn', name: '通明角', type: 'beast', rank: 'S', mt: 12, hit: 90, crit: 5, wt: 5, rng: [1, 1], uses: 99, price: 0, magic: true, desc: '白泽独角，照见隐形的浊气。' }
 };
 
+/* 并入主武器表：Combat.weaponOf 只查 WEAPONS */
+Object.assign(WEAPONS, SUMMON_WEAPONS);
+
 /* 召唤阶位描述（UI 展示用） */
 const SUMMON_TIER_NAMES = { 1: '异兽', 2: '灵兽', 3: '神兽' };

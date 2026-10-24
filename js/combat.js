@@ -140,6 +140,28 @@ const Combat = {
     return neutral;
   },
 
+  /* 法术结算（纯公式）：mag + mt + am.dmg - 敌 res - dm.res，乘五行相克倍率。
+   * 命中/暴击与武器系同构，但取 spell.hit/crit；不触发武器三角与反击。
+   * aoe 的逐个目标由 systems/spells.js 循环调用本函数。 */
+  spellAttack(caster, defender, spell, ctx) {
+    const am = this.modsOf(ctx, caster, defender);
+    const dm = this.modsOf(ctx, defender, caster);
+    const el = this.elementMul(spell.element, defender.element);
+    const tile = this.tileAt(ctx, defender.x, defender.y);
+    const hitRaw = (spell.hit || 0) + (caster.stats.skl || 0) * 2 + Math.floor((caster.stats.lck || 0) / 2) + am.hit
+      - (this.attackSpeed(defender) * 2 + (defender.stats.lck || 0) + (tile.avoid || 0) + dm.avoid);
+    const critRaw = (spell.crit || 0) + Math.floor((caster.stats.skl || 0) / 2) + am.crit
+      - ((defender.stats.lck || 0) + dm.critAvoid);
+    let raw = (caster.stats.mag || 0) + (spell.mt || 0) + am.dmg - (defender.stats.res || 0) - dm.res;
+    raw = Math.max(0, raw) * el.mul;
+    return {
+      element: el,
+      hit: Math.max(0, Math.min(100, Math.round(hitRaw))),
+      crit: Math.max(0, Math.min(100, Math.round(critRaw))),
+      dmg: Math.max(0, Math.round(raw))
+    };
+  },
+
   hitChance(attacker, defender, ctx) {
     const w = this.weaponOf(attacker);
     if (!w) return 0;
