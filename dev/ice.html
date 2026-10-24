@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>冰面滑行沙盒 · 山海策 · 灵脉</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game" aria-label="战场"></canvas>
+
+  <div id="battleUI" class="screen hidden">
+    <div id="topBar">
+      <div class="tb-left">
+        <div id="chapterName">沙盒 · 冰面滑行测试</div>
+        <div id="objectiveText">目标：测试滑行结算与地形动态层</div>
+      </div>
+      <div id="turnBadge"><span id="turnNum">第 1 回合</span><small id="phaseName">我方阶段</small></div>
+      <div class="tb-right">
+        <button id="btnDanger" class="hud-btn" title="显示危险范围">危</button>
+        <button id="btnSpeed" class="hud-btn" title="战斗速度">×1</button>
+        <button id="btnMenu" class="hud-btn" title="菜单">☰</button>
+        <button id="btnEndTurn" class="hud-btn end">结束回合</button>
+      </div>
+    </div>
+    <div id="sidePanel"></div>
+    <div id="battleLog"></div>
+    <div id="unitCard" class="hidden"></div>
+    <div id="actionBar" class="hidden"></div>
+    <div id="forecastOverlay" class="hidden"></div>
+    <div id="dangerBadge" class="hidden">危 险 范 围</div>
+    <div id="phaseBanner" class="hidden"></div>
+    <div id="tapHint" class="hidden"></div>
+  </div>
+
+  <div id="dialogOverlay" class="overlay hidden">
+    <div class="dialog-stage" id="dialogStage">
+      <div class="dialog-portrait" id="dialogPortraitWrap">
+        <img id="dialogImg" alt="">
+        <div class="portrait-fallback" id="dialogFallback">策</div>
+      </div>
+      <div class="dialog-panel">
+        <div class="dialog-name" id="dialogName"></div>
+        <div class="dialog-text" id="dialogText"></div>
+        <div class="dialog-hint">点击任意处继续 <span>▸</span></div>
+      </div>
+    </div>
+    <button id="dialogSkip" class="ghost-btn dialog-skip">跳过</button>
+  </div>
+
+  <div id="modalOverlay" class="overlay hidden">
+    <div class="modal" id="modalBox"></div>
+  </div>
+
+  <div id="toast" class="hidden"></div>
+  <div id="rotateHint">
+    <div class="rotate-icon">▭</div>
+    <div>请 横 屏 测 试</div>
+    <small>冰道横贯，横过来才看得全</small>
+  </div>
+</div>
+
+<script src="../js/rng.js"></script>
+<script src="../js/data-core.js"></script>
+<script src="../js/data-maps.js"></script>
+<script src="../js/combat.js"></script>
+<script src="../js/audio.js"></script>
+<script src="../js/render.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/battle.js"></script>
+<script src="../js/systems/terrain.js"></script>
+<script src="../js/camp.js"></script>
+<script src="../js/game.js"></script>
+<script src="../js/main.js"></script>
+<script>
+/* ============================================================
+ * P1.2 沙盒：冰面滑行 + 地形动态层
+ * 地图：第 6 行横向冰道（部署位正右方，col 2~10 冰、col 11 山岩、
+ *      col 12~13 冰）；col 2 纵向冰带（row 4~5，与横道相连）。
+ *      一名敌军站在横道 (8,6) 上。
+ * 玩法：点 (2,6) → 向右滑行，遇敌军停在 (7,6)；
+ *       绕到 (2,3) 再点 (2,4) → 沿竖带下滑，滑出冰带落上 (2,7)。
+ * 按键：T = 在光标格铺 3 回合冰面；Y = 清除全部覆盖层。
+ * ============================================================ */
+(function () {
+  const ICE_SANDBOX = {
+    id: 0, name: '沙盒 · 冰面', theme: 'bamboo',
+    objective: { type: 'rout', text: '测试滑行：横道遇人/遇岩即停，竖道滑到边缘；T 铺冰，Y 清冰' },
+    deployCount: 3,
+    deployTiles: [[0, 6], [0, 7], [1, 6], [1, 7]],
+    map: [
+      '................',
+      '................',
+      '................',
+      '................',
+      '..I.............',
+      '..I.............',
+      '..IIIIIIIIIMII..',
+      '................'
+    ],
+    nodes: [],
+    villages: [], chests: [], shrines: [],
+    enemies: [
+      { type: 'bandit', lv: 1, x: 8, y: 6 },    // 站在横道冰面上：向右滑行会被他挡住
+      { type: 'bandit', lv: 1, x: 12, y: 2 }
+    ],
+    reinforcements: [],
+    side: null,
+    rewards: { gold: 0, items: [] },
+    tips: '沙盒：T 键在光标处铺 3 回合冰面（回合开始自动过期），Y 清除。点击冰面上的落点会弹滑行确认。'
+  };
+
+  const camp = {
+    version: SAVE_VERSION, difficulty: 'normal', chapter: 0,
+    gold: 0, seals: 0,
+    roster: ['yunce', 'luming', 'qingluo'].map(id => Game.makeRec(id)).filter(Boolean),
+    fallen: [], supports: {}, convoy: [],
+    sideCleared: {}, introSeen: {}, cleared: false,
+    startedAt: Date.now(), savedAt: Date.now(),
+    settings: { music: false, sfx: true, speed: 1 },
+    records: { chapters: {}, kills: 0, lost: 0, recruits: 0, turns: 0, levels: 0 }
+  };
+
+  function devKeys(e) {
+    const B = Battle.B;
+    if (!B) return;
+    const k = e.key.toLowerCase();
+    if (k === 't') {
+      const h = B.hover || { x: 0, y: 0 };
+      if (TerrainFX.set(B, h.x, h.y, 'I', 3)) {
+        Render.terrainDirty = true;
+        UI.log('动态层：(' + h.x + ',' + h.y + ') 铺冰面 · 持续 3 回合', 'good');
+        UI.toast('(' + h.x + ',' + h.y + ') 冰面 × 3 回合');
+      }
+    } else if (k === 'y') {
+      TerrainFX.clear(B);
+      Render.terrainDirty = true;
+      UI.log('动态层：已清除全部覆盖地形', '');
+      UI.toast('覆盖层已清空');
+    }
+  }
+  window.addEventListener('keydown', devKeys);
+
+  Battle.start({ chapter: ICE_SANDBOX, chapterIndex: 0, campaign: camp, deployedIds: ['yunce', 'luming', 'qingluo'] });
+})();
+</script>
+</body>
+</html>

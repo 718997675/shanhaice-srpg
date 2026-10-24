@@ -294,6 +294,101 @@ console.log('\n== 11. 阵眼升阶（P1.1） ==');
   ok('第 1 章提示说明升华', ch1.tips.indexOf('升华') >= 0);
 }
 
+console.log('\n== 12. 冰面滑行与地形动态层（P1.2） ==');
+{
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/systems/terrain.js'), 'utf8'), ctx, { filename: 'js/systems/terrain.js' });
+  const { TerrainFX, Battle } = vm.runInContext('({ TerrainFX, Battle })', ctx);
+
+  // 12.1 Combat.slide：冰道 + 障碍
+  const ICE_ROW = ['................', '................', '..IIIIIIIIIMII..',
+                   '................', '..I.............', '..I.............',
+                   '..I.............', '................'];
+  const gridAt = (grid) => (x, y) => (grid[y] && grid[y][x] !== undefined ? TERRAIN[grid[y][x]] : null);
+  const noOne = () => false;
+  const W = 16, H = 8;
+
+  // 从 (2,2) 向右进入冰道：滑到山岩 M(11,2) 前停下 → (10,2)
+  let r = Combat.slide(gridAt(ICE_ROW), noOne, W, H, 2, 2, 1, 0);
+  eq('冰道右滑遇山岩停在 (10,2)', r.x + ',' + r.y, '10,2');
+  eq('滑行经过 8 格（2→10）', r.path.length, 8);
+  eq('滑行路径末格即终点', r.path[r.path.length - 1].x + ',' + r.path[r.path.length - 1].y, '10,2');
+
+  // 山岩占据时：前方有人 → 停在前一格
+  const banditAt = (x, y) => (px, py) => px === x && py === y;
+  r = Combat.slide(gridAt(ICE_ROW), banditAt(6, 2), W, H, 2, 2, 1, 0);
+  eq('冰道右滑遇人停在 (5,2)', r.x + ',' + r.y, '5,2');
+
+  // 滑出地图右边缘 → 停在最后一格冰（13,2 是冰，14 是草地会再进一步）
+  const OPEN_ICE = ['................', '................', '..IIIIIIIIIIII..',
+                    '................', '................', '................',
+                    '................', '................'];
+  r = Combat.slide(gridAt(OPEN_ICE), noOne, W, H, 2, 2, 1, 0);
+  eq('冰道接草地：滑上草地即停 (14,2)', r.x + ',' + r.y, '14,2');
+  const EDGE_ICE = ['................', '................', '..IIIIIIIIIIIIII',
+                    '................', '................', '................',
+                    '................', '................'];
+  r = Combat.slide(gridAt(EDGE_ICE), noOne, W, H, 2, 2, 1, 0);
+  eq('冰道到图边：停在 (15,2)', r.x + ',' + r.y, '15,2');
+
+  // 纵向冰道：从 (2,4) 向下滑，冰到 row6，下一格草地 → 停 (2,7)
+  r = Combat.slide(gridAt(ICE_ROW), noOne, W, H, 2, 4, 0, 1);
+  eq('竖道下滑到图底草地 (2,7)', r.x + ',' + r.y, '2,7');
+
+  // 入口即非冰面不应被调用；防呆：单步也不死循环
+  r = Combat.slide(gridAt(ICE_ROW), noOne, W, H, 0, 0, 1, 0);
+  eq('非冰面单步即停 (1,0)', r.x + ',' + r.y, '1,0');
+
+  // 12.2 TerrainFX 动态层
+  const B = { grid: ICE_ROW.slice(), units: [], overlays: {}, turn: 3 };
+  ok('铺冰成功', TerrainFX.set(B, 5, 5, 'I', 3) === true);
+  eq('覆盖层优先于静态地图', TerrainFX.tileChar(B, 5, 5), 'I');
+  eq('静态地图格不受影响', TerrainFX.tileChar(B, 5, 4), ICE_ROW[4][5]);
+  ok('越界铺设被拒', TerrainFX.set(B, 99, 0, 'I', 3) === false);
+  eq('过期时间 = 当前回合 + 持续 - 1', B.overlays['5,5'].until, 5);
+  TerrainFX.expire(B);
+  eq('未到期不清理', TerrainFX.tileChar(B, 5, 5), 'I');
+  B.turn = 5;
+  const gone = TerrainFX.expire(B);
+  eq('到期清理 1 层', gone.length, 1);
+  eq('清理后恢复静态地形', TerrainFX.tileChar(B, 5, 5), '.');
+  TerrainFX.set(B, 1, 1, 'M');           // 永久层
+  eq('永久层 until = Infinity', B.overlays['1,1'].until, Infinity);
+  TerrainFX.clear(B);
+  eq('clear 清空全部', Object.keys(B.overlays).length, 0);
+
+  // 12.3 slideDestination：路径终点在冰面才滑
+  const pathOnIce = [{ x: 1, y: 6 }, { x: 1, y: 5 }, { x: 1, y: 4 }, { x: 1, y: 3 }, { x: 1, y: 2 }, { x: 2, y: 2 }];
+  const sd = TerrainFX.slideDestination(B, pathOnIce);
+  ok('冰面终点触发滑行', sd !== null);
+  eq('滑到山岩前 (10,2)', sd.x + ',' + sd.y, '10,2');
+  eq('动画路径含原路径 + 滑行段', sd.path.length, pathOnIce.length - 1 + 8);
+  eq('动画路径终点一致', sd.path[sd.path.length - 1].x + ',' + sd.path[sd.path.length - 1].y, '10,2');
+  const pathOnGrass = [{ x: 3, y: 6 }, { x: 4, y: 6 }];   // (4,6) 是草地
+  ok('草地终点不滑行', TerrainFX.slideDestination(B, pathOnGrass) === null);
+  ok('一步路径不滑行', TerrainFX.slideDestination(B, [{ x: 1, y: 1 }]) === null);
+  // 覆盖层造的冰同样触发滑行
+  TerrainFX.set(B, 4, 6, 'I');
+  const pathOverlay = [{ x: 3, y: 6 }, { x: 4, y: 6 }];
+  const sd2 = TerrainFX.slideDestination(B, pathOverlay);
+  ok('覆盖层冰面也触发滑行', sd2 !== null);
+  eq('覆盖层上滑行落上草地 (5,6)', sd2.x + ',' + sd2.y, '5,6');
+
+  // 12.4 battle.tileAt 读覆盖层
+  const bt = Object.create(Battle);
+  bt.B = { grid: ICE_ROW.slice(), overlays: { '7,1': { char: 'I', until: 9 } }, turn: 3 };
+  eq('tileAt 命中覆盖层', bt.tileAt(7, 1).name, '冰面');
+  eq('tileAt 未命中回退静态', bt.tileAt(7, 0).name, '草地');
+  eq('tileChar 返回覆盖字符', bt.tileChar(7, 1), 'I');
+
+  // 12.5 resolvedGrid：寻路用的解析网格（覆盖层生效）
+  const rg = TerrainFX.resolvedGrid(bt.B);
+  eq('解析网格行数不变', rg.length, 8);
+  eq('解析网格该格变为冰', rg[1][7], 'I');
+  eq('解析网格其他格原样', rg[0][7], '.');
+  const B2 = { grid: ICE_ROW.slice(), overlays: {}, turn: 1 };
+  eq('无覆盖层时解析网格等于原图', TerrainFX.resolvedGrid(B2).join(''), ICE_ROW.join(''));
+}
+
 console.log('\n----------------------------------------');
 console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
 process.exit(fail ? 1 : 0);

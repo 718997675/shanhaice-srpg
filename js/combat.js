@@ -456,6 +456,29 @@ const Combat = {
     if (!rank) return { rank: null, hit: 0, avoid: 0, crit: 0, dodge: 0 };
     const r = SUPPORT_RANKS.find(x => x.rank === rank);
     return { rank: r.rank, hit: r.hit, avoid: r.avoid, crit: r.crit, dodge: r.dodge };
+  },
+
+  /* ============================================================
+   * 冰面滑行（P1.2）
+   * 滑行不做进 A*：寻路/可达按普通格子算，只在移动落地时结算。
+   * 单位沿 (dx,dy) 进入冰面后持续滑行：下一格仍是冰面且可站则继续，
+   * 遇越界/阻挡/占用/非冰面即停。返回终点与滑行经过的格子（不含起点，
+   * 含进入的第一块冰面；若一步都滑不动则 path 为空）。
+   * ============================================================ */
+  slide(tileAt, occupied, w, h, sx, sy, dx, dy) {
+    let x = sx, y = sy;
+    const path = [];
+    for (;;) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) break;      // 滑出地图：停
+      if (occupied(nx, ny)) break;                             // 前方有人：停
+      const t = tileAt(nx, ny);
+      if (!t || t.blocked) break;                              // 不可通行：停
+      x = nx; y = ny;
+      path.push({ x: x, y: y });
+      if (!t.slide) break;                                     // 滑到非冰面：停
+    }
+    return { x: x, y: y, path: path };
   }
 };
 

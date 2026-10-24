@@ -16,6 +16,7 @@ const Render = {
   topH: 46,
   battle: null,
   terrainCanvas: null,
+  terrainDirty: false,
   moving: null,
   lungeFx: null,
   hpView: null,
@@ -128,7 +129,7 @@ const Render = {
 
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 16; x++) {
-        const ch = b.grid[y][x];
+        const ch = TerrainFX.tileChar(b, x, y);
         const px = x * t, py = y * t;
         this.drawTileBase(g, ch, x, y, px, py, t, pal);
       }
@@ -199,13 +200,38 @@ const Render = {
     else if (ch === 'C') this.drawChest(g, px, py, t);
     else if (ch === 'S') this.drawShrine(g, px, py, t);
     else if (ch === 'E') this.drawEscape(g, px, py, t);
+    else if (ch === 'I') this.drawIce(g, px, py, t, r1, r2);
+  },
+
+  drawIce(g, px, py, t, r1, r2) {
+    // 冰面：青白底 + 两道反向高光 + 随机冰裂纹
+    g.fillStyle = 'rgba(214,236,246,.55)';
+    g.fillRect(px, py, t, t);
+    g.strokeStyle = 'rgba(255,255,255,.75)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(px + t * (0.1 + r1 * 0.15), py + t * 0.72);
+    g.lineTo(px + t * (0.45 + r1 * 0.2), py + t * (0.2 + r2 * 0.15));
+    g.stroke();
+    g.strokeStyle = 'rgba(160,205,225,.5)';
+    g.beginPath();
+    g.moveTo(px + t * 0.62, py + t * 0.85);
+    g.lineTo(px + t * (0.8 + r2 * 0.12), py + t * 0.35);
+    g.stroke();
+    g.strokeStyle = 'rgba(120,170,200,.35)';
+    g.beginPath();
+    g.moveTo(px + t * 0.3, py + t * 0.5);
+    g.lineTo(px + t * 0.55, py + t * 0.62);
+    g.lineTo(px + t * 0.78, py + t * 0.5);
+    g.stroke();
   },
 
   tileTint(ch, pal, r) {
     const base = pal.paper;
     const map = {
       '.': [0, 0], f: [-6, -4], h: [8, 2], r: [6, -4], v: [18, 6],
-      F: [4, -2], G: [10, -2], L: [-4, 0], C: [16, -2], S: [2, -6], E: [-2, 4]
+      F: [4, -2], G: [10, -2], L: [-4, 0], C: [16, -2], S: [2, -6], E: [-2, 4],
+      I: [-8, 12]
     };
     const off = map[ch] || [0, 0];
     const n = Math.round((r - 0.5) * 5);
@@ -581,6 +607,11 @@ const Render = {
     ctx.fillRect(this.ox - 3, this.oy - 3, this.boardW + 6, this.boardH + 6);
     ctx.restore();
 
+    // 地形动态层变更后标脏，这里重建缓存再画
+    if (this.terrainDirty) {
+      this.terrainDirty = false;
+      this.buildTerrain();
+    }
     if (this.terrainCanvas) {
       ctx.drawImage(this.terrainCanvas, this.ox, this.oy, this.boardW, this.boardH);
     } else {

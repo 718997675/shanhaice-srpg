@@ -65,7 +65,8 @@ const TERRAIN = {
   L: { key: 'L', name: '灵脉阵眼', cost: 1, flyCost: 1, avoid: 10, def: 0, color: '#b9c9bd' },
   C: { key: 'C', name: '古匣', cost: 1, flyCost: 1, avoid: 0, def: 0, color: '#cfa86a' },
   S: { key: 'S', name: '残祠', cost: 1, flyCost: 1, avoid: 10, def: 0, color: '#c3b8ce' },
-  E: { key: 'E', name: '退路', cost: 1, flyCost: 1, avoid: 0, def: 0, color: '#a9c3cf' }
+  E: { key: 'E', name: '退路', cost: 1, flyCost: 1, avoid: 0, def: 0, color: '#a9c3cf' },
+  I: { key: 'I', name: '冰面', cost: 1, flyCost: 1, avoid: 0, def: 0, slide: true, color: '#dff0f7' }
 };
 
 /* ---------------- 武器 ----------------

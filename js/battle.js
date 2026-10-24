@@ -19,7 +19,7 @@ const Battle = {
     this.active = true;
     this.chapterIndex = o.chapterIndex;
     this.campaign = o.campaign;
-    this.chapter = CHAPTERS[this.chapterIndex - 1];
+    this.chapter = o.chapter || CHAPTERS[this.chapterIndex - 1];
     this.diff = DIFFICULTIES[(o.campaign && o.campaign.difficulty) || 'normal'] || DIFFICULTIES.normal;
     this.uid = 1;
     const campSeed = (this.campaign && this.campaign.startedAt) || Date.now();
@@ -80,6 +80,7 @@ const Battle = {
       chapterIndex: this.chapterIndex,
       grid: ch.map.slice(),
       units: [],
+      overlays: {},
       nodes: (ch.nodes || []).map(n => ({
         id: n.id, x: n.x, y: n.y, type: n.type,
         owner: n.owner || 'none',
@@ -299,12 +300,12 @@ const Battle = {
 
   tileAt(x, y) {
     if (!this.B || y < 0 || y >= 8 || x < 0 || x >= 16) return null;
-    return TERRAIN[this.B.grid[y][x]] || TERRAIN['.'];
+    return TERRAIN[TerrainFX.tileChar(this.B, x, y)] || TERRAIN['.'];
   },
 
   tileChar(x, y) {
     if (!this.B || y < 0 || y >= 8 || x < 0 || x >= 16) return null;
-    return this.B.grid[y][x];
+    return TerrainFX.tileChar(this.B, x, y);
   },
 
   nodeAt(x, y) { return (this.B.nodes || []).find(n => n.x === x && n.y === y); },
@@ -572,6 +573,8 @@ const Battle = {
     UI.hideUnitCard();
     this.pruneStatuses();
     this.updateNodes();
+    // 地形动态层：回合开始清理到期覆盖层，有清理则标脏重绘
+    if (TerrainFX.expire(this.B).length) Render.terrainDirty = true;
     for (const u of B.units) {
       if (u.side === 'player' && u.hp > 0 && !u.escaped) {
         u.acted = false;
@@ -773,7 +776,8 @@ const Battle = {
    * AI
    * ============================================================ */
   reachFor(unit) {
-    return Combat.reachable(unit, this.B.grid, this.B.units, this.extraMoveFor(unit));
+    // 传解析后的网格：覆盖层（如冰冻结）要能改变可达范围
+    return Combat.reachable(unit, TerrainFX.resolvedGrid(this.B), this.B.units, this.extraMoveFor(unit));
   },
 
   pathBetween(range, unit, x, y) {
@@ -1074,15 +1078,32 @@ const Battle = {
     if (!u || !B.moveRange) return;
     const path = Combat.pathTo(B.moveRange, u, x, y);
     if (!path) return;
+    // 冰面滑行（不做进 A*）：终点在冰面则沿进入方向滑至稳定点，需二次确认
+    const slide = TerrainFX.slideDestination(B, path);
+    if (slide && (slide.x !== x || slide.y !== y)) {
+      B.busy = true;
+      const go = await UI.modal({
+        title: '冰面滑行',
+        sub: '落脚处是冰面，会沿前进方向一路滑到稳定点',
+        body: '目标 (' + x + ', ' + y + ') → 实际将滑至 (' + slide.x + ', ' + slide.y + ')',
+        buttons: [
+          { label: '取消', value: false },
+          { label: '滑行', value: true, cls: 'primary' }
+        ]
+      });
+      if (!go) { B.busy = false; return; }
+    }
     B.busy = true;
     UI.hideActionBar();
     B.mode = 'action';
-    u.x = x; u.y = y;
-    u.hasMoved = path.length > 1 || x !== B.origin.x || y !== B.origin.y;
-    u.movedDist = Math.max(0, path.length - 1);
+    u.x = slide ? slide.x : x;
+    u.y = slide ? slide.y : y;
+    u.hasMoved = path.length > 1 || u.x !== B.origin.x || u.y !== B.origin.y;
+    u.movedDist = Math.max(0, (slide ? slide.path.length : path.length) - 1);
+    if (slide) UI.log(u.name + '在冰面上滑行至 (' + u.x + ', ' + u.y + ')。', '');
     Audio.sfx('move');
     this.computeVisibility(false);
-    await Render.animateMove(u, path, B.speed);
+    await Render.animateMove(u, slide ? slide.path : path, B.speed);
     B.busy = false;
     B.moveRange = null;
     B.pathPreview = null;
@@ -2006,7 +2027,7 @@ const Battle = {
     for (const u of B.units) {
       if (u.side !== 'enemy' || u.hp <= 0 || u.escaped) continue;
       if (u.ai === 'idle' && u.recruitable) continue;
-      const z = Combat.dangerZone(u, B.grid, B.units, this.extraMoveFor(u));
+      const z = Combat.dangerZone(u, TerrainFX.resolvedGrid(B), B.units, this.extraMoveFor(u));
       for (const k of z) set.add(k);
     }
     B.dangerSet = set;
@@ -2119,6 +2140,7 @@ const Battle = {
       grid: B.grid,
       units: B.units,
       nodes: B.nodes,
+      overlays: B.overlays || {},
       turn: B.turn,
       phase: B.phase,
       phaseIndex: B.phaseIndex,
@@ -2155,6 +2177,8 @@ const Battle = {
     B.units = JSON.parse(JSON.stringify(data.units || []));
     // 旧存档没有 tier/hold 字段，读取时补默认值
     B.nodes = (data.nodes || []).map(n => Object.assign({ tier: 1, hold: 0 }, n));
+    // 地形动态层：旧存档没有则为空
+    B.overlays = data.overlays ? JSON.parse(JSON.stringify(data.overlays)) : {};
     B.turn = data.turn || 1;
     B.phase = data.phase || 'player';
     B.phaseIndex = data.phaseIndex || 1;
