@@ -5,7 +5,7 @@
 
 const GAME_TITLE = '山海策';
 const GAME_SUBTITLE = '灵 脉';
-const SAVE_VERSION = 3;
+const SAVE_VERSION = 4;   // v4：第 4 章末 A/B 路线分歧（campaign.chapter 由位置改存章节 id，新增 route 字段）
 
 const RANK_ORDER = { D: 0, C: 1, B: 2, A: 3, S: 4 };
 const RANK_NAMES = ['D', 'C', 'B', 'A', 'S'];
@@ -510,6 +510,33 @@ const ENEMY_TYPES = {
       base: { hp: 72, str: 20, mag: 14, skl: 14, spd: 10, lck: 6, def: 18, res: 14 },
       growth: { hp: 3.2, str: 0.9, mag: 0.5, skl: 0.6, spd: 0.4, lck: 0.2, def: 0.6, res: 0.5 }
     }
+  },
+
+  /* ---- A/B 路线 Boss（P3.1 分歧线；属性介于第 4 章与汇合章之间） ---- */
+  forestmaster: {
+    /* 精英词缀（与每章精英共享池，见 data-systems.js ELITE_AFFIXES） */
+    affixes: ['berserk'],
+    name: '林魈主', ai: 'guard', moveType: 'plant', move: 4, weapons: ['boss_claw'], tags: ['plant'], boss: true, element: 'wood',
+    base: { hp: 46, str: 13, mag: 8, skl: 10, spd: 7, lck: 4, def: 10, res: 8 },
+    growth: { hp: 2.5, str: 0.7, mag: 0.45, skl: 0.55, spd: 0.35, lck: 0.2, def: 0.5, res: 0.45 }
+  },
+  bridgewraith: {
+    affixes: ['shield'],
+    name: '桥魅', ai: 'aggressive', moveType: 'amphibious', move: 5, weapons: ['boss_trident'], tags: ['undead'], boss: true, element: 'water',
+    base: { hp: 48, str: 14, mag: 4, skl: 11, spd: 9, lck: 5, def: 11, res: 7 },
+    growth: { hp: 2.6, str: 0.72, mag: 0.25, skl: 0.58, spd: 0.42, lck: 0.22, def: 0.55, res: 0.4 }
+  },
+  valleydragon: {
+    affixes: ['regen'],
+    name: '谷螭', ai: 'guard', moveType: 'amphibious', move: 5, weapons: ['boss_jaw'], tags: ['beast'], boss: true, element: 'earth',
+    base: { hp: 47, str: 14, mag: 3, skl: 9, spd: 6, lck: 4, def: 12, res: 6 },
+    growth: { hp: 2.6, str: 0.72, mag: 0.2, skl: 0.5, spd: 0.32, lck: 0.2, def: 0.6, res: 0.35 }
+  },
+  tidewyrm: {
+    affixes: ['berserk'],
+    name: '浪蛟', ai: 'aggressive', moveType: 'amphibious', move: 6, weapons: ['boss_trident'], tags: ['beast'], boss: true, element: 'water',
+    base: { hp: 50, str: 15, mag: 4, skl: 10, spd: 8, lck: 5, def: 11, res: 7 },
+    growth: { hp: 2.7, str: 0.75, mag: 0.25, skl: 0.55, spd: 0.4, lck: 0.22, def: 0.55, res: 0.4 }
   },
 
   /* 友方召唤物 */

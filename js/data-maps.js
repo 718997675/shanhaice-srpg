@@ -3,12 +3,17 @@
  * 地图宽 16、高 8。字符含义见 data-core.js 的 TERRAIN。
  * ============================================================ */
 
-/* 章末自动入队（保险网）：地图招募点之外的补充，键为章 id */
-const AUTO_JOINS = { 1: ['qingluo'], 2: ['bailu'], 3: ['xuanyi'], 5: ['chisang', 'jiangsi'], 6: ['aman', 'yusqiu'], 7: ['yunling'] };
+/* 章末自动入队（保险网）：地图招募点之外的补充，键为章 id。
+ * P3.1 起第 4 章末分 A/B 线：5A/6A/7A = 焚脉（追），5B/6B/7B = 守脉（守），第 8 章汇合。 */
+const AUTO_JOINS = {
+  1: ['qingluo'], 2: ['bailu'], 3: ['xuanyi'],
+  '5A': ['chisang'], '6A': ['jiangsi', 'yusqiu'], '7A': ['aman', 'yunling'],
+  '5B': ['jiangsi'], '6B': ['aman', 'yusqiu'], '7B': ['chisang', 'yunling']
+};
 
 const CHAPTERS = [
   {
-    id: 1, name: '青岚山门', theme: 'mountain',
+    id: 1, no: 1, name: '青岚山门', theme: 'mountain',
     /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
     affixPool: [],   // 教学章不设词缀
     intro: 'ch1_intro', outro: 'ch1_outro',
@@ -51,7 +56,7 @@ const CHAPTERS = [
     tips: '青萝在东北的青岚村。阵眼结束行动即可占领；占领后驻守两个己方阶段可升华升阶，脉流效果翻倍。'
   },
   {
-    id: 2, name: '雾隐竹海', theme: 'bamboo',
+    id: 2, no: 2, name: '雾隐竹海', theme: 'bamboo',
     /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
     affixPool: ['berserk'],
     intro: 'ch2_intro', outro: 'ch2_outro',
@@ -99,7 +104,7 @@ const CHAPTERS = [
     tips: '守住六回合即可。生脉阵眼会在己方阶段开始时治疗周围友军。东岸有位追车队的骑将，让云策相邻后使用「说得」。'
   },
   {
-    id: 3, name: '断桥古渡', theme: 'river',
+    id: 3, no: 3, name: '断桥古渡', theme: 'river',
     /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
     affixPool: ['shield'],
     intro: 'ch3_intro', outro: 'ch3_outro',
@@ -114,7 +119,7 @@ const CHAPTERS = [
       '........~~...v..',
       '..h.....~~...r..',
       '........==......',
-      'C.v...LL~~..f...'
+      'C.v...LL~~..f..C'
     ],
     nodes: [
       { id: 'n1', x: 6, y: 7, type: 'flow' },
@@ -147,7 +152,7 @@ const CHAPTERS = [
     tips: '水鬼能踏水而行。两座木桥是攻守要点，行脉可让友军走得更远。对岸渡口的守卫玄漪，让云策相邻后「说得」即可同行。'
   },
   {
-    id: 4, name: '赤砂关隘', theme: 'fortress',
+    id: 4, no: 4, name: '赤砂关隘', theme: 'fortress',
     /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
     affixPool: ['berserk', 'shield'],
     intro: 'ch4_intro', outro: 'ch4_outro',
@@ -190,10 +195,10 @@ const CHAPTERS = [
     tips: '让云策与墨鸦相邻，使用「说得」。守住五回合后，还要取下赤砂将军首级。'
   },
   {
-    id: 5, name: '玄冰祭坛', theme: 'ice',
+    id: '5A', no: 5, route: 'A', name: '玄冰祭坛', theme: 'ice',
     /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
     affixPool: ['aura'],
-    intro: 'ch5_intro', outro: 'ch5_outro',
+    intro: 'ch5A_intro', outro: 'ch5A_outro',
     objective: { type: 'nodes_hold', turns: 2, nodes: ['n1', 'n2'], text: '净化两处浊脉，并守持两个己方阶段' },
     deployCount: 6,
     deployTiles: [[0, 5], [0, 6], [0, 7], [1, 4], [1, 5], [1, 6], [2, 6], [3, 7]],
@@ -235,10 +240,158 @@ const CHAPTERS = [
     tips: '两处浊脉初始属于敌方。站上阵眼结束行动即可抢占；全部占据后还要守住两个己方阶段。乌冰踏上去会滑行——沿进入方向一路滑到阻挡前，想停在半路就别从冰上进。守坛人赤桑可用「说得」招募，冰魈会咏唱霜系咒法。'
   },
   {
-    id: 6, name: '云梦泽', theme: 'swamp',
+    id: '6A', no: 6, route: 'A', name: '血槲林', theme: 'bamboo',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['berserk'],
+    intro: 'ch6A_intro', outro: 'ch6A_outro',
+    objective: { type: 'escape', text: '护送全员向东突围，一个也别落在林魈主的领地里' },
+    deployCount: 6,
+    deployTiles: [[0, 5], [0, 6], [0, 7], [1, 5], [1, 6], [1, 7], [2, 6]],
+    map: [
+      'MMMM........MMMM',
+      'M..f...r.....f.M',
+      '...ffS....r..ff.',
+      '..f...MM.....f..',
+      '.h....M..M...h..',
+      '..f......r...f.E',
+      '....L......L.C.E',
+      '..v...........E.'
+    ],
+    escapes: [[14, 7], [15, 5], [15, 6]],
+    nodes: [
+      { id: 'n1', x: 4, y: 6, type: 'flow' },
+      { id: 'n2', x: 11, y: 6, type: 'flow' }
+    ],
+    villages: [
+      { x: 2, y: 7, name: '血槲村', item: 'elixir' }
+    ],
+    chests: [
+      { x: 13, y: 6, name: '林下秘匣', item: 'herb' }
+    ],
+    shrines: [
+      { x: 5, y: 2, name: '朽根祠', heal: 10 }
+    ],
+    enemies: [
+      { type: 'wolf', lv: 11, x: 8, y: 2 },
+      { type: 'wolf', lv: 11, x: 12, y: 4 },
+      { type: 'shaman', lv: 11, x: 10, y: 1 },
+      { type: 'elite', lv: 12, x: 7, y: 4 },
+      { type: 'rogue', lv: 11, x: 13, y: 2 },
+      { type: 'bird', lv: 11, x: 9, y: 5 },
+      { type: 'bandit', lv: 11, x: 5, y: 1 },
+      { type: 'forestmaster', lv: 13, x: 11, y: 3, boss: true }
+    ],
+    reinforcements: [
+      { turn: 3, units: [{ type: 'wolf', lv: 11, x: 5, y: 0 }, { type: 'wolf', lv: 11, x: 10, y: 0 }] },
+      { turn: 5, units: [{ type: 'elite', lv: 12, x: 6, y: 0 }] }
+    ],
+    side: { type: 'kill_boss', text: '斩杀林魈主', gold: 400, items: ['seal'] },
+    rewards: { gold: 1100, items: ['potion', 'mat_steel', 'mat_steel'] },
+    tips: '血槲林没有回头路：所有存活友军抵达东岸三个突围口才算脱身。林魈主半血后会狂暴（攻速 +3），别在林地深处和它缠斗；疏林慢行，走行脉阵眼能抢出一步。'
+  },
+  {
+    id: '7A', no: 7, route: 'A', name: '渡厄桥', theme: 'river',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['shield'],
+    intro: 'ch7A_intro', outro: 'ch7A_outro',
+    objective: { type: 'rout', text: '夺取渡厄桥东岸，全歼守军，夺回灵脉核心' },
+    deployCount: 7,
+    deployTiles: [[0, 6], [0, 7], [1, 6], [1, 7], [2, 6], [2, 7], [3, 7]],
+    map: [
+      'M...~~~~..r....M',
+      'M.f.~~~~...f...M',
+      '..S.~~~~...f....',
+      '..h.====...h....',
+      '....====........',
+      '..f..~~~~.....f.',
+      '...L.~~~~...L...',
+      '..v..~~~~.G...C.'
+    ],
+    nodes: [
+      { id: 'n1', x: 3, y: 6, type: 'guard' },
+      { id: 'n2', x: 12, y: 6, type: 'attack' }
+    ],
+    villages: [
+      { x: 2, y: 7, name: '桥头村', gold: 200 }
+    ],
+    chests: [
+      { x: 14, y: 7, name: '桥腹秘匣', item: 'elixir' }
+    ],
+    shrines: [
+      { x: 2, y: 2, name: '望津祠', heal: 10 }
+    ],
+    enemies: [
+      { type: 'elite', lv: 13, x: 11, y: 3 },
+      { type: 'shaman', lv: 13, x: 12, y: 1 },
+      { type: 'rogue', lv: 13, x: 10, y: 5 },
+      { type: 'priest', lv: 12, x: 13, y: 4 },
+      { type: 'wolf', lv: 12, x: 14, y: 6 },
+      { type: 'bandit', lv: 12, x: 9, y: 7 },
+      { type: 'bird', lv: 12, x: 13, y: 0 },
+      { char: 'yunling', x: 14, y: 4, ai: 'idle', recruitable: true, talkKey: 'join_yunling' },
+      { type: 'bridgewraith', lv: 14, x: 7, y: 3, boss: true }
+    ],
+    reinforcements: [
+      { turn: 3, units: [{ type: 'elite', lv: 13, x: 12, y: 0 }, { type: 'wolf', lv: 12, x: 10, y: 1 }] }
+    ],
+    side: { type: 'kill_boss', text: '斩杀桥魅', gold: 500, items: ['seal'] },
+    rewards: { gold: 1200, items: ['elixir', 'mat_silver', 'mat_steel'] },
+    tips: '渡厄桥是过河的独道，桥魅守在桥心，未破盾前受伤 -30%——抢占西岸护脉阵眼再动手。东岸羽人云翎可用「说得」招募；追了一路，被俘守脉人的营地就在桥那头的火光里。'
+  },
+  {
+    id: '5B', no: 5, route: 'B', name: '断魂谷', theme: 'mountain',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['regen'],
+    intro: 'ch5B_intro', outro: 'ch5B_outro',
+    objective: { type: 'defend', turns: 8, text: '封住谷口，守持八个回合' },
+    deployCount: 6,
+    deployTiles: [[0, 5], [0, 6], [0, 7], [1, 5], [1, 6], [1, 7], [2, 5], [2, 7]],
+    map: [
+      'M..............M',
+      'M..f...rS...f..M',
+      '.....f.....f....',
+      '..h.....MM...h..',
+      '.......f..f.....',
+      '...L......L.....',
+      '..v..........v..',
+      '.............G..'
+    ],
+    nodes: [
+      { id: 'n1', x: 3, y: 5, type: 'life' },
+      { id: 'n2', x: 10, y: 5, type: 'life' }
+    ],
+    villages: [
+      { x: 2, y: 6, name: '谷口村', item: 'herb' },
+      { x: 13, y: 6, name: '山腰村', gold: 150 }
+    ],
+    chests: [],
+    shrines: [
+      { x: 8, y: 1, name: '断魂祠', heal: 10 }
+    ],
+    enemies: [
+      { type: 'elite', lv: 11, x: 11, y: 2 },
+      { type: 'wolf', lv: 11, x: 13, y: 3 },
+      { type: 'shaman', lv: 11, x: 9, y: 1 },
+      { type: 'bandit', lv: 11, x: 12, y: 4 },
+      { type: 'rogue', lv: 11, x: 14, y: 2 },
+      { type: 'priest', lv: 11, x: 7, y: 0 },
+      { type: 'armor', lv: 12, x: 11, y: 3 },
+      { type: 'valleydragon', lv: 12, x: 13, y: 5, boss: true }
+    ],
+    reinforcements: [
+      { turn: 2, units: [{ type: 'wolf', lv: 11, x: 13, y: 0 }] },
+      { turn: 4, units: [{ type: 'bandit', lv: 11, x: 8, y: 0 }, { type: 'elite', lv: 11, x: 14, y: 1 }] },
+      { turn: 6, units: [{ type: 'shaman', lv: 12, x: 10, y: 0 }] }
+    ],
+    side: { type: 'villages', text: '访问两处村落', gold: 300, items: ['herb'] },
+    rewards: { gold: 1050, items: ['potion', 'mat_steel', 'mat_steel'] },
+    tips: '谷螭带自愈（每回合开始回 10% 生命），拖得越久越难杀，但别因此追进深处——守住谷口等它来。两处生脉阵眼能持续照看伤员；姜姒在第 5 章结束后入队。'
+  },
+  {
+    id: '6B', no: 6, route: 'B', name: '云梦泽', theme: 'swamp',
     /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
     affixPool: ['regen', 'shield'],
-    intro: 'ch6_intro', outro: 'ch6_outro',
+    intro: 'ch6B_intro', outro: 'ch6B_outro',
     objective: { type: 'escape', text: '所有存活友军抵达东岸' },
     deployCount: 7,
     deployTiles: [[0, 6], [0, 7], [1, 6], [1, 7], [2, 6], [2, 7], [3, 6]],
@@ -248,7 +401,7 @@ const CHAPTERS = [
       '~~..f..~~..f...E',
       '..f............E',
       '.....~~....f...E',
-      '..h.....~~......',
+      '..h.....~~....C.',
       '....L....L......',
       '............v...',
       '....f..~~...f...'
@@ -272,7 +425,6 @@ const CHAPTERS = [
       { type: 'priest', lv: 10, x: 11, y: 2 },
       { type: 'wolf', lv: 11, x: 6, y: 5 },
       { type: 'bird', lv: 10, x: 10, y: 1 },
-      { char: 'yunling', x: 14, y: 2, ai: 'idle', recruitable: true, talkKey: 'join_yunling' },
       { type: 'swampdragon', lv: 13, x: 12, y: 3, boss: true }
     ],
     reinforcements: [
@@ -280,13 +432,63 @@ const CHAPTERS = [
     ],
     side: { type: 'recruit', text: '在泽畔村找到阿蛮', char: 'aman', gold: 300, items: ['herb'] },
     rewards: { gold: 1100, items: ['elixir', 'mat_steel', 'mat_silver'] },
-    tips: '雾中视野有限，危险范围无法查看。所有存活友军抵达东岸才能脱身，别把伤员落在最后。东岸撤离点附近的羽人云翎，让云策相邻后「说得」可同行。'
+    tips: '雾中视野有限，危险范围无法查看。所有存活友军抵达东岸才能脱身，别把伤员落在最后。沼龙会潜入毒沼，只有站在阵眼附近才逼得出来。'
   },
   {
-    id: 7, name: '天柱废墟', theme: 'ruins',
+    id: '7B', no: 7, route: 'B', name: '沧浪津', theme: 'river',
     /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
     affixPool: ['aura', 'berserk'],
-    intro: 'ch7_intro', outro: 'ch7_outro',
+    intro: 'ch7B_intro', outro: 'ch7B_outro',
+    objective: { type: 'rout', text: '抢滩登陆，全歼津口守军，别让浊潮抢登岸' },
+    deployCount: 7,
+    deployTiles: [[0, 6], [0, 7], [1, 6], [1, 7], [2, 6], [2, 7], [3, 7]],
+    map: [
+      'M...Sr.......~~M',
+      'M..f....f....~~~',
+      '......f......~~~',
+      '..h.......h.C.~~',
+      '....f....f....~~',
+      '.........L.....~',
+      '..v...L.......G~',
+      '......G........~'
+    ],
+    nodes: [
+      { id: 'n1', x: 9, y: 5, type: 'attack' },
+      { id: 'n2', x: 6, y: 6, type: 'flow' }
+    ],
+    villages: [
+      { x: 2, y: 6, name: '渡口村', item: 'potion' }
+    ],
+    chests: [
+      { x: 12, y: 3, name: '津渡秘匣', item: 'elixir' }
+    ],
+    shrines: [
+      { x: 4, y: 0, name: '望潮祠', heal: 10 }
+    ],
+    enemies: [
+      { type: 'elite', lv: 13, x: 11, y: 2 },
+      { type: 'rogue', lv: 13, x: 9, y: 3 },
+      { type: 'shaman', lv: 13, x: 12, y: 1 },
+      { type: 'wolf', lv: 12, x: 10, y: 4 },
+      { type: 'bird', lv: 13, x: 12, y: 0 },
+      { type: 'priest', lv: 12, x: 8, y: 5 },
+      { type: 'bandit', lv: 12, x: 13, y: 4 },
+      { type: 'armor', lv: 13, x: 11, y: 6 },
+      { char: 'yunling', x: 13, y: 6, ai: 'idle', recruitable: true, talkKey: 'join_yunling' },
+      { type: 'tidewyrm', lv: 14, x: 14, y: 5, boss: true }
+    ],
+    reinforcements: [
+      { turn: 3, units: [{ type: 'wolf', lv: 12, x: 5, y: 0 }, { type: 'bandit', lv: 12, x: 9, y: 0 }] }
+    ],
+    side: { type: 'kill_boss', text: '斩杀浪蛟', gold: 500, items: ['seal'] },
+    rewards: { gold: 1200, items: ['elixir', 'mat_silver', 'mat_steel'] },
+    tips: '浪蛟半血狂暴（攻速 +3），还会从海上包抄滩头，别把伤员留在最后。东南渡口的羽人云翎，让云策相邻后「说得」可同行；守住之后，下一程就是两支队伍汇合的天柱废墟。'
+  },
+  {
+    id: 8, no: 8, name: '天柱废墟', theme: 'ruins',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['aura', 'berserk'],
+    intro: 'ch8_intro', outro: 'ch8_outro',
     objective: { type: 'nodes_hold', turns: 3, nodes: ['n1', 'n2', 'n3'], text: '同时占据三处阵眼，守持三个己方阶段' },
     deployCount: 8,
     deployTiles: [[6, 7], [7, 7], [8, 7], [9, 7], [5, 7], [10, 7], [5, 6], [10, 6], [6, 6], [9, 6]],
@@ -330,10 +532,10 @@ const CHAPTERS = [
     tips: '三处阵眼相距很远。分兵占领，并守住三个连续的己方阶段。浊将可选，但战利丰厚。'
   },
   {
-    id: 8, name: '浊潮之眼', theme: 'void',
+    id: 9, no: 9, name: '浊潮之眼', theme: 'void',
     /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
     affixPool: ['shield', 'regen'],
-    intro: 'ch8_intro', outro: 'ch8_outro',
+    intro: 'ch9_intro', outro: 'ch9_outro',
     objective: { type: 'boss', text: '击败玄阙（二阶段）' },
     deployCount: 8,
     deployTiles: [[5, 7], [6, 7], [8, 7], [9, 7], [10, 7], [11, 7], [6, 6], [7, 6], [8, 6], [9, 6], [10, 6], [5, 6]],
@@ -478,16 +680,16 @@ const DIALOGUES = {
     { who: '阿蛮', text: '他摸我兽骨袋。' },
     { who: '墨鸦', text: '那是打招呼。' }
   ],
-  ch5_intro: [
+  ch5A_intro: [
     { who: '旁白', text: '玄冰祭坛。两处阵眼被黑冰封住，脉气像被倒着抽上了一根看不见的管子。' },
     { who: '赤桑', text: '别碰冰。冰里有脉。' },
     { who: '云策', text: '你是守坛人？' },
     { who: '赤桑', text: '赤桑。我守了十二年。每一年，坛里的冰就厚一层。' },
     { who: '鹿鸣', text: '这不是病，是阵。有人在用阵眼把灵脉往别处引。' },
     { who: '赤桑', text: '若要断阵，就得把两处阵眼重新印上活人的脉。你们敢吗？' },
-    { who: '云策', text: '我们来，就是为这个。' }
+    { who: '云策', text: '我们来，就是为这个。斥候说，押送被俘守脉人的车队过了北边的祭坛——顺手，把这坛也收了。' }
   ],
-  ch5_outro: [
+  ch5A_outro: [
     { who: '赤桑', text: '阵断了。冰下……有师父留的符。' },
     { who: '云策', text: '你师父也是守坛人？' },
     { who: '赤桑', text: '嗯。他被国师借去「点脉」，再没回来。' },
@@ -501,27 +703,94 @@ const DIALOGUES = {
     { who: '岩隈', text: '两步够你雷到我？' },
     { who: '赤桑', text: '……三步也行。' }
   ],
-  ch6_intro: [
+  ch4_route: [
+    { who: '旁白', text: '军帐。灯芯结了第三次灯花时，两份情报几乎同时送到。' },
+    { who: '岩隈', text: '西边斥候确认：玄阙亲自押着一队被俘的守脉人，往浊潮之眼去了。活着过路的，一个没有。' },
+    { who: '白鹭', text: '东边断魂谷的猎户来报：地脉裂了，黑水一夜漫过三道山梁。半个青岚州，眼看要成泽国。' },
+    { who: '墨鸦', text: '小守脉人，国师这是算准了你只有一队人。' },
+    { who: '云策', text: '……追，那些被俘的人或许还活着。守，断魂谷的村子今夜就要沉。' },
+    { who: '鹿鸣', text: '师兄，你从来没自己做过这么大的决定。' },
+    { who: '云策', text: '师父教的都是「怎么守」。这一次，我自己选。' },
+    { who: '旁白', text: '两条路，只能走一条。另一条，交给留下的那一半人心结。' }
+  ],
+  ch6A_intro: [
+    { who: '旁白', text: '血槲林。叶子是暗红色的，踩上去像踩着一层没干透的血。' },
+    { who: '墨鸦', text: '车辙印进林子就没了。他们抹了痕迹，但抹不掉血气。' },
+    { who: '鹿鸣', text: '树上有新的勒痕——人被拖着走过。不会超过一天。' },
+    { who: '白鹭', text: '林魈主把这片林子当猎场。它喜欢追着受伤的跑。' },
+    { who: '云策', text: '那就别让它称心。向东突围，跟上车队，一个也别落在林子里。' }
+  ],
+  ch6A_outro: [
+    { who: '旁白', text: '林魈主倒在自行裂开的血槲木丛里，整片林子的红，仿佛瞬间褪了一层。' },
+    { who: '青萝', text: '地上有守脉人的脉佩……碎了的。' },
+    { who: '鹿鸣', text: '车队昨晚过的林。他们带着俘虏，走不快。' },
+    { who: '云策', text: '追。前面是渡厄桥——情报说，桥那头就是他们的营地。' },
+    { who: '旁白', text: '东边的天际线上，有一线火光，像谁把渡厄桥点着了。' }
+  ],
+  ch7A_intro: [
+    { who: '旁白', text: '渡厄桥。二十丈长的木桥横在浊流之上，桥那头的营地烧得正旺。' },
+    { who: '玄漪', text: '水底下有东西。不是鱼——是桥魅，溺死的守桥人化的。' },
+    { who: '云策', text: '过桥就一条道。' },
+    { who: '白鹭', text: '桥魅守着桥心，脉气连着两岸的阵眼。先把阵眼夺下来，它就少了半条命。' },
+    { who: '云策', text: '过桥。救人，夺核心。' }
+  ],
+  ch7A_outro: [
+    { who: '旁白', text: '桥魅散了，化作一滩黑水退回浊流。营地里的火，也烧到了尽头。' },
+    { who: '鹿鸣', text: '……找到了。最后一个。' },
+    { who: '旁白', text: '那是个很年轻的守脉人，手里还攥着半块脉佩。脉佩上刻着云岚子的名字——是师父那一辈的人。' },
+    { who: '云策', text: '……追上了。' },
+    { who: '岩隈', text: '云策。人死不能复脉，但你把他带回来了。这就够了。' },
+    { who: '旁白', text: '云策在尸身旁站了很久。风从桥洞穿过，发出像哭又像叹的声音。' }
+  ],
+  ch5B_intro: [
+    { who: '旁白', text: '断魂谷。两山夹着一线谷口，地脉从这里穿过，养活着下游半个青岚州。' },
+    { who: '玄漪', text: '裂缝在谷底。我封了十二年的渡口，第一次见水是往上翻的。' },
+    { who: '岩隈', text: '猎户说，谷里的浊物想从这儿把整条脉顶出来。顶出来，下游就全是泽国。' },
+    { who: '赤桑', text: '封脉要人守着。脉不是墙，守得住一时，守不了一世。' },
+    { who: '云策', text: '那就守到能守的最后一刻。八回合，等下游的村民撤完。' },
+    { who: '旁白', text: '这一章没有追兵，只有慢下来的灾。守，是另一种打仗。' }
+  ],
+  ch5B_outro: [
+    { who: '旁白', text: '第八回合的号角响过，谷口的浊水终于开始回落。' },
+    { who: '鹿鸣', text: '下游的烟火撤完了。我数过，三村十一户，一个不少。' },
+    { who: '玄漪', text: '脉暂时按回去了。但裂缝还在，它还会再来。' },
+    { who: '云策', text: '那就等我们再回来。先把眼前的人带出这片泽。' },
+    { who: '旁白', text: '谁也没有提西边的追兵。有些话，说出口就是结。' }
+  ],
+  ch6B_intro: [
     { who: '旁白', text: '云梦泽。雾从水里长出来，遮住了来路，也遮住了追兵。' },
     { who: '鹿鸣', text: '前面是东岸。过了泽，就能绕到天柱废墟。' },
-    { who: '墨鸦', text: '后面那位「浊将」不打算让我们过。' },
     { who: '白鹭', text: '泽里还有阿蛮留下的路标。她是这一带的兽使，认得每一道暗流。' },
     { who: '云策', text: '先找阿蛮，再往东走。所有人一起走，一个也别留在雾里。' }
   ],
-  ch6_outro: [
+  ch6B_outro: [
     { who: '阿蛮', text: '……雾散了。你们走得很慢。' },
     { who: '鹿鸣', text: '有人受了伤。' },
-    { who: '阿蛮', text: '我看到了。山灵说，东边的大地裂开了一条黑缝。' },
-    { who: '玄漪', text: '浊潮之眼在呼吸。我们不能再等。' },
-    { who: '云策', text: '那就去天柱。最后一截灵脉，能把浊潮按回去。' }
+    { who: '阿蛮', text: '我看到了。山灵说，浊潮已经抢到了沧浪津，想从那儿登岸。' },
+    { who: '玄漪', text: '津口一丢，东岸就全是滩头上的活靶。' },
+    { who: '云策', text: '去沧浪津。在它们登岸之前，把它们摁回浪里。' }
+  ],
+  ch7B_intro: [
+    { who: '旁白', text: '沧浪津。潮声比战鼓还急，黑压压的浊物已经挤下了滩头。' },
+    { who: '阿蛮', text: '山灵在发抖。浪里有大家伙——不是鱼，是蛟。' },
+    { who: '玄漪', text: '潮位还在涨。等它涨到滩头第二道沙梁，就再也拦不住了。' },
+    { who: '云策', text: '那就现在登。抢下津口，全歼守军，别让浊潮踩实这片滩。' }
+  ],
+  ch7B_outro: [
+    { who: '旁白', text: '浪蛟的尸体在滩头上搁浅，黑血退进潮里，潮水第一次退了青色。' },
+    { who: '白鹭', text: '津口拿下了。西边……追兵现在到哪儿了？' },
+    { who: '墨鸦', text: '不知道。但我闻得出来，这一仗打完，两边都带着一身没说的话。' },
+    { who: '云策', text: '去天柱废墟。两条路的人，该在那儿见一见了。' },
+    { who: '旁白', text: '海平线上，天柱的残影依稀可辨——像一根插在浊潮里的定海针。' }
   ],
   join_aman: [
     { who: '阿蛮', text: '这是我的山灵。它叫白牙，不咬朋友。' },
     { who: '墨鸦', text: '看着挺咬人的。' },
     { who: '阿蛮', text: '所以我说了，不咬朋友。' }
   ],
-  ch7_intro: [
+  ch8_intro: [
     { who: '旁白', text: '天柱废墟。传说中山海界第一根灵脉从这里升起，如今只剩三处阵眼泛着微光。' },
+    { who: '旁白', text: '废墟下，两支队伍终于汇合。A 线的人带着西疆的火与血，B 线的人带着东岸的潮与泪。' },
     { who: '云翎', text: '下面的人，退后三步。' },
     { who: '云策', text: '羽人？你也是守脉的？' },
     { who: '云翎', text: '我守的是天上的路。浊潮已经漫上来了，三处阵眼必须同时亮起。' },
@@ -529,7 +798,7 @@ const DIALOGUES = {
     { who: '云翎', text: '凭你们，也凭我。我的弓射得到东边那处阵眼。' },
     { who: '云策', text: '那就分兵。三处阵眼，一处都不能灭。' }
   ],
-  ch7_outro: [
+  ch8_outro: [
     { who: '旁白', text: '三处阵眼同时亮起的一瞬，天柱上的裂纹像被水填满，缓慢地合拢。' },
     { who: '云翎', text: '天柱稳住了。浊潮之眼的门，也开了。' },
     { who: '云策', text: '你不必跟去。羽人守天，已经做得够多。' },
@@ -541,7 +810,7 @@ const DIALOGUES = {
     { who: '青萝', text: '那你飞低一点，我射得准。' },
     { who: '云翎', text: '好。给你留一支最直的箭。' }
   ],
-  ch8_intro: [
+  ch9_intro: [
     { who: '旁白', text: '浊潮之眼，原是九脉交汇的海眼。如今海水是黑的，天也是黑的。' },
     { who: '玄阙', text: '云策。你一路走来，看过多少荒村？灵脉按旧路走，西边十年大旱，东边十年洪涝。' },
     { who: '云策', text: '所以你改了脉路。' },
@@ -551,7 +820,7 @@ const DIALOGUES = {
     { who: '鹿鸣', text: '师兄。我们都在。' },
     { who: '云策', text: '结阵。先拿阵眼，再斩玄阙。' }
   ],
-  ch8_outro: [
+  ch9_outro: [
     { who: '旁白', text: '噬脉兽倒下时，海眼里积了二十年的浊潮像退潮一样散去。' },
     { who: '玄阙', text: '……原来脉不是河。河可以改道，脉只能活。' },
     { who: '云策', text: '你到最后一刻才明白。' },

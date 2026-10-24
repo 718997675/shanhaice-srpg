@@ -86,7 +86,7 @@ const UI = {
 
   updateBattle(B) {
     if (!B || !B.chapter) return;
-    this.el.chapterName.textContent = this.chapterLabel(B.chapter.id) + ' · ' + B.chapter.name;
+    this.el.chapterName.textContent = this.chapterLabel(B.chapter.no) + ' · ' + B.chapter.name;
     this.el.objectiveText.textContent = '目标：' + B.chapter.objective.text;
     this.el.turnNum.textContent = '第 ' + B.turn + ' 回合';
     this.el.phaseName.textContent = B.phase === 'player' ? '我方阶段' : B.phase === 'enemy' ? '敌方阶段' : '友军阶段';

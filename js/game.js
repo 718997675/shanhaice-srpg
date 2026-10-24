@@ -2,9 +2,9 @@
  * 战役流程：存档、章节推进、结算、续战与标题流转
  * ============================================================ */
 const Game = {
-  SAVE_KEY: 'shanhaice.save.v3',
-  SUSPEND_KEY: 'shanhaice.suspend.v3',
-  SETTINGS_KEY: 'shanhaice.settings.v3',
+  SAVE_KEY: 'shanhaice.save.v4',
+  SUSPEND_KEY: 'shanhaice.suspend.v4',
+  SETTINGS_KEY: 'shanhaice.settings.v4',
   campaign: null,
   settings: { music: true, sfx: true, speed: 1 },
   lastDeploy: null,
@@ -80,6 +80,7 @@ const Game = {
       difficulty: DIFFICULTIES[diffKey] ? diffKey : 'normal',
       cycle: Math.max(1, Math.floor(cycle || 1)),
       chapter: 1,
+      route: null,
       gold: 800,
       seals: 0,
       roster,
@@ -99,10 +100,20 @@ const Game = {
   },
 
   normalizeCampaign(raw) {
-    if (!raw || raw.version !== SAVE_VERSION) return null;
+    if (!raw) return null;
+    /* v3 → v4：第 4 章末 A/B 分歧；chapter 由位置下标改存章节 id */
+    if (raw.version === 3) {
+      const mig = Route.migrateLegacyChapter(raw.chapter);
+      raw.chapter = mig.chapter;
+      raw.route = mig.route;
+      if (mig.cleared) raw.cleared = true;
+      raw.version = SAVE_VERSION;
+    }
+    if (raw.version !== SAVE_VERSION) return null;
     const c = raw;
     if (!DIFFICULTIES[c.difficulty]) c.difficulty = 'normal';
-    c.chapter = Math.max(1, Math.min(9, c.chapter || 1));
+    c.route = (c.route === 'A' || c.route === 'B') ? c.route : null;
+    if (!Route.byId(c.chapter)) c.chapter = 1;
     c.cycle = Math.max(1, Math.floor(c.cycle || 1));
     c.gold = Math.max(0, Math.floor(c.gold || 0));
     c.seals = Math.max(0, Math.floor(c.seals || 0));
@@ -161,7 +172,7 @@ const Game = {
     c.convoy = c.convoy.filter(it => it && (WEAPONS[it.key] || ITEMS[it.key]));
     if (!c.sideCleared || typeof c.sideCleared !== 'object') c.sideCleared = {};
     if (!c.introSeen || typeof c.introSeen !== 'object') c.introSeen = {};
-    c.cleared = !!c.cleared || c.chapter >= 9;
+    c.cleared = !!c.cleared || (c.chapter === Route.FINALE && !Route.nextId(c.route, c.chapter));
     if (!c.records) c.records = { chapters: {}, kills: 0, lost: 0, recruits: 0, turns: 0, levels: 0 };
     if (!c.records.chapters) c.records.chapters = {};
     c.settings = Object.assign({}, this.settings, c.settings || {});
@@ -191,10 +202,12 @@ const Game = {
 
   /* ---------------- 续战存档 ---------------- */
   saveSuspend(state) {
-    if (!this.campaign || !state || !state.chapterIndex) return;
+    if (!this.campaign || !state) return;
+    const id = state.chapterId || state.chapterIndex;
+    if (!id || !Route.byId(id)) return;
     const packed = {
       version: SAVE_VERSION,
-      chapterIndex: state.chapterIndex,
+      chapterId: id,
       campaign: JSON.parse(JSON.stringify(this.campaign)),
       state: JSON.parse(JSON.stringify(state)),
       savedAt: Date.now()
@@ -205,8 +218,8 @@ const Game = {
   loadSuspend() {
     const s = this.readJSON(this.SUSPEND_KEY);
     if (!s || s.version !== SAVE_VERSION || !s.state || !s.campaign) return null;
-    const idx = s.state.chapterIndex || s.chapterIndex;
-    if (!CHAPTERS[idx - 1]) return null;
+    const id = (s.state.chapterId || s.state.chapterIndex) || s.chapterId;
+    if (!Route.byId(id)) return null;
     return s;
   },
 
@@ -221,22 +234,23 @@ const Game = {
     const sus = this.loadSuspend();
     const camp = this.campaign || this.loadCampaign();
     if (sus) {
-      const ch = CHAPTERS[sus.chapterIndex - 1];
+      const ch = Route.byId((sus.state.chapterId || sus.state.chapterIndex) || sus.chapterId);
       const diff = DIFFICULTIES[(sus.campaign && sus.campaign.difficulty) || 'normal'];
-      info.textContent = '战局待续 · ' + UI.chapterLabel(ch.id) + ' ' + ch.name + ' · ' + diff.name + '难度';
+      info.textContent = '战局待续 · ' + UI.chapterLabel(ch.no) + ' ' + ch.name + ' · ' + diff.name + '难度';
       return;
     }
     if (!camp) {
       info.textContent = '尚无行旅记录 · 点「新的旅程」入山';
       return;
     }
-    const ch = CHAPTERS[camp.chapter - 1];
+    const ch = Route.byId(camp.chapter);
     const diff = DIFFICULTIES[camp.difficulty] || DIFFICULTIES.normal;
     const cyc = Math.max(1, camp.cycle || 1);
     if (camp.cleared) {
       info.textContent = '旅程已完成 · ' + diff.name + '难度' + (cyc > 1 ? ' · ' + cyc + ' 周目' : '') + ' · 可回营地重游旧章';
     } else {
-      info.textContent = '行旅进行中 · ' + (ch ? UI.chapterLabel(ch.id) + ' ' + ch.name : '终章') +
+      info.textContent = '行旅进行中 · ' + (ch ? UI.chapterLabel(ch.no) + ' ' + ch.name : '终章') +
+        (camp.route ? ' · ' + Route.label(camp.route) : '') +
         ' · ' + diff.name + '难度' + (cyc > 1 ? ' · ' + cyc + ' 周目' : '') + ' · 盘缠 ' + camp.gold;
     }
   },
@@ -294,12 +308,12 @@ const Game = {
       const camp = this.normalizeCampaign(sus.campaign);
       if (!camp) { this.removeSuspend(); return this.continueJourney(); }
       this.campaign = camp;
-      this.currentChapter = sus.chapterIndex;
+      this.currentChapter = (sus.state && (sus.state.chapterId || sus.state.chapterIndex)) || sus.chapterId;
       this.lastDeploy = null;
       UI.showScreen('battle');
       Render.resize();
       Battle.start({
-        chapterIndex: sus.chapterIndex,
+        chapterId: this.currentChapter,
         campaign: this.campaign,
         suspended: sus.state
       }).catch(err => {
@@ -323,9 +337,9 @@ const Game = {
   },
 
   /* ---------------- 章节开始 ---------------- */
-  async startChapter(index, deployedIds) {
+  async startChapter(chapterId, deployedIds) {
     if (!this.campaign || this.busy) return;
-    const ch = CHAPTERS[index - 1];
+    const ch = Route.byId(chapterId);
     if (!ch) { UI.toast('没有下一章了'); return; }
     this.busy = true;
     try {
@@ -335,7 +349,7 @@ const Game = {
       ids = ids.slice(0, ch.deployCount);
       if (!ids.length) { UI.toast('没有可出战的同伴'); return; }
       this.lastDeploy = ids;
-      this.currentChapter = index;
+      this.currentChapter = ch.id;
       if (!this.campaign.introSeen[ch.id] && ch.intro && DIALOGUES[ch.intro]) {
         await UI.dialogue(DIALOGUES[ch.intro]);
         this.campaign.introSeen[ch.id] = true;
@@ -344,7 +358,7 @@ const Game = {
       this.removeSuspend();
       UI.showScreen('battle');
       Render.resize();
-      await Battle.start({ chapterIndex: index, campaign: this.campaign, deployedIds: ids });
+      await Battle.start({ chapterId: ch.id, campaign: this.campaign, deployedIds: ids });
     } catch (err) {
       console.error(err);
       UI.toast('章节启动失败');
@@ -354,13 +368,13 @@ const Game = {
     }
   },
 
-  async retryChapter(index) {
+  async retryChapter(chapterId) {
     if (!this.campaign) return;
     const ids = this.lastDeploy || (Camp.deploySel ? Array.from(Camp.deploySel) : ['yunce']);
     this.removeSuspend();
     UI.showScreen('battle');
     Render.resize();
-    await Battle.start({ chapterIndex: index, campaign: this.campaign, deployedIds: ids });
+    await Battle.start({ chapterId: chapterId, campaign: this.campaign, deployedIds: ids });
   },
 
   leaveBattleToCamp(tab) {
@@ -376,7 +390,7 @@ const Game = {
     if (!this.campaign || this.busy) return;
     this.busy = true;
     try {
-      const ch = CHAPTERS[result.chapterIndex - 1];
+      const ch = Route.byId(result.chapterId);
       const diff = DIFFICULTIES[this.campaign.difficulty] || DIFFICULTIES.normal;
       const sideOk = !!result.sideSuccess;
       const side = ch.side || null;
@@ -459,21 +473,28 @@ const Game = {
       rec.turns += result.turns || 0;
       rec.levels += (result.stats && result.stats.levels) || 0;
 
-      this.campaign.chapter = ch.id + 1;
-      if (ch.id >= CHAPTERS.length) this.campaign.cleared = true;
-      this.removeSuspend();
-      this.saveCampaign();
-      this.refreshTitle();
-
       if (ch.outro && DIALOGUES[ch.outro]) {
         await UI.dialogue(DIALOGUES[ch.outro]);
       }
+
+      /* 分歧点：第 4 章末「追与守」二选一（P3.1） */
+      if (ch.id === 4 && !this.campaign.route) {
+        const pick = await this.chooseRoute();
+        this.campaign.route = pick;
+        this.saveCampaign();
+      }
+      const nextId = Route.nextId(this.campaign.route, ch.id);
+      this.campaign.chapter = nextId;
+      if (!nextId) this.campaign.cleared = true;
+      this.removeSuspend();
+      this.saveCampaign();
+      this.refreshTitle();
 
       const itemNames = gainedItems.map(k => (WEAPONS[k] || ITEMS[k]).name);
       const joinNames = joined.map(id => CHARS[id].name);
       const fallenNames = (result.fallen || []).map(id => CHARS[id] ? CHARS[id].name : id);
       const stats = result.stats || {};
-      const nextCh = CHAPTERS[ch.id];
+      const nextCh = Route.byId(nextId);
       const rows = [];
       rows.push('<div class="result-stat"><div class="lab">回合</div><div class="val">' + (result.turns || 0) + '</div></div>');
       rows.push('<div class="result-stat"><div class="lab">击破</div><div class="val">' + (stats.kills || 0) + '</div></div>');
@@ -490,14 +511,15 @@ const Game = {
       if (side) list += '<div>支线「' + UI.escape(side.text) + '」' + (sideOk ? '已达成。' : '未达成。') + '</div>';
       if (joinNames.length) list += '<div>新同伴：<b>' + joinNames.map(n => UI.escape(n)).join('、') + '</b></div>';
       if (fallenNames.length) list += '<div style="color:#8b3b2d;">阵亡：' + fallenNames.map(n => UI.escape(n)).join('、') + '。他们将留在行录里。</div>';
-      if (nextCh) list += '<div>下一程：<b>' + UI.escape(UI.chapterLabel(nextCh.id) + ' ' + nextCh.name) + '</b></div>';
+      if (nextCh) list += '<div>下一程：<b>' + UI.escape(UI.chapterLabel(nextCh.no) + ' ' + nextCh.name) +
+        (nextCh.route ? '（' + UI.escape(Route.label(this.campaign.route)) + '）' : '') + '</b></div>';
       else list += '<div><b>九脉已通，山海重明。</b></div>';
 
-      const title = ch.id >= CHAPTERS.length ? '山海重明' : ch.name;
-      const kicker = ch.id >= CHAPTERS.length ? '旅 程 终 章' : '章 节 完 成';
+      const title = !nextId ? '山海重明' : ch.name;
+      const kicker = !nextId ? '旅 程 终 章' : '章 节 完 成';
       const html = '<div class="result-kicker">' + kicker + '</div>' +
         '<div class="result-title">' + UI.escape(title) + '</div>' +
-        '<div class="result-sub">' + UI.escape(UI.chapterLabel(ch.id)) + ' · ' + (result.turns || 0) + ' 回合 · ' + diff.name + '难度</div>' +
+        '<div class="result-sub">' + UI.escape(UI.chapterLabel(ch.no)) + ' · ' + (result.turns || 0) + ' 回合 · ' + diff.name + '难度</div>' +
         '<div class="result-stats">' + rows.join('') + '</div>' +
         '<div class="result-list">' + list + '</div>' +
         '<div class="result-actions">' +
@@ -522,6 +544,33 @@ const Game = {
     }
   },
 
+  /* ---------------- 路线分歧（P3.1） ----------------
+   * 第 4 章末「追与守」二选一：先演军帐对话，再出抉择弹层。
+   * 返回 'A'（焚脉·追）或 'B'（守脉·守），写入 campaign.route 后不可更改。 */
+  async chooseRoute() {
+    if (DIALOGUES.ch4_route) await UI.dialogue(DIALOGUES.ch4_route);
+    const card = (key) => {
+      const r = ROUTES[key];
+      return '<div style="padding:10px 12px;background:rgba(80,68,45,.06);border-left:2px solid rgba(145,105,58,.45);">' +
+        '<div style="font-size:13px;color:#3a3423;"><b>' + UI.escape(r.title) + '</b>' +
+        '<span style="margin-left:8px;color:#8a6b3a;">「' + UI.escape(r.slogan) + '」</span></div>' +
+        '<div style="font-size:11px;color:#6b6450;margin-top:4px;line-height:1.85;">' + UI.escape(r.desc) + '</div></div>';
+    };
+    const pick = await UI.modal({
+      title: '追 与 守',
+      sub: '两条路，只能走一条。另一条，交给留下的那一半人心结。',
+      body: '<div style="display:flex;flex-direction:column;gap:8px;">' + card('A') + card('B') + '</div>' +
+        '<div style="margin-top:10px;font-size:10px;color:#8a806a;line-height:1.7;">' +
+        '选定后不可更改。两条线各有三章独立地图、同伴与剧情，第 8 章天柱废墟汇合，共赴浊潮之眼。</div>',
+      buttons: [
+        { label: '追 · 焚脉', value: 'A', cls: 'primary' },
+        { label: '守 · 守脉', value: 'B', cls: 'gold' }
+      ],
+      closable: false
+    });
+    return pick === 'B' ? 'B' : 'A';
+  },
+
   normalizeUnitRecord(rec) {
     const base = this.makeRec(rec.id);
     let items = Array.isArray(rec.items) ? rec.items.filter(it => it && (WEAPONS[it.key] || ITEMS[it.key])) : base.items;
@@ -538,10 +587,10 @@ const Game = {
     };
   },
 
-  onChapterDefeat(reason, chapterIndex) {
+  onChapterDefeat(reason, chapterId) {
     this.removeSuspend();
-    const idx = chapterIndex || this.currentChapter;
-    const ch = CHAPTERS[idx - 1];
+    const id = chapterId || this.currentChapter;
+    const ch = Route.byId(id);
     Audio.stopMusic();
     UI.modal({
       title: '行旅中断',
@@ -556,7 +605,7 @@ const Game = {
         { label: '重新挑战', value: 'retry', cls: 'primary' }
       ]
     }).then(choice => {
-      if (choice === 'retry') this.retryChapter(idx);
+      if (choice === 'retry') this.retryChapter(id);
       else if (choice === 'camp') this.leaveBattleToCamp('team');
       else this.showTitle();
     });
@@ -642,8 +691,8 @@ const Game = {
   chapterProgressText() {
     if (!this.campaign) return '尚无行旅';
     if (this.campaign.cleared) return '旅程已完成';
-    const ch = CHAPTERS[this.campaign.chapter - 1];
-    return ch ? UI.chapterLabel(ch.id) + ' ' + ch.name : '终章';
+    const ch = Route.byId(this.campaign.chapter);
+    return ch ? UI.chapterLabel(ch.no) + ' ' + ch.name : '终章';
   }
 };
 

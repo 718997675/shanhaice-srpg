@@ -6,7 +6,7 @@ const Battle = {
   active: false,
   B: null,
   chapter: null,
-  chapterIndex: 0,
+  chapterId: null,
   campaign: null,
   diff: null,
   uid: 1,
@@ -17,13 +17,13 @@ const Battle = {
   async start(opts) {
     const o = opts || {};
     this.active = true;
-    this.chapterIndex = o.chapterIndex;
+    this.chapterId = o.chapterId;
     this.campaign = o.campaign;
-    this.chapter = o.chapter || CHAPTERS[this.chapterIndex - 1];
+    this.chapter = o.chapter || Route.byId(this.chapterId);
     this.diff = DIFFICULTIES[(o.campaign && o.campaign.difficulty) || 'normal'] || DIFFICULTIES.normal;
     this.uid = 1;
     const campSeed = (this.campaign && this.campaign.startedAt) || Date.now();
-    RNG.setSeed((campSeed ^ (this.chapterIndex * 0x9e3779b9)) >>> 0);
+    RNG.setSeed((campSeed ^ Route.seedOf(this.chapterId)) >>> 0);
     this.B = this.createState();
     UI.log('', '');
     UI.clearLog();
@@ -77,7 +77,7 @@ const Battle = {
     const ch = this.chapter;
     return {
       chapter: ch,
-      chapterIndex: this.chapterIndex,
+      chapterId: this.chapterId,
       grid: ch.map.slice(),
       units: [],
       overlays: {},
@@ -2656,7 +2656,7 @@ const Battle = {
     Audio.stopMusic();
     Audio.sfx('defeat');
     await this.wait(400);
-    if (Game.onChapterDefeat) Game.onChapterDefeat(reason, this.chapterIndex);
+    if (Game.onChapterDefeat) Game.onChapterDefeat(reason, this.chapterId);
   },
 
   collectResult() {
@@ -2678,7 +2678,7 @@ const Battle = {
     }
     const fallen = B.units.filter(u => u.side === 'player' && u.charId && u.hp <= 0).map(u => u.charId);
     return {
-      chapterIndex: this.chapterIndex,
+      chapterId: this.chapterId,
       turns: B.turn,
       victory: true,
       sideSuccess: this.sideSuccess(),
@@ -2749,7 +2749,7 @@ const Battle = {
     const canRewind = B.phase === 'player' && !B.busy && B.rewindLeft > 0 && !!B.rewindSnapshot;
     const actions = await UI.modal({
       title: '行旅暂停',
-      sub: UI.chapterLabel(this.chapter.id) + ' · ' + this.chapter.name + '　第 ' + B.turn + ' 回合',
+      sub: UI.chapterLabel(this.chapter.no) + ' · ' + this.chapter.name + '　第 ' + B.turn + ' 回合',
       body: '<div style="font-size:12px;color:#5f5a45;line-height:1.9;">' +
         '已击败敌军 ' + B.stats.kills + ' 名 · 本回合阵亡 ' + B.stats.lost + ' 人<br>' +
         '悔棋剩余 <b>' + B.rewindLeft + '</b> 次' + (this.diff.rewinds === 0 ? '（修罗难度不可悔棋）' : '') +
@@ -2777,7 +2777,7 @@ const Battle = {
     }
     if (actions === 'retry') {
       const ok = await UI.confirm('重新挑战', '本场战斗的进度将全部放弃，回到章节开始。', '重新挑战', '取消');
-      if (ok && window.Game) Game.retryChapter(this.chapterIndex);
+      if (ok && window.Game) Game.retryChapter(this.chapterId);
       return;
     }
     if (actions === 'help') {
@@ -2834,7 +2834,7 @@ const Battle = {
     const B = this.B;
     if (!B) return null;
     const out = {
-      chapterIndex: this.chapterIndex,
+      chapterId: this.chapterId,
       grid: B.grid,
       units: B.units,
       nodes: B.nodes,

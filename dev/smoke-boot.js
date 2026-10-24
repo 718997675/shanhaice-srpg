@@ -55,7 +55,7 @@ sandboxWindow.console = console;
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
                'js/audio.js', 'js/render.js', 'js/ui.js', 'js/battle.js',
                'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
-               'js/systems/legendary.js', 'js/systems/smith.js',
+               'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js',
                'js/camp.js', 'js/game.js'];
 
 (async () => {
@@ -73,7 +73,7 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
 
   if (useSandbox) {
     const ICE_SANDBOX = {
-      id: 0, name: '沙盒 · 冰面', theme: 'bamboo',
+      id: 0, no: 0, name: '沙盒 · 冰面', theme: 'bamboo',
       objective: { type: 'rout', text: '测试滑行' },
       deployCount: 3,
       deployTiles: [[0, 6], [0, 7], [1, 6], [1, 7]],
@@ -84,9 +84,9 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
       reinforcements: [], side: null, rewards: { gold: 0, items: [] },
       tips: '沙盒'
     };
-    await Battle.start({ chapter: ICE_SANDBOX, chapterIndex: 0, campaign: camp, deployedIds: ['yunce', 'luming', 'qingluo'] });
+    await Battle.start({ chapter: ICE_SANDBOX, chapterId: 0, campaign: camp, deployedIds: ['yunce', 'luming', 'qingluo'] });
   } else {
-    await Battle.start({ chapterIndex: 1, campaign: camp, deployedIds: ['yunce', 'luming'] });
+    await Battle.start({ chapterId: 1, campaign: camp, deployedIds: ['yunce', 'luming'] });
   }
 
   const B = Battle.B;

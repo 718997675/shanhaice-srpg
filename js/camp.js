@@ -40,7 +40,7 @@ const Camp = {
       return;
     }
     let next = tab || this.tab || 'team';
-    if (next === 'deploy' && (Game.campaign.cleared || !CHAPTERS[Game.campaign.chapter - 1])) {
+    if (next === 'deploy' && (Game.campaign.cleared || !Route.byId(Game.campaign.chapter))) {
       next = 'record';
       UI.toast('九脉已通，可回看行录');
     }
@@ -409,7 +409,7 @@ const Camp = {
     const rec = c.records || { chapters: {} };
     const chapterRows = CHAPTERS.map(ch => {
       const r = rec.chapters && rec.chapters[ch.id];
-      return '<div class="record-line">' + UI.chapterLabel(ch.id) + ' ' + UI.escape(ch.name) +
+      return '<div class="record-line">' + UI.chapterLabel(ch.no) + (ch.route ? ' <span class="muted">' + UI.escape(Route.label(ch.route)) + '</span>' : '') + ' ' + UI.escape(ch.name) +
         ' <span class="muted">' + (r ? r.turns + ' 回合 · ' + r.kills + ' 击破 · ' + (r.side ? '支线达成' : '支线未成') : '未成行') + '</span></div>';
     }).join('');
     const roster = c.roster.map(r => {
@@ -451,7 +451,7 @@ const Camp = {
    * ============================================================ */
   renderDeploy(body) {
     const c = Game.campaign;
-    const ch = CHAPTERS[c.chapter - 1];
+    const ch = Route.byId(c.chapter);
     if (!ch) {
       body.innerHTML = '<div class="record-wrap"><h3>旅 程 已 完 成</h3>' +
         '<div class="record-list"><div class="record-line">九条灵脉已经重新亮起，山海间不再有浊潮。</div>' +
@@ -494,7 +494,7 @@ const Camp = {
     }).join('');
     const side = ch.side ? '<div class="deploy-obj"><b>支线</b>　' + UI.escape(ch.side.text) + '</div>' : '';
     body.innerHTML = '<div class="deploy-view">' +
-      '<div class="deploy-info"><div class="ch-no">' + UI.chapterLabel(ch.id) + '</div>' +
+      '<div class="deploy-info"><div class="ch-no">' + UI.chapterLabel(ch.no) + '</div>' +
       '<h3>' + UI.escape(ch.name) + '</h3>' +
       '<p>目标：' + UI.escape(ch.objective.text) + '</p>' + side +
       '<p>' + UI.escape(ch.tips || '') + '</p>' +
@@ -672,7 +672,7 @@ const Camp = {
     }
     if (act === 'toggleDeploy') {
       const id = btn.dataset.id;
-      const ch = CHAPTERS[Game.campaign.chapter - 1];
+      const ch = Route.byId(Game.campaign.chapter);
       if (!ch) return;
       if (id === 'yunce') { UI.toast('守脉人云策必须出战'); return; }
       if (this.deploySel.has(id)) this.deploySel.delete(id);
@@ -684,7 +684,7 @@ const Camp = {
       return;
     }
     if (act === 'startChapter') {
-      const ch = CHAPTERS[c.chapter - 1];
+      const ch = Route.byId(c.chapter);
       if (!ch) return;
       const ids = Array.from(this.deploySel || []);
       if (!ids.includes('yunce')) ids.unshift('yunce');

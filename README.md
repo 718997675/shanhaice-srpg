@@ -24,7 +24,8 @@ node dev/serve.js
 
 ## 已实现内容
 
-- 8 章战役，10 名可用角色，固定转职路线与武器耐久。
+- 9 章战役、12 张地图：第 5~7 章分 A/B 双线（A 线焚脉·追 / B 线守脉·守），第 8 章天柱废墟汇合；12 名可用角色，固定转职路线与武器耐久。
+- 第 4 章末「追与守」二选一，选定后不可更改；两条线各有独立地图、同伴与剧情。
 - 命中 2RN、必杀 1RN、武器三角、追击、支援加成、地形与阵眼效果。
 - 歼灭、坚守、占领、围攻、阵眼压制、撤退、Boss 等混合章节目标，以及村庄、宝箱、祠堂、增援、雾战、说得与召唤等支线事件。
 - 经典永久死亡；云策阵亡即章节失败。三档难度分别调整敌军强度、经验与悔棋次数。
@@ -46,6 +47,7 @@ js/render.js          Canvas 地图与战斗演出
 js/ui.js              HUD、对话、弹层、战报与预测
 js/camp.js            营地、编成、商店、转职
 js/game.js            战役推进、章节结算、存档读写
+js/systems/route.js   A/B 战役路线（分歧、章节链、v3 存档迁移）
 js/audio.js           WebAudio 合成音效与配乐
 dev/                  本地服务器、逻辑测试、CDP 调试与素材生成脚本
 assets/portraits/     角色立绘与标题图（SVG）
@@ -63,9 +65,9 @@ node dev/cdp.js --reload --shot dev/shot.png
 
 存档键：
 
-- `shanhaice.save.v3`：战役进度
-- `shanhaice.suspend.v3`：续战存档
-- `shanhaice.settings.v3`：本地设置
+- `shanhaice.save.v4`：战役进度
+- `shanhaice.suspend.v4`：续战存档
+- `shanhaice.settings.v4`：本地设置
 
 ## 素材说明
 

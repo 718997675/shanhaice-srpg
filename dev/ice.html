@@ -70,6 +70,7 @@
 <script src="../js/ui.js"></script>
 <script src="../js/battle.js"></script>
 <script src="../js/systems/terrain.js"></script>
+<script src="../js/systems/route.js"></script>
 <script src="../js/camp.js"></script>
 <script src="../js/game.js"></script>
 <script src="../js/main.js"></script>
@@ -85,7 +86,7 @@
  * ============================================================ */
 (function () {
   const ICE_SANDBOX = {
-    id: 0, name: '沙盒 · 冰面', theme: 'bamboo',
+    id: 0, no: 0, name: '沙盒 · 冰面', theme: 'bamboo',
     objective: { type: 'rout', text: '测试滑行：横道遇人/遇岩即停，竖道滑到边缘；T 铺冰，Y 清冰' },
     deployCount: 3,
     deployTiles: [[0, 6], [0, 7], [1, 6], [1, 7]],
@@ -142,7 +143,7 @@
   }
   window.addEventListener('keydown', devKeys);
 
-  Battle.start({ chapter: ICE_SANDBOX, chapterIndex: 0, campaign: camp, deployedIds: ['yunce', 'luming', 'qingluo'] });
+  Battle.start({ chapter: ICE_SANDBOX, chapterId: 0, campaign: camp, deployedIds: ['yunce', 'luming', 'qingluo'] });
 })();
 </script>
 </body>
