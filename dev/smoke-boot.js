@@ -369,5 +369,63 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     console.log('追影刃三分支：命中换位 / 未中不动 / Boss 不动，均正确');
   }
 
+  /* 敌方精英词缀：池分配 / 登场播报 / 自愈 / 阵眼破盾 */
+  {
+    const CH = vm.runInContext('CHAPTERS', ctx);
+    /* 分配：合成双池章节，两个浊甲卫轮流戴；Boss 自带不占池 */
+    const fake = Object.create(Battle);
+    fake.diff = { enemyLv: 0, enemyMul: 1 };
+    fake.uid = 800;
+    fake.chapter = { affixPool: ['berserk', 'shield'] };
+    fake.B = { units: [], flags: {} };
+    const made = [{ type: 'elite', lv: 5, x: 0, y: 0 }, { type: 'elite', lv: 5, x: 1, y: 0 }].map(sp => {
+      const u = Battle.makeEnemyUnit.call(fake, sp);
+      Battle.assignAffixes.call(fake, u, sp);
+      return u;
+    });
+    console.log('词缀分配：', made.map(u => u.name + '·' + u.affixes.join('/')).join(' ， '));
+    if (made[0].affixes[0] !== 'berserk' || made[1].affixes[0] !== 'shield') throw new Error('浊甲卫词缀轮流分配异常');
+    Battle.announceAffixes.call(fake, made[0]);
+    if (!fake.B.flags.announcedAffixes[made[0].id]) throw new Error('登场播报未记录');
+    /* 自愈：敌方阶段开始回 10% 最大生命 */
+    const rg = { id: 'rg1', name: '自愈靶', side: 'enemy', hp: 10, x: 15, y: 7, stats: { hp: 100 }, affixes: ['regen'], escaped: false };
+    B.units.push(rg);
+    Battle.tickAffixRegen();
+    console.log('自愈：10 → ' + rg.hp + '（100 的 10%）');
+    if (rg.hp !== 20) throw new Error('自愈回复量异常');
+    B.units = B.units.filter(u => u.id !== 'rg1');
+    /* 破盾：我方站在己方阵眼上命中带盾敌军才破；不在阵眼不破 */
+    const CB = vm.runInContext('Combat', ctx);
+    const origResolve2 = CB.resolve;
+    const p = B.units.find(x => x.side === 'player' && x.charId && x.hp > 0);
+    let node = B.nodes.find(n => n.id === 'n1');
+    if (!node) {   // 沙盒图无阵眼：自建一个测试节点（本块末尾还原）
+      node = { id: 'testn', x: 8, y: 6, type: 'attack', owner: 'player', tier: 1, active: true };
+      B.nodes.push(node);
+    }
+    node.owner = 'player';
+    p.x = node.x; p.y = node.y; p.acted = false;
+    const mkShieldFoe = (id, x, y) => ({ id, name: '盾靶', side: 'enemy', charId: null, hp: 30, x, y,
+      stats: { hp: 30, str: 8, mag: 0, skl: 8, spd: 8, lck: 5, def: 5, res: 5 },
+      items: [], ranks: {}, statuses: {}, tags: ['human'], affixes: ['shield'] });
+    const sf1 = mkShieldFoe('sf1', node.x, node.y - 1);
+    B.units.push(sf1);
+    CB.resolve = () => [{ type: 'strike', attacker: p.id, defender: sf1.id, attackerName: p.name, defenderName: sf1.name, hit: true, crit: false, dmg: 5, hpAfter: 25 }];
+    await Battle.performCombat(p, sf1, false);
+    console.log('阵眼破盾：shieldBreakUntil =', sf1.shieldBreakUntil, '（phaseIndex ' + B.phaseIndex + '）');
+    if (!(sf1.shieldBreakUntil > B.phaseIndex)) throw new Error('站在己方阵眼未破盾');
+    p.x = 2; p.y = 2;
+    const sf2 = mkShieldFoe('sf2', 2, 3);
+    B.units.push(sf2);
+    CB.resolve = () => [{ type: 'strike', attacker: p.id, defender: sf2.id, attackerName: p.name, defenderName: sf2.name, hit: true, crit: false, dmg: 5, hpAfter: 25 }];
+    await Battle.performCombat(p, sf2, false);
+    if (sf2.shieldBreakUntil) throw new Error('不在阵眼不应破盾');
+    console.log('非阵眼位置不破盾：正确');
+    B.units = B.units.filter(u => u.id !== 'sf1' && u.id !== 'sf2');
+    CB.resolve = origResolve2;
+    if (node.id === 'testn') B.nodes = B.nodes.filter(n => n.id !== 'testn');
+    else node.owner = 'none';
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

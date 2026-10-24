@@ -186,6 +186,17 @@ const UI = {
       const oi = Summon.orderInfo(unit);
       if (oi) tags.push(oi.name);
     }
+    /* 敌方精英词缀（护盾区分 生效/破盾 态） */
+    if (unit.affixes && unit.affixes.length) {
+      for (const k of unit.affixes) {
+        const af = (typeof ELITE_AFFIXES !== 'undefined') ? ELITE_AFFIXES[k] : null;
+        if (k === 'shield') {
+          tags.push(Combat.affixShieldActive(unit, { phaseIndex: B ? B.phaseIndex : 0 }) ? '护盾' : '破盾');
+        } else {
+          tags.push(af ? af.name : k);
+        }
+      }
+    }
     const weaponLine = w
       ? '<span class="wchip">' + this.escape(WEAPON_TYPES[w.w.type] ? WEAPON_TYPES[w.w.type].name : '') + '</span>' +
         this.escape(w.w.name) + (w.item.plus ? ' <span class="wchip plus">+' + w.item.plus + '</span>' : '') +

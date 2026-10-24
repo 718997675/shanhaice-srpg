@@ -230,7 +230,8 @@ const Battle = {
         ai: spec.ai || 'idle',
         talkKey: spec.talkKey || null,
         boss: false,
-        rawType: null
+        rawType: null,
+        affixes: []
       };
       return u;
     }
@@ -274,18 +275,60 @@ const Battle = {
       phases: type.phases || 1,
       phase2: type.phase2 ? JSON.parse(JSON.stringify(type.phase2)) : null,
       phase: 1,
-      talkKey: null
+      talkKey: null,
+      /* 精英词缀：Boss 直接带 ENEMY_TYPES.affixes；浊甲卫由本章池轮流佩戴（assignAffixes） */
+      affixes: (type.affixes || []).slice()
     };
     return u;
   },
 
+  /* 词缀分配：浊甲卫（type 'elite'）按出现顺序从本章 affixPool 轮流取一个；
+   * 说得单位（char）不戴词缀。Boss 词缀已在 makeEnemyUnit 挂好。 */
+  assignAffixes(u, spec) {
+    if (!u || spec.char || !spec.type) return u;
+    const pool = (this.chapter && this.chapter.affixPool) || [];
+    if (spec.type === 'elite' && pool.length) {
+      const i = (this.affixCursor = (this.affixCursor || 0) + 1) - 1;
+      u.affixes = [pool[i % pool.length]];
+    }
+    return u;
+  },
+
+  /* 带缀单位登场播报（一次就够，别刷屏） */
+  announceAffixes(u) {
+    if (!u || !(u.affixes || []).length || (this.B.flags.announcedAffixes || {})[u.id]) return;
+    if (!this.B.flags.announcedAffixes) this.B.flags.announcedAffixes = {};
+    this.B.flags.announcedAffixes[u.id] = true;
+    const names = u.affixes.map(k => (ELITE_AFFIXES[k] ? ELITE_AFFIXES[k].name : k)).join('、');
+    UI.log(u.name + '身负词缀【' + names + '】。', 'bad');
+  },
+
+  /* 自愈词缀：敌方阶段开始，带 regen 的敌军回复 10% 最大生命 */
+  tickAffixRegen() {
+    const B = this.B;
+    for (const u of B.units) {
+      if (u.side !== 'enemy' || u.hp <= 0 || u.escaped) continue;
+      if (!(u.affixes || []).includes('regen')) continue;
+      if (u.hp >= u.stats.hp) continue;
+      const amount = Math.max(1, Math.round(u.stats.hp * AFFIX_REGEN_RATE));
+      const before = u.hp;
+      u.hp = Math.min(u.stats.hp, u.hp + amount);
+      const got = u.hp - before;
+      UI.log(u.name + '的自愈生效，回复 ' + got + ' 点生命。', 'bad');
+      Render.floatText('+' + got, u.x, u.y, '#a9d3a2', 14);
+    }
+  },
+
   spawnChapterEnemies() {
+    this.affixCursor = 0;
     for (const spec of this.chapter.enemies || []) {
       const u = this.makeEnemyUnit(spec);
       if (!u) continue;
+      this.assignAffixes(u, spec);
       u.x = spec.x;
       u.y = spec.y;
       this.B.units.push(u);
+      this.announceAffixes(u);
     }
   },
 
@@ -324,7 +367,9 @@ const Battle = {
     return {
       mods: (unit, foe, initiating) => this.modsFor(unit, foe, initiating),
       tileAt: (x, y) => this.tileAt(x, y),
-      rng: RNG
+      rng: RNG,
+      /* 供护盾词缀判断破盾期（combat.affixShieldActive 读 ctx.phaseIndex） */
+      phaseIndex: this.B ? this.B.phaseIndex : 0
     };
   },
 
@@ -438,6 +483,15 @@ const Battle = {
       if (e.hp <= 0 || e.escaped || e.side === unit.side) continue;
       const s = this.skillFieldsOf(e);
       if (s.enemyAuraHit && Combat.distance(e.x, e.y, unit.x, unit.y) <= 2) m.hit -= s.enemyAuraHit;
+    }
+
+    // 敌方光环词缀：带 aura 的敌军周围 2 格友军命中 +10
+    if (unit.side === 'enemy') {
+      for (const e of this.B.units) {
+        if (e.hp <= 0 || e.escaped || e.side !== unit.side || e.id === unit.id) continue;
+        if (!(e.affixes || []).includes('aura')) continue;
+        if (Combat.distance(e.x, e.y, unit.x, unit.y) <= 2) m.hit += AFFIX_AURA_HIT;
+      }
     }
 
     // 灵脉阵眼
@@ -658,9 +712,11 @@ const Battle = {
         }
         const u = this.makeEnemyUnit(spec);
         if (!u) continue;
+        this.assignAffixes(u, spec);
         u.x = x; u.y = y;
         u.reinforcement = true;
         B.units.push(u);
+        this.announceAffixes(u);
         spawned = true;
       }
       B.spawnedReinforcements[r.turn] = true;
@@ -700,6 +756,7 @@ const Battle = {
     for (const u of B.units) {
       if (u.side === 'enemy' && u.hp > 0 && !u.escaped) { u.acted = false; u.hasMoved = false; u.movedDist = 0; }
     }
+    this.tickAffixRegen();
     this.computeVisibility(false);
     UI.updateBattle(B);
     UI.phaseBanner('敌方阶段', true);
@@ -2038,6 +2095,15 @@ const Battle = {
                 UI.log(striker.name + '的' + wsk.name + '：涤去了' + foe.name + '身上的增益。', 'gold');
                 Render.floatText('净脉', foe.x, foe.y, '#c9b3e0', 13);
               }
+            }
+          }
+          /* 护盾词缀破盾：我方站在己方阵眼上命中带盾敌军 → 破盾（持续约一回合） */
+          if (Combat.affixShieldActive(foe, ctx) && striker.side === 'player') {
+            const node = this.nodeAt(striker.x, striker.y);
+            if (node && node.owner === 'player') {
+              foe.shieldBreakUntil = B.phaseIndex + 2;
+              UI.log(striker.name + '借阵眼之力击破了' + foe.name + '的护盾。', 'gold');
+              Render.floatText('破盾', foe.x, foe.y, '#f0c25a', 14);
             }
           }
         } else {

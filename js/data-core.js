@@ -451,41 +451,57 @@ const ENEMY_TYPES = {
 
   /* ---- 首领 ---- */
   shanxiao: {
+    /* 精英词缀（与每章精英共享池，见 data-systems.js ELITE_AFFIXES） */
+    affixes: ['berserk'],
     name: '山魈王', ai: 'guard', moveType: 'beast', move: 5, weapons: ['boss_axe'], tags: ['beast'], boss: true, element: 'metal',
     base: { hp: 38, str: 12, mag: 0, skl: 7, spd: 5, lck: 3, def: 8, res: 3 },
     growth: { hp: 2.2, str: 0.7, mag: 0, skl: 0.45, spd: 0.3, lck: 0.2, def: 0.5, res: 0.2 }
   },
   bamboo: {
+    /* 精英词缀（与每章精英共享池，见 data-systems.js ELITE_AFFIXES） */
+    affixes: ['regen'],
     name: '竹妖', ai: 'guard', moveType: 'plant', move: 4, weapons: ['boss_vine'], tags: ['plant'], boss: true, element: 'wood',
     base: { hp: 34, str: 2, mag: 11, skl: 8, spd: 6, lck: 4, def: 6, res: 8 },
     growth: { hp: 2, str: 0.1, mag: 0.7, skl: 0.5, spd: 0.35, lck: 0.2, def: 0.4, res: 0.55 }
   },
   waterghost: {
+    /* 精英词缀（与每章精英共享池，见 data-systems.js ELITE_AFFIXES） */
+    affixes: ['shield'],
     name: '水鬼', ai: 'aggressive', moveType: 'amphibious', move: 5, weapons: ['boss_trident'], tags: ['undead'], boss: true, element: 'water',
     base: { hp: 38, str: 11, mag: 2, skl: 8, spd: 7, lck: 3, def: 8, res: 6 },
     growth: { hp: 2.2, str: 0.6, mag: 0.2, skl: 0.5, spd: 0.4, lck: 0.15, def: 0.45, res: 0.4 }
   },
   chisha: {
+    /* 精英词缀（与每章精英共享池，见 data-systems.js ELITE_AFFIXES） */
+    affixes: ['berserk'],
     name: '赤砂将军', ai: 'guard', moveType: 'horse', move: 6, weapons: ['boss_saber'], tags: ['human'], boss: true, element: 'fire',
     base: { hp: 42, str: 14, mag: 0, skl: 11, spd: 10, lck: 6, def: 10, res: 5 },
     growth: { hp: 2.2, str: 0.7, mag: 0, skl: 0.6, spd: 0.5, lck: 0.3, def: 0.5, res: 0.3 }
   },
   icexiao: {
+    /* 精英词缀（与每章精英共享池，见 data-systems.js ELITE_AFFIXES） */
+    affixes: ['shield'],
     name: '冰魈', ai: 'guard', moveType: 'beast', move: 5, weapons: ['boss_claw'], tags: ['beast'], boss: true, element: 'water',
     base: { hp: 44, str: 13, mag: 6, skl: 9, spd: 8, lck: 4, def: 11, res: 8 },
     growth: { hp: 2.4, str: 0.7, mag: 0.35, skl: 0.5, spd: 0.4, lck: 0.2, def: 0.55, res: 0.45 }
   },
   swampdragon: {
+    /* 精英词缀（与每章精英共享池，见 data-systems.js ELITE_AFFIXES） */
+    affixes: ['regen'],
     name: '沼龙', ai: 'aggressive', moveType: 'amphibious', move: 5, weapons: ['boss_jaw'], tags: ['beast'], boss: true, element: 'earth',
     base: { hp: 50, str: 15, mag: 4, skl: 8, spd: 7, lck: 4, def: 12, res: 7 },
     growth: { hp: 2.6, str: 0.75, mag: 0.3, skl: 0.5, spd: 0.4, lck: 0.2, def: 0.6, res: 0.4 }
   },
   turbidgeneral: {
+    /* 精英词缀（与每章精英共享池，见 data-systems.js ELITE_AFFIXES） */
+    affixes: ['aura'],
     name: '浊将', ai: 'guard', moveType: 'armor', move: 4, weapons: ['boss_turbid'], tags: ['armor', 'undead'], boss: true, element: 'earth',
     base: { hp: 52, str: 16, mag: 5, skl: 10, spd: 5, lck: 4, def: 16, res: 10 },
     growth: { hp: 2.8, str: 0.8, mag: 0.35, skl: 0.55, spd: 0.3, lck: 0.2, def: 0.7, res: 0.5 }
   },
   xuanque: {
+    /* 精英词缀（与每章精英共享池，见 data-systems.js ELITE_AFFIXES） */
+    affixes: ['regen'],
     name: '玄阙', ai: 'guard', moveType: 'foot', move: 5, weapons: ['boss_ritual'], tags: ['human'], boss: true, phases: 2, element: 'metal',
     base: { hp: 58, str: 6, mag: 18, skl: 14, spd: 12, lck: 8, def: 12, res: 14 },
     growth: { hp: 3, str: 0.4, mag: 0.85, skl: 0.65, spd: 0.5, lck: 0.3, def: 0.5, res: 0.6 },

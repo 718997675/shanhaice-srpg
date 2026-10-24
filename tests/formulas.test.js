@@ -1272,6 +1272,89 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     ok('追影刃闸门含角色', typeof zhui.shopGate.char === 'string');
   }
 
+  /* ---------------- 20. 敌方精英词缀（P1.3） ---------------- */
+  {
+    const { Battle: B2, CHAPTERS: CH2, ENEMY_TYPES: ET2, ELITE_AFFIXES: EA, RNG: RNG2 } =
+      vm.runInContext('({ Battle, CHAPTERS, ENEMY_TYPES, ELITE_AFFIXES, RNG })', ctx);
+    /* 20.1 词缀表 */
+    eq('词缀池 4 种', Object.keys(EA).length, 4);
+    for (const k of ['shield', 'regen', 'aura', 'berserk']) {
+      ok('词缀 ' + k + ' 有名称与说明', !!EA[k] && !!EA[k].name && !!EA[k].desc);
+    }
+    /* 20.2 章节池：第 1 章教学不设，其余每章 1~2 个 */
+    eq('第 1 章不设词缀', (CH2[0].affixPool || []).length, 0);
+    CH2.slice(1).forEach(ch => {
+      const pool = ch.affixPool || [];
+      ok('第 ' + ch.id + ' 章池 1~2 个', pool.length >= 1 && pool.length <= 2, '实际 ' + pool.length);
+      for (const k of pool) ok('第 ' + ch.id + ' 章词缀 ' + k + ' 合法', !!EA[k], k);
+    });
+    /* 20.3 Boss 词缀：1~2 个且合法 */
+    for (const b of Object.keys(ET2).filter(k => ET2[k].boss)) {
+      const af = ET2[b].affixes || [];
+      ok('Boss ' + b + ' 带 1~2 个词缀', af.length >= 1 && af.length <= 2, '实际 ' + af.length);
+      for (const k of af) ok('Boss ' + b + ' 词缀 ' + k + ' 合法', !!EA[k], k);
+    }
+    ok('浊甲卫 elite 类型存在', !!ET2['elite']);
+    /* 20.4 护盾减伤：受伤 -30%（floor），破盾期还原 */
+    const hero4 = give(mkUnit(), 'iron_sword');
+    const foe4 = mkUnit({ side: 'enemy', x: 1, y: 0 });
+    eq('无盾伤害 = 力10+威5-防5', Combat.damage(hero4, foe4, FLAT), 10);
+    foe4.affixes = ['shield'];
+    eq('护盾减伤 30%（10→7）', Combat.damage(hero4, foe4, FLAT), 7);
+    ok('护盾生效判定', Combat.affixShieldActive(foe4, FLAT));
+    const fcS = Combat.forecast(hero4, foe4, FLAT);
+    eq('战斗预测同口径显示减伤', fcS.attacker.dmg, 7);
+    foe4.shieldBreakUntil = 99;
+    eq('破盾期伤害还原（phaseIndex 50）', Combat.damage(hero4, foe4, { mods: () => null, tileAt: () => TERRAIN['.'], phaseIndex: 50 }), 10);
+    ok('破盾期判定为失效', !Combat.affixShieldActive(foe4, { phaseIndex: 50 }));
+    eq('破盾过期后恢复（phaseIndex 99）', Combat.damage(hero4, foe4, { mods: () => null, tileAt: () => TERRAIN['.'], phaseIndex: 99 }), 7);
+    /* 20.5 狂暴攻速：低于半血 +3，满血/恰半血不变 */
+    const bk = give(mkUnit(), 'dagger');
+    const baseSpd = Combat.attackSpeed(bk);
+    bk.affixes = ['berserk'];
+    bk.hp = bk.stats.hp;
+    eq('满血不狂暴', Combat.attackSpeed(bk), baseSpd);
+    bk.hp = Math.floor(bk.stats.hp / 2) - 1;
+    eq('低于半血狂暴攻速 +3', Combat.attackSpeed(bk), baseSpd + 3);
+    bk.hp = Math.floor(bk.stats.hp / 2);
+    eq('恰半血不狂暴', Combat.attackSpeed(bk), baseSpd);
+    /* 20.6 光环命中：aura 周围 2 格友军 +10 */
+    const fakeA = Object.create(B2);
+    fakeA.B = { units: [], nodes: [], supports: {} };
+    const ctxA = { mods: (u, f, init) => B2.modsFor.call(fakeA, u, f, init), tileAt: () => TERRAIN['.'], rng: RNG2, phaseIndex: 0 };
+    const auraU = mkUnit({ side: 'enemy', x: 5, y: 5, cls: 'zzz' });
+    auraU.id = 'a1';
+    auraU.affixes = ['aura'];
+    const nearE = mkUnit({ side: 'enemy', x: 6, y: 5, cls: 'zzz' });
+    nearE.id = 'a2';
+    const farE = mkUnit({ side: 'enemy', x: 5, y: 8, cls: 'zzz' });
+    farE.id = 'a3';
+    fakeA.B.units = [auraU, nearE, farE];
+    eq('光环内友军命中 +10', B2.modsFor.call(fakeA, nearE, null).hit, 10);
+    eq('三格外无光环', B2.modsFor.call(fakeA, farE, null).hit, 0);
+    eq('我军不吃敌方光环', B2.modsFor.call(fakeA, mkUnit({ side: 'player', x: 6, y: 5, cls: 'zzz' }), null).hit, 0);
+    /* 20.7 词缀分配：浊甲卫轮流戴池，Boss 自带，说得单位不戴 */
+    const fakeS = Object.create(B2);
+    fakeS.diff = { enemyLv: 0, enemyMul: 1 };
+    fakeS.uid = 500;
+    fakeS.chapter = { affixPool: ['berserk', 'shield'] };
+    fakeS.B = { units: [], flags: {} };
+    const e1 = B2.makeEnemyUnit.call(fakeS, { type: 'elite', lv: 5, x: 0, y: 0 });
+    B2.assignAffixes.call(fakeS, e1, { type: 'elite' });
+    eq('第 1 个浊甲卫戴狂暴', e1.affixes[0], 'berserk');
+    const e2 = B2.makeEnemyUnit.call(fakeS, { type: 'elite', lv: 5, x: 1, y: 0 });
+    B2.assignAffixes.call(fakeS, e2, { type: 'elite' });
+    eq('第 2 个浊甲卫戴护盾', e2.affixes[0], 'shield');
+    const e3 = B2.makeEnemyUnit.call(fakeS, { type: 'elite', lv: 5, x: 2, y: 0 });
+    B2.assignAffixes.call(fakeS, e3, { type: 'elite' });
+    eq('第 3 个轮回复狂', e3.affixes[0], 'berserk');
+    const bossU = B2.makeEnemyUnit.call(fakeS, { type: 'shanxiao', lv: 3, x: 3, y: 0, boss: true });
+    eq('Boss 自带词缀（不占池）', bossU.affixes[0], 'berserk');
+    const recU = B2.makeEnemyUnit.call(fakeS, { char: 'bailu', x: 4, y: 0 });
+    B2.assignAffixes.call(fakeS, recU, { char: 'bailu' });
+    eq('说得单位不戴词缀', recU.affixes.length, 0);
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

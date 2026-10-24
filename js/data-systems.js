@@ -320,3 +320,20 @@ Object.assign(WEAPONS, LEGENDARY_WEAPONS);
 
 /* 召唤阶位描述（UI 展示用） */
 const SUMMON_TIER_NAMES = { 1: '异兽', 2: '灵兽', 3: '神兽' };
+
+/* ---------------- 敌方精英词缀（每章 1~2 个，与 Boss 共享池） ----------------
+ * shield  护盾：受伤 -30%；我方站在己方阵眼上攻击可破盾（破盾持续 1 回合）
+ * regen   自愈：每回合开始回复 10% 最大生命
+ * aura    光环：周围 2 格友军命中 +10
+ * berserk 狂暴：生命低于 50% 时攻速 +3
+ * 数值常量集中在此，公式侧（combat.js）与编排侧（battle.js）共用。 */
+const ELITE_AFFIXES = {
+  shield: { key: 'shield', name: '护盾', desc: '受伤 -30%；我方站在己方阵眼上攻击可破盾（破盾持续 1 回合）' },
+  regen: { key: 'regen', name: '自愈', desc: '每回合开始回复 10% 最大生命' },
+  aura: { key: 'aura', name: '光环', desc: '周围 2 格友军命中 +10' },
+  berserk: { key: 'berserk', name: '狂暴', desc: '生命低于 50% 时攻速 +3' }
+};
+const AFFIX_SHIELD_MUL = 0.7;      // 护盾减伤
+const AFFIX_REGEN_RATE = 0.1;      // 自愈比例
+const AFFIX_AURA_HIT = 10;         // 光环命中
+const AFFIX_BERSERK_SPD = 3;       // 狂暴攻速

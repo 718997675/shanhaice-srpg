@@ -88,7 +88,20 @@ const Combat = {
     const w = this.weaponOf(unit);
     const wt = w ? w.w.wt : 0;
     const str = unit.stats.str || 0;
-    return (unit.stats.spd || 0) - Math.max(0, wt - Math.floor(str / 5));
+    let spd = (unit.stats.spd || 0) - Math.max(0, wt - Math.floor(str / 5));
+    /* 狂暴词缀：生命低于 50% 时攻速 +3 */
+    if ((unit.affixes || []).includes('berserk') && unit.hp < unit.stats.hp / 2) spd += AFFIX_BERSERK_SPD;
+    return spd;
+  },
+
+  /* 护盾词缀是否生效（纯函数）：带 shield 且未处于破盾期。
+   * 破盾期由 battle.js 在「我方站在己方阵眼上命中」时写入 unit.shieldBreakUntil，
+   * 与 ctx.phaseIndex 比较；ctx 缺 phaseIndex（干净测试场）时视为生效。 */
+  affixShieldActive(unit, ctx) {
+    if (!unit || !(unit.affixes || []).includes('shield')) return false;
+    const until = unit.shieldBreakUntil;
+    if (typeof until !== 'number') return true;
+    return !(ctx && typeof ctx.phaseIndex === 'number' && until > ctx.phaseIndex);
   },
 
   distance(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); },
@@ -264,6 +277,8 @@ const Combat = {
     let raw = main + (w.w.mt || 0) + pm.mt + tri.dmg + am.dmg - defBase - defMod - terrainDef;
     raw = Math.max(0, raw);
     if (this.isEffective(attacker, defender)) raw *= 2;
+    /* 护盾词缀：受伤 -30%（破盾期不生效；战斗预测同口径显示） */
+    if (this.affixShieldActive(defender, ctx)) raw = Math.floor(raw * AFFIX_SHIELD_MUL);
     return Math.max(0, Math.round(raw));
   },
 

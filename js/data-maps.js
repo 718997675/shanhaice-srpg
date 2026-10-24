@@ -9,6 +9,8 @@ const AUTO_JOINS = { 1: ['qingluo'], 2: ['bailu'], 3: ['xuanyi'], 5: ['chisang',
 const CHAPTERS = [
   {
     id: 1, name: '青岚山门', theme: 'mountain',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: [],   // 教学章不设词缀
     intro: 'ch1_intro', outro: 'ch1_outro',
     objective: { type: 'rout', text: '歼灭所有敌军' },
     deployCount: 3,
@@ -50,6 +52,8 @@ const CHAPTERS = [
   },
   {
     id: 2, name: '雾隐竹海', theme: 'bamboo',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['berserk'],
     intro: 'ch2_intro', outro: 'ch2_outro',
     objective: { type: 'defend', turns: 6, text: '守住竹海六回合' },
     deployCount: 5,
@@ -96,6 +100,8 @@ const CHAPTERS = [
   },
   {
     id: 3, name: '断桥古渡', theme: 'river',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['shield'],
     intro: 'ch3_intro', outro: 'ch3_outro',
     objective: { type: 'seize', text: '占领对岸渡口', gate: [13, 0] },
     deployCount: 5,
@@ -142,6 +148,8 @@ const CHAPTERS = [
   },
   {
     id: 4, name: '赤砂关隘', theme: 'fortress',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['berserk', 'shield'],
     intro: 'ch4_intro', outro: 'ch4_outro',
     objective: { type: 'siege', turns: 5, text: '守关五回合，并斩杀赤砂将军' },
     deployCount: 6,
@@ -183,6 +191,8 @@ const CHAPTERS = [
   },
   {
     id: 5, name: '玄冰祭坛', theme: 'ice',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['aura'],
     intro: 'ch5_intro', outro: 'ch5_outro',
     objective: { type: 'nodes_hold', turns: 2, nodes: ['n1', 'n2'], text: '净化两处浊脉，并守持两个己方阶段' },
     deployCount: 6,
@@ -226,6 +236,8 @@ const CHAPTERS = [
   },
   {
     id: 6, name: '云梦泽', theme: 'swamp',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['regen', 'shield'],
     intro: 'ch6_intro', outro: 'ch6_outro',
     objective: { type: 'escape', text: '所有存活友军抵达东岸' },
     deployCount: 7,
@@ -272,6 +284,8 @@ const CHAPTERS = [
   },
   {
     id: 7, name: '天柱废墟', theme: 'ruins',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['aura', 'berserk'],
     intro: 'ch7_intro', outro: 'ch7_outro',
     objective: { type: 'nodes_hold', turns: 3, nodes: ['n1', 'n2', 'n3'], text: '同时占据三处阵眼，守持三个己方阶段' },
     deployCount: 8,
@@ -317,6 +331,8 @@ const CHAPTERS = [
   },
   {
     id: 8, name: '浊潮之眼', theme: 'void',
+    /* 本章精英词缀池（1~2 个；浊甲卫按出现顺序轮流佩戴，Boss 词缀见 ENEMY_TYPES） */
+    affixPool: ['shield', 'regen'],
     intro: 'ch8_intro', outro: 'ch8_outro',
     objective: { type: 'boss', text: '击败玄阙（二阶段）' },
     deployCount: 8,
