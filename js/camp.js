@@ -203,8 +203,12 @@ const Camp = {
       const w = LEGENDARY_WEAPONS[key];
       const owned = Legendary.isOwned(c, key);
       const boss = ENEMY_TYPES[w.source];
+      const d = Legendary.dropChance(c, w.source);
+      const prog = owned ? '' :
+        '<div class="s-desc" style="color:#b08540;">本次讨伐掉率 ' + Math.round(d.chance * 100) + '%' +
+        (d.guaranteed ? '（必掉）' : ' · 缘 ' + d.since + '/' + d.hardPity + (d.ngplus ? ' · 周目加成' : '')) + '</div>';
       return '<div class="shop-row"><span class="s-name">' + UI.escape(w.name) +
-        '<div class="s-desc">' + UI.escape((boss ? boss.name : w.source) + ' · ' + w.desc) + '</div></span>' +
+        '<div class="s-desc">' + UI.escape((boss ? boss.name : w.source) + ' · ' + w.desc) + '</div>' + prog + '</span>' +
         '<span class="s-price" style="color:' + (owned ? '#9fd39a' : '#c9a37a') + '">' + (owned ? '已入手' : '未获得') + '</span>' +
         '<span class="s-desc" style="max-width:180px;text-align:right;">' + UI.escape(Legendary.hint(key)) + '</span></div>';
     }).join('');
@@ -214,7 +218,8 @@ const Camp = {
       (rows || '<div class="item-empty">当前章节无可打造的兵装。</div>') +
       '</div>' +
       '<div class="shop-col"><h3>传说图鉴</h3>' +
-      '<div class="shop-note">七把传说兵器各随一位守关首领。首杀必掉，入手后重打转化为盘缠与脉印；二周目保底翻倍。传说兵器不可打造。</div>' +
+      '<div class="shop-note">七把传说兵器各随一位守关首领，每次讨伐仅有极小概率直接掉落；未掉则缘值累积、掉率攀升，满 ' +
+      Legendary.DROP.hardPity + ' 次必得，二周目起基础掉率提升。已持有后重打转化为盘缠与脉印（二周目翻倍）。传说兵器不可打造。</div>' +
       legend +
       '<div class="shop-note" style="margin-top:10px;">已收录 ' + Legendary.ownedCount(c) + ' / 7</div>' +
       '</div></div>';

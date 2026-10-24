@@ -196,13 +196,27 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     for (const m of ['renderForge']) {
       if (typeof Camp[m] !== 'function') throw new Error('Camp 缺少方法 ' + m);
     }
-    const before = JSON.stringify(camp.legendary);
     const boss = { id: 'bossL', name: '竹妖', side: 'enemy', rawType: 'bamboo', level: 8,
       x: 3, y: 5, hp: 0, boss: true, statuses: {} };
+    /* 从干净状态起验证三条分支（本块自洽，不受前文测试副作用影响） */
+    camp.legendary = {};
+    camp.legendaryPity = {};
+    /* 命运注定的 miss：3% 未中，缘值 +1 */
+    const origRandom = Math.random;
+    Math.random = () => 0.99;
+    await Battle.handleDeath(boss, null);
+    Math.random = origRandom;
+    const missPity = camp.legendaryPity['bamboo'];
+    console.log('竹妖讨伐未掉（缘 +1 =', missPity, '）；持有数 =', Legendary.ownedCount(camp));
+    if (missPity !== 1 || Legendary.isOwned(camp, 'lw_wanbi')) {
+      throw new Error('小概率未掉分支异常: pity=' + missPity + ' owned=' + Legendary.isOwned(camp, 'lw_wanbi'));
+    }
+    /* 缘值满 12 次必掉 */
+    camp.legendaryPity['bamboo'] = 11;
     await Battle.handleDeath(boss, null);
     const drop = B.loot.items[B.loot.items.length - 1];
-    console.log('竹妖首杀掉落：', drop, '；战役持有数 =', Legendary.ownedCount(camp));
-    if (drop !== 'lw_wanbi' || JSON.stringify(camp.legendary) === before) throw new Error('传说掉落未入战利品');
+    console.log('竹妖第 12 次必掉：', drop, '；战役持有数 =', Legendary.ownedCount(camp));
+    if (drop !== 'lw_wanbi' || !Legendary.isOwned(camp, 'lw_wanbi')) throw new Error('保底掉落未入战利品');
     const goldBefore = B.loot.gold;
     await Battle.handleDeath(boss, null);
     console.log('竹妖重打保底：+' + (B.loot.gold - goldBefore) + ' 金 +' + B.loot.seals + ' 印');

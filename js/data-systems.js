@@ -185,20 +185,21 @@ const SPELLS = {
 };
 
 /* ---------------- 传说武器 ----------------
- * 特定 Boss 掉落，不可打造（forgeable: false），购入价恒 0。
- * traits：多词条，字段与 personal/武器字段同构，由战斗修正统一读取；
- * skill：附带技能（一次装备长期生效，字段进 modsOf 修正链）；
- * drop.rematch：重打同一 Boss 必掉（保底）；
- * drop.ngplus：二周目保底（一周目漏刷二周目必得）。
+ * 特定 Boss 极小概率掉落（掉率与保底见 systems/legendary.js 的 LEGENDARY_DROP），
+ * 不可打造（forgeable: false），购入价恒 0。
+ * traits：多词条，字段与 mods 同构（hit/crit/dmg/def/res/avoid/move，
+ *   可带 Vs+目标标签 后缀，如 critVsBeast 对猛兽暴击 +N）；
+ * skill：附带技能——数值字段（dmgVsBeast/dmgIfAdjacentAlly/dmgIfInitiating）
+ *   进 modsOf 修正链；命中后字段（debuffDefOnHit/movePenaltyOnCrit/cleanseOnHit）
+ *   由 battle.js 在 strike 事件落地。
  * source：掉落 Boss 的 ENEMY_TYPES 键名。
  */
 const LEGENDARY_WEAPONS = {
   lw_yunque: {
     key: 'lw_yunque', name: '云却', type: 'sword', rank: 'S',
-    mt: 14, hit: 90, crit: 10, wt: 6, rng: [1, 1], uses: 30, price: 0,
+    mt: 15, hit: 90, crit: 10, wt: 6, rng: [1, 1], uses: 30, price: 0,
     forgeable: false, source: 'shanxiao',
-    drop: { rematch: true, ngplus: true },
-    traits: [{ hit: 10 }, { critVsBeast: 15 }],
+    traits: [{ hit: 10 }, { crit: 5 }, { critVsBeast: 15 }],
     skill: { name: '断岳', desc: '对猛兽目标伤害 +3。', dmgVsBeast: 3 },
     desc: '山魈王枕下压了百年的剑，剑身薄如云片，出鞘有风声。'
   },
@@ -206,35 +207,31 @@ const LEGENDARY_WEAPONS = {
     key: 'lw_wanbi', name: '万碧同春', type: 'tome', rank: 'S',
     mt: 13, hit: 85, crit: 5, wt: 5, rng: [1, 2], uses: 26, price: 0,
     magic: true, forgeable: false, source: 'bamboo',
-    drop: { rematch: true, ngplus: true },
-    traits: [{ hit: 10 }, { dmgVsPlant: 4 }],
+    traits: [{ hit: 10 }, { dmg: 2 }, { dmgVsPlant: 4 }],
     skill: { name: '同春', desc: '对战时若相邻有友军，伤害 +2。', dmgIfAdjacentAlly: 2 },
     desc: '竹妖一生只开一次花，花落在咒页上，便成了这册子。'
   },
   lw_duanchao: {
     key: 'lw_duanchao', name: '断潮', type: 'lance', rank: 'S',
-    mt: 15, hit: 80, crit: 5, wt: 9, rng: [1, 1], uses: 28, price: 0,
+    mt: 16, hit: 80, crit: 5, wt: 9, rng: [1, 1], uses: 28, price: 0,
     forgeable: false, source: 'waterghost',
-    drop: { rematch: true, ngplus: true },
-    traits: [{ crit: 10 }, { dmgVsUndead: 4 }],
+    traits: [{ crit: 10 }, { dmg: 2 }, { dmgVsUndead: 4 }],
     skill: { name: '破浪', desc: '主动攻击时伤害 +2。', dmgIfInitiating: 2 },
     desc: '水鬼的三股叉，叉尖能钉住奔涌的潮头。'
   },
   lw_fensha: {
     key: 'lw_fensha', name: '焚砂', type: 'axe', rank: 'S',
-    mt: 18, hit: 70, crit: 0, wt: 15, rng: [1, 1], uses: 24, price: 0,
+    mt: 19, hit: 70, crit: 0, wt: 15, rng: [1, 1], uses: 24, price: 0,
     forgeable: false, source: 'chisha',
-    drop: { rematch: true, ngplus: true },
-    traits: [{ crit: 10 }, { def: 2 }],
+    traits: [{ crit: 10 }, { hit: 5 }, { def: 2 }],
     skill: { name: '裂砂', desc: '命中后使目标护甲 -2，持续 1 回合。', debuffDefOnHit: { def: 2, turns: 1 } },
     desc: '赤砂将军的军刀，刀纹里沉着大漠的落日。'
   },
   lw_ningshuang: {
     key: 'lw_ningshuang', name: '凝霜', type: 'dagger', rank: 'S',
-    mt: 10, hit: 90, crit: 20, wt: 3, rng: [1, 1], uses: 30, price: 0,
+    mt: 11, hit: 90, crit: 20, wt: 3, rng: [1, 1], uses: 30, price: 0,
     forgeable: false, source: 'icexiao',
-    drop: { rematch: true, ngplus: true },
-    traits: [{ crit: 10 }, { spd: 2 }],
+    traits: [{ crit: 10 }, { avoid: 10 }, { dmgVsUndead: 3 }],
     skill: { name: '霜吻', desc: '暴击时追加目标下回合移动 -1。', movePenaltyOnCrit: 1 },
     desc: '冰魈爪尖凝了千年的那一点霜，薄得看不见。'
   },
@@ -242,8 +239,7 @@ const LEGENDARY_WEAPONS = {
     key: 'lw_longgu', name: '龙骨弓', type: 'bow', rank: 'S',
     mt: 12, hit: 85, crit: 10, wt: 5, rng: [2, 2], uses: 28, price: 0,
     effective: ['flying'], forgeable: false, source: 'swampdragon',
-    drop: { rematch: true, ngplus: true },
-    traits: [{ hit: 10 }, { critVsFlying: 10 }],
+    traits: [{ hit: 10 }, { crit: 5 }, { critVsFlying: 10 }],
     skill: { name: '穿沼', desc: '对猛兽与飞行目标伤害 +3。', dmgVsBeast: 3, dmgVsFlying: 3 },
     desc: '沼龙的肋骨弯成，弦响时沼泽会起雾。'
   },
@@ -251,8 +247,7 @@ const LEGENDARY_WEAPONS = {
     key: 'lw_pozhuo', name: '破浊符', type: 'talisman', rank: 'S',
     mt: 12, hit: 90, crit: 5, wt: 4, rng: [1, 2], uses: 26, price: 0,
     magic: true, effective: ['armor'], forgeable: false, source: 'turbidgeneral',
-    drop: { rematch: true, ngplus: true },
-    traits: [{ hit: 10 }, { critVsArmor: 10 }],
+    traits: [{ hit: 10 }, { dmgVsArmor: 3 }, { critVsArmor: 10 }],
     skill: { name: '净脉', desc: '命中后清除目标身上一个增益状态。', cleanseOnHit: 1 },
     desc: '浊将贴身收着的黄符，朱砂画到第三笔时断了，断处最克浊。'
   }

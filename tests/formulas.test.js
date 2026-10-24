@@ -459,12 +459,17 @@ console.log('\n== 13. 五行相克与进阶系统数据表 ==');
     ok('传说 ' + k + ' 不可打造', w.forgeable === false);
     ok('传说 ' + k + ' 无购价', w.price === 0);
     ok('传说 ' + k + ' 来源是 Boss', ENEMY_TYPES[w.source] && ENEMY_TYPES[w.source].boss === true, w.source);
-    ok('传说 ' + k + ' 重打保底', w.drop && w.drop.rematch === true);
-    ok('传说 ' + k + ' 二周目保底', w.drop && w.drop.ngplus === true);
-    ok('传说 ' + k + ' 多词条 ≥2', Array.isArray(w.traits) && w.traits.length >= 2);
+    ok('传说 ' + k + ' 多词条 ≥3', Array.isArray(w.traits) && w.traits.length >= 3);
     ok('传说 ' + k + ' 附带技能有名有述', !!(w.skill && w.skill.name && w.skill.desc));
     ok('传说 ' + k + ' 有描述', !!w.desc);
     ok('传说 ' + k + ' 射程合法', Array.isArray(w.rng) && w.rng.length === 2 && w.rng[0] >= 1 && w.rng[0] <= w.rng[1]);
+    /* 词条字段必须全部被 Combat.weaponMods 支持（不允许死数据） */
+    for (const t of w.traits || []) {
+      for (const f in t) {
+        const mm = /^([a-zA-Z]+?)(?:Vs([A-Z][A-Za-z]*))?$/.exec(f);
+        ok('传说 ' + k + ' 词条 ' + f + ' 字段可解析', !!mm && ['hit', 'crit', 'dmg', 'def', 'res', 'avoid', 'move'].includes(mm[1]), f);
+      }
+    }
     sources.push(w.source);
   }
   eq('传说武器来源互不重复', new Set(sources).size, 7);
@@ -807,17 +812,50 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
   /* ---------------- 16. 传说武器与打造坊 ---------------- */
   {
     const { CHAPTERS, ENEMY_TYPES } = vm.runInContext('({ CHAPTERS, ENEMY_TYPES })', ctx);
-    const fresh = () => ({ gold: 5000, seals: 5, convoy: [], legendary: {}, cycle: 1 });
+    const fresh = () => ({ gold: 5000, seals: 5, convoy: [], legendary: {}, legendaryPity: {}, cycle: 1 });
+    const never = () => 0.99;   // 必不掉的命运
+    const lucky = () => 0;      // 必掉的命运
     const camp = fresh();
-    // 首杀必掉
-    const first = Legendary.onBossKilled(camp, 'shanxiao');
-    eq('山魈首杀掉落 key', first && first.key, 'lw_yunque');
-    eq('山魈首杀动作 drop', first && first.action, 'drop');
-    ok('首杀标记已持有', Legendary.isOwned(camp, 'lw_yunque'));
-    ok('掉落物为传说剑', WEAPONS['lw_yunque'] && WEAPONS['lw_yunque'].name === '云却');
-    ok('掉落物不可打造', WEAPONS['lw_yunque'].forgeable === false);
-    // 普通敌人不触发
-    ok('普通敌不掉传说', Legendary.onBossKilled(camp, 'bandit') === null);
+    /* --- 小概率掉落 --- */
+    const miss1 = Legendary.onBossKilled(camp, 'shanxiao', never);
+    eq('首战未掉动作 miss', miss1 && miss1.action, 'miss');
+    eq('首战未掉概率 3%', miss1 && miss1.chance, 0.03);
+    eq('缘值累计 1', camp.legendaryPity['shanxiao'], 1);
+    ok('未掉不标记持有', !Legendary.isOwned(camp, 'lw_yunque'));
+    const d2 = Legendary.dropChance(camp, 'shanxiao');
+    eq('二次讨伐掉率 6%', d2.chance, 0.06);
+    const miss2 = Legendary.onBossKilled(camp, 'shanxiao', never);
+    eq('再未掉缘值 2', camp.legendaryPity['shanxiao'], 2);
+    eq('miss 回报本次为第几次', miss2 && miss2.since, 2);
+    const drop = Legendary.onBossKilled(camp, 'bamboo', lucky);
+    eq('幸运一击掉落', drop && drop.action, 'drop');
+    ok('掉落标记已持有', Legendary.isOwned(camp, 'lw_wanbi'));
+    eq('掉落后缘清零', camp.legendaryPity['bamboo'], undefined);
+    ok('roll 低于概率才掉', Legendary.onBossKilled(fresh(), 'waterghost', () => 0.5).action === 'miss');
+    /* --- 硬保底：12 次必掉 --- */
+    const camp2 = fresh();
+    for (let i = 0; i < 11; i++) Legendary.onBossKilled(camp2, 'shanxiao', never);
+    ok('11 次未掉不保底', !Legendary.isOwned(camp2, 'lw_yunque'));
+    eq('第 12 次前缘值 11', camp2.legendaryPity['shanxiao'], 11);
+    const pity12 = Legendary.onBossKilled(camp2, 'shanxiao', never);
+    eq('第 12 次必掉', pity12 && pity12.action, 'drop');
+    eq('必掉概率 100%', pity12 && pity12.chance, 1);
+    eq('掉落后缘清零', camp2.legendaryPity['shanxiao'], undefined);
+    /* --- 掉率封顶与二周目加成 --- */
+    const camp3 = fresh();
+    camp3.legendaryPity['shanxiao'] = 8;
+    eq('掉率封顶 25%', Legendary.dropChance(camp3, 'shanxiao').chance, 0.25);
+    camp3.legendaryPity['shanxiao'] = 0; camp3.cycle = 2;
+    eq('二周目基础掉率 8%', Legendary.dropChance(camp3, 'shanxiao').chance, 0.08);
+    camp3.legendaryPity['shanxiao'] = 8; camp3.cycle = 2;
+    eq('二周目同样封顶 25%', Legendary.dropChance(camp3, 'shanxiao').chance, 0.25);
+    ok('二周目标记', Legendary.dropChance(camp3, 'shanxiao').ngplus);
+    /* --- 普通敌人不触发 --- */
+    ok('普通敌不掉传说', Legendary.onBossKilled(fresh(), 'bandit') === null);
+    ok('普通敌无掉率', Legendary.dropChance(fresh(), 'bandit') === null);
+    ok('未知道具无图鉴提示', Legendary.hint('nope') === '');
+    ok('提示含必掉说明', Legendary.hint('lw_yunque').indexOf('必掉') >= 0);
+    ok('提示含极小概率说明', Legendary.hint('lw_yunque').indexOf('极小概率') >= 0);
     // 7 把传说各绑一个 Boss
     eq('传说武器 7 把', Object.keys(LEGENDARY_WEAPONS).length, 7);
     const sources = Object.keys(LEGENDARY_WEAPONS).map(k => LEGENDARY_WEAPONS[k].source);
@@ -827,28 +865,72 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     for (const k in LEGENDARY_WEAPONS) {
       ok('传说 ' + k + ' 的首领在战役出场', bossInCampaign.has(LEGENDARY_WEAPONS[k].source));
     }
-    // 重打保底：一周目 250 金 + 1 印
-    const rematch = Legendary.onBossKilled(camp, 'shanxiao');
+    /* --- 已持有：重打转化 --- */
+    const campOwn = fresh();
+    campOwn.legendary['lw_yunque'] = true;
+    const rematch = Legendary.onBossKilled(campOwn, 'shanxiao');
     eq('重打动作 convert', rematch && rematch.action, 'convert');
     eq('一周目重打保底金', rematch && rematch.gold, 250);
     eq('一周目重打保底印', rematch && rematch.seals, 1);
     ok('一周目非二周目保底', !rematch.ngplus);
-    // 二周目翻倍
-    camp.cycle = 2;
-    const ng = Legendary.onBossKilled(camp, 'shanxiao');
+    campOwn.cycle = 2;
+    const ng = Legendary.onBossKilled(campOwn, 'shanxiao');
     eq('二周目重打保底金', ng && ng.gold, 400);
     eq('二周目重打保底印', ng && ng.seals, 2);
     ok('二周目标记', ng && ng.ngplus);
-    eq('持有计数', Legendary.ownedCount(camp), 1);
-    ok('提示含保底说明', Legendary.hint('lw_yunque').indexOf('保底') >= 0);
-    // 打造定价
+    eq('持有计数', Legendary.ownedCount(campOwn), 1);
+    /* --- 武器词条与技能真正参与公式 --- */
+    const yq = WEAPONS['lw_yunque'];
+    eq('云却常驻命中 +10', Combat.weaponMods(yq, {}).hit, 10);
+    eq('云却常驻暴击 +5', Combat.weaponMods(yq, {}).crit, 5);
+    eq('云却对非猛兽无断岳加成', Combat.weaponMods(yq, {}).dmg, 0);
+    eq('云却断岳对猛兽伤害 +3', Combat.weaponMods(yq, { foeTags: ['beast'] }).dmg, 3);
+    eq('云却对猛兽暴击 +20', Combat.weaponMods(yq, { foeTags: ['beast'] }).crit, 20);
+    const dc = WEAPONS['lw_duanchao'];
+    eq('断潮词条伤害 +2', Combat.weaponMods(dc, {}).dmg, 2);
+    eq('断潮主动攻击再 +2', Combat.weaponMods(dc, { initiating: true }).dmg, 4);
+    eq('断潮对非亡灵无加成', Combat.weaponMods(dc, {}).dmg, 2);
+    eq('断潮对亡灵 +4', Combat.weaponMods(dc, { foeTags: ['undead'] }).dmg, 6);
+    const wb = WEAPONS['lw_wanbi'];
+    eq('万碧词条伤害 +2', Combat.weaponMods(wb, {}).dmg, 2);
+    eq('万碧相邻友军再 +2', Combat.weaponMods(wb, { adjacentAlly: true }).dmg, 4);
+    eq('万碧对草木 +4', Combat.weaponMods(wb, { foeTags: ['plant'] }).dmg, 6);
+    eq('焚砂防御 +2', Combat.weaponMods(WEAPONS['lw_fensha'], {}).def, 2);
+    eq('凝霜回避 +10', Combat.weaponMods(WEAPONS['lw_ningshuang'], {}).avoid, 10);
+    const pz = WEAPONS['lw_pozhuo'];
+    eq('破浊符对重甲伤害 +3', Combat.weaponMods(pz, { foeTags: ['armor'] }).dmg, 3);
+    eq('破浊符对非甲无伤害加成', Combat.weaponMods(pz, {}).dmg, 0);
+    eq('破浊符对重甲暴击 +10', Combat.weaponMods(pz, { foeTags: ['armor'] }).crit, 10);
+    const lgb = Combat.weaponMods(WEAPONS['lw_longgu'], { foeTags: ['beast', 'flying'] });
+    eq('龙骨弓对飞行猛兽伤害 +6', lgb.dmg, 6);
+    eq('龙骨弓对飞行暴击 +15', lgb.crit, 15);
+    eq('无武器无词条', Combat.weaponMods(null, {}).hit, 0);
+    /* --- modsFor 集成：装备传说兵器即获得加成 --- */
+    const fake = Object.create(Battle);
+    fake.B = { units: [], nodes: [], supports: {} };
+    const ctx2 = { mods: (u, f, init) => Battle.modsFor.call(fake, u, f, init), tileAt: () => TERRAIN['.'], rng: RNG };
+    const hero = give(mkUnit({ cls: 'zzz', x: 0, y: 0 }), 'lw_yunque');
+    hero.ranks.sword = 'S';
+    const beastFoe = mkUnit({ cls: 'zzz', side: 'enemy', x: 1, y: 0, tags: ['beast'] });
+    const plainFoe = mkUnit({ cls: 'zzz', side: 'enemy', x: 1, y: 0 });
+    eq('云却对人形伤害 = 力15+威15-防5', Combat.damage(hero, plainFoe, ctx2), 20);
+    eq('云却对猛兽伤害含断岳 +3', Combat.damage(hero, beastFoe, ctx2), 23);
+    eq('云却词条命中 +10', Combat.hitChance(hero, plainFoe, ctx2), 97);
+    eq('云却词条暴击 +5', Combat.critChance(hero, plainFoe, ctx2), 15);
+    const lancer = give(mkUnit({ cls: 'zzz', x: 0, y: 0 }), 'lw_duanchao');
+    lancer.ranks.lance = 'S';
+    eq('断潮非主动伤害 23', Combat.damage(lancer, plainFoe, ctx2, false), 23);
+    eq('断潮主动伤害 25', Combat.damage(lancer, plainFoe, ctx2, true), 25);
+    const fc = Combat.forecast(lancer, plainFoe, ctx2);
+    eq('预测主动方含破浪 +2', fc.attacker.dmg, 25);
+    /* --- 打造定价 --- */
     eq('D 阶打造费', Forge.cost('iron_sword').gold, 200);
     eq('C 阶打造费', Forge.cost('steel_sword').gold, 350);
     eq('B 阶打造费金', Forge.cost('silver_sword').gold, 600);
     eq('B 阶打造费印', Forge.cost('silver_sword').seals, 1);
     eq('S 阶定价 1600 金', Forge.cost('lw_yunque').gold, 1600);
     eq('S 阶定价 3 印', Forge.cost('lw_yunque').seals, 3);
-    // 打造校验
+    /* --- 打造校验 --- */
     ok('普通兵装可打造', Forge.canCraft('iron_sword'));
     ok('传说不可打造', !Forge.canCraft('lw_yunque'));
     ok('Boss 兵装不可打造', !Forge.canCraft('boss_turbid'));

@@ -322,7 +322,7 @@ const Battle = {
 
   combatCtx() {
     return {
-      mods: (unit, foe) => this.modsFor(unit, foe),
+      mods: (unit, foe, initiating) => this.modsFor(unit, foe, initiating),
       tileAt: (x, y) => this.tileAt(x, y),
       rng: RNG
     };
@@ -376,7 +376,7 @@ const Battle = {
     return best;
   },
 
-  modsFor(unit, foe) {
+  modsFor(unit, foe, initiating) {
     const m = Combat.zeroMods();
     if (!unit || !this.B) return m;
     const cls = CLASSES[unit.cls];
@@ -410,6 +410,17 @@ const Battle = {
 
     // 召唤指令态修正（猛攻/守御/随行）
     if (unit.summoned && unit.summon) Summon.applyOrderMods(unit, m);
+
+    // 武器词条与技能修正（传说兵器的 traits / skill 在此真正生效）
+    if (w) {
+      const wm = Combat.weaponMods(w.w, {
+        foeTags: (foe && foe.tags) || [],
+        adjacentAlly: this.adjacentAllies(unit).length > 0,
+        initiating: !!initiating
+      });
+      m.hit += wm.hit; m.crit += wm.crit; m.dmg += wm.dmg;
+      m.def += wm.def; m.res += wm.res; m.avoid += wm.avoid; m.move += wm.move;
+    }
 
     // 邻近友军光环（彼此都受益）
     for (const ally of this.adjacentAllies(unit)) {
@@ -1916,6 +1927,29 @@ const Battle = {
           if (skill.movePenaltyOnHit && ev.hit) {
             foe.statuses.movePenalty = { val: skill.movePenaltyOnHit, until: B.phaseIndex + 1 };
           }
+          /* 传说武器附带技能：命中后 / 暴击后效果 */
+          const wsk = ev.weaponSkill;
+          if (wsk) {
+            if (wsk.debuffDefOnHit) {
+              const turns = wsk.debuffDefOnHit.turns || 1;
+              foe.statuses.def = { val: wsk.debuffDefOnHit.def, until: B.phaseIndex + turns };
+              UI.log(striker.name + '的' + wsk.name + '：' + foe.name + '护甲 -' + wsk.debuffDefOnHit.def + '。', 'gold');
+              Render.floatText('破甲', foe.x, foe.y, '#e0b78a', 13);
+            }
+            if (ev.crit && wsk.movePenaltyOnCrit) {
+              foe.statuses.movePenalty = { val: wsk.movePenaltyOnCrit, until: B.phaseIndex + 1 };
+              UI.log(striker.name + '的' + wsk.name + '：' + foe.name + '下回合移动 -' + wsk.movePenaltyOnCrit + '。', 'gold');
+              Render.floatText('迟滞', foe.x, foe.y, '#9ec5e0', 13);
+            }
+            if (wsk.cleanseOnHit && foe.statuses) {
+              const buffKey = Object.keys(foe.statuses).find(k => foe.statuses[k] && foe.statuses[k].val < 0);
+              if (buffKey) {
+                delete foe.statuses[buffKey];
+                UI.log(striker.name + '的' + wsk.name + '：涤去了' + foe.name + '身上的增益。', 'gold');
+                Render.floatText('净脉', foe.x, foe.y, '#c9b3e0', 13);
+              }
+            }
+          }
         } else {
           Render.slash(foe.x, foe.y, 'miss');
           Render.floatText('闪避', foe.x, foe.y, '#dfe6d7', 14);
@@ -1976,6 +2010,9 @@ const Battle = {
           UI.toast('传说武器【' + lg.name + '】入手！');
           Audio.sfx('levelup');
           Render.floatText('传说', unit.x, unit.y, '#f0c25a', 22);
+        } else if (lg.action === 'miss') {
+          UI.log('【' + lg.name + '】未现踪影（本次掉率 ' + Math.round(lg.chance * 100) + '%·已讨伐 ' + lg.since + ' 次）。', '');
+          Render.floatText('未掉', unit.x, unit.y, '#b8ac93', 13);
         } else {
           this.B.loot.gold += lg.gold;
           this.B.loot.seals = (this.B.loot.seals || 0) + lg.seals;

@@ -89,6 +89,7 @@ const Game = {
       sideCleared: {},
       introSeen: {},
       legendary: {},
+      legendaryPity: {},
       cleared: false,
       startedAt: Date.now(),
       savedAt: Date.now(),
@@ -108,6 +109,15 @@ const Game = {
     if (!c.legendary || typeof c.legendary !== 'object') c.legendary = {};
     for (const k of Object.keys(c.legendary)) {
       if (!LEGENDARY_WEAPONS[k] || !c.legendary[k]) delete c.legendary[k];
+    }
+    /* 缘值：键为传说首领的 ENEMY_TYPES 键，值为非负整数 */
+    if (!c.legendaryPity || typeof c.legendaryPity !== 'object') c.legendaryPity = {};
+    const pitySrc = {};
+    for (const lk in LEGENDARY_WEAPONS) pitySrc[LEGENDARY_WEAPONS[lk].source] = true;
+    for (const k of Object.keys(c.legendaryPity)) {
+      const v = c.legendaryPity[k];
+      if (!pitySrc[k] || typeof v !== 'number' || v < 0) delete c.legendaryPity[k];
+      else c.legendaryPity[k] = Math.floor(v);
     }
     if (!Array.isArray(c.roster)) c.roster = [];
     c.roster = c.roster.filter(r => r && CHARS[r.id]).map(r => {

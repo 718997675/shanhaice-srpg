@@ -13,9 +13,9 @@ const Combat = {
     return { hit: 0, avoid: 0, crit: 0, critAvoid: 0, dmg: 0, def: 0, res: 0, healBonus: 0, move: 0 };
   },
 
-  modsOf(ctx, unit, foe) {
+  modsOf(ctx, unit, foe, initiating) {
     if (ctx && typeof ctx.mods === 'function') {
-      const m = ctx.mods(unit, foe) || {};
+      const m = ctx.mods(unit, foe, !!initiating) || {};
       return Object.assign(this.zeroMods(), m);
     }
     return this.zeroMods();
@@ -126,6 +126,39 @@ const Combat = {
     return w.w.effective.some(t => tags.includes(t));
   },
 
+  /* 武器词条与技能修正（纯函数）：traits 逐项 + skill 的数值字段。
+   * 键名规则：字段名（hit/crit/dmg/def/res/avoid/move）可选带
+   * 「Vs+目标标签」后缀（如 critVsBeast → 对猛兽暴击 +N，需 foe.tags 含该标签）；
+   * skill 另支持 dmgIfAdjacentAlly（相邻有友军）/ dmgIfInitiating（主动攻击时）。
+   * 命中后类技能（debuffDefOnHit / movePenaltyOnCrit / cleanseOnHit）不在此处，
+   * 由 battle.js 在 strike 事件里落地。 */
+  weaponMods(wdef, opts) {
+    const out = this.zeroMods();
+    if (!wdef) return out;
+    opts = opts || {};
+    const tags = opts.foeTags || [];
+    const parse = obj => {
+      if (!obj) return;
+      for (const k in obj) {
+        const mm = /^([a-zA-Z]+?)(?:Vs([A-Z][A-Za-z]*))?$/.exec(k);
+        if (!mm) continue;
+        const field = mm[1];
+        if (!(field in out)) continue;              // name/desc/debuffDefOnHit 等非数值字段跳过
+        if (mm[2] && !tags.includes(mm[2].toLowerCase())) continue;
+        const v = obj[k];
+        if (typeof v === 'number') out[field] += v;
+      }
+    };
+    (wdef.traits || []).forEach(parse);
+    const sk = wdef.skill;
+    if (sk) {
+      parse(sk);
+      if (sk.dmgIfAdjacentAlly && opts.adjacentAlly) out.dmg += sk.dmgIfAdjacentAlly;
+      if (sk.dmgIfInitiating && opts.initiating) out.dmg += sk.dmgIfInitiating;
+    }
+    return out;
+  },
+
   /* 五行相克：金克木、木克土、土克水、水克火、火克金；同系与互不相克均为中性。
    * 返回 { state, mul, text }——spells.js 结算法术伤害时乘 mul。 */
   elementMul(atkEl, defEl) {
@@ -162,11 +195,11 @@ const Combat = {
     };
   },
 
-  hitChance(attacker, defender, ctx) {
+  hitChance(attacker, defender, ctx, initiating) {
     const w = this.weaponOf(attacker);
     if (!w) return 0;
-    const am = this.modsOf(ctx, attacker, defender);
-    const dm = this.modsOf(ctx, defender, attacker);
+    const am = this.modsOf(ctx, attacker, defender, initiating);
+    const dm = this.modsOf(ctx, defender, attacker, false);
     const tri = this.triangle(attacker, defender);
     const tile = this.tileAt(ctx, defender.x, defender.y);
     let hit = (w.w.hit || 0) + (attacker.stats.skl || 0) * 2 + Math.floor((attacker.stats.lck || 0) / 2) + tri.hit + am.hit;
@@ -174,21 +207,21 @@ const Combat = {
     return Math.max(0, Math.min(100, Math.round(hit - avoid)));
   },
 
-  critChance(attacker, defender, ctx) {
+  critChance(attacker, defender, ctx, initiating) {
     const w = this.weaponOf(attacker);
     if (!w) return 0;
-    const am = this.modsOf(ctx, attacker, defender);
-    const dm = this.modsOf(ctx, defender, attacker);
+    const am = this.modsOf(ctx, attacker, defender, initiating);
+    const dm = this.modsOf(ctx, defender, attacker, false);
     let crit = (w.w.crit || 0) + Math.floor((attacker.stats.skl || 0) / 2) + am.crit;
     crit -= (defender.stats.lck || 0) + dm.critAvoid;
     return Math.max(0, Math.min(100, Math.round(crit)));
   },
 
-  damage(attacker, defender, ctx) {
+  damage(attacker, defender, ctx, initiating) {
     const w = this.weaponOf(attacker);
     if (!w) return 0;
-    const am = this.modsOf(ctx, attacker, defender);
-    const dm = this.modsOf(ctx, defender, attacker);
+    const am = this.modsOf(ctx, attacker, defender, initiating);
+    const dm = this.modsOf(ctx, defender, attacker, false);
     const tri = this.triangle(attacker, defender);
     const tile = this.tileAt(ctx, defender.x, defender.y);
     const magic = !!w.w.magic;
@@ -218,16 +251,16 @@ const Combat = {
       effective: this.isEffective(attacker, defender),
       counterEffective: counter ? this.isEffective(defender, attacker) : false,
       attacker: {
-        dmg: w && canHit ? this.damage(attacker, defender, ctx) : 0,
-        hit: w && canHit ? this.hitChance(attacker, defender, ctx) : 0,
-        crit: w && canHit ? this.critChance(attacker, defender, ctx) : 0,
+        dmg: w && canHit ? this.damage(attacker, defender, ctx, true) : 0,
+        hit: w && canHit ? this.hitChance(attacker, defender, ctx, true) : 0,
+        crit: w && canHit ? this.critChance(attacker, defender, ctx, true) : 0,
         double: !!w && canHit && this.doubles(attacker, defender)
       },
       defender: {
         canCounter: counter,
-        dmg: counter ? this.damage(defender, attacker, ctx) : 0,
-        hit: counter ? this.hitChance(defender, attacker, ctx) : 0,
-        crit: counter ? this.critChance(defender, attacker, ctx) : 0,
+        dmg: counter ? this.damage(defender, attacker, ctx, false) : 0,
+        hit: counter ? this.hitChance(defender, attacker, ctx, false) : 0,
+        crit: counter ? this.critChance(defender, attacker, ctx, false) : 0,
         double: counter && this.doubles(defender, attacker)
       }
     };
@@ -270,8 +303,8 @@ const Combat = {
       if (!wInfo) continue;
       if (striker === defender && !this.canCounter(striker, foe)) continue;
 
-      const hitRate = this.hitChance(striker, foe, ctx);
-      const critRate = this.critChance(striker, foe, ctx);
+      const hitRate = this.hitChance(striker, foe, ctx, striker === attacker);
+      const critRate = this.critChance(striker, foe, ctx, striker === attacker);
       const roll = rng.hitRoll();
       const hit = roll < hitRate;
       let crit = false;
@@ -280,7 +313,7 @@ const Combat = {
       const triangle = this.triangle(striker, foe);
       if (hit) {
         crit = (rng.next() * 100) < critRate;
-        dmg = this.damage(striker, foe, ctx) * (crit ? 3 : 1);
+        dmg = this.damage(striker, foe, ctx, striker === attacker) * (crit ? 3 : 1);
         foe.hp = Math.max(0, foe.hp - dmg);
       }
       const broke = this.consumeUse(striker, wInfo.item);
@@ -299,6 +332,8 @@ const Combat = {
         rolled: Math.round(roll),
         hitRate, critRate,
         debuff: hit && wInfo.w.debuff ? wInfo.w.debuff : null,
+        /* 传说武器的附带技能：命中后/暴击后效果由 battle.js 落地 */
+        weaponSkill: hit && wInfo.w.skill ? wInfo.w.skill : null,
         attackerX: striker.x, attackerY: striker.y,
         defenderX: foe.x, defenderY: foe.y
       };
