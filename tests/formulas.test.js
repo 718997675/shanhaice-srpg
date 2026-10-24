@@ -722,6 +722,77 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
   eq('神兽守御护甲 +5', mg.def, 5);
   eq('神兽守御回避 +15', mg.avoid, 15);
 
+  // 15. 战役内容接线：入队点完整、对话存在、冰面几何
+  {
+    const { CHAPTERS, DIALOGUES, CHARS, TERRAIN } = vm.runInContext('({ CHAPTERS, DIALOGUES, CHARS, TERRAIN })', ctx);
+    const STARTERS = ['yunce', 'yankui', 'luming'];   // game.js newCampaign 初始队
+    const obtainable = new Set(STARTERS);
+    const recruitSpots = [];
+    CHAPTERS.forEach((ch, i) => {
+      (ch.villages || []).forEach(v => {
+        if (v.recruit) {
+          obtainable.add(v.recruit);
+          recruitSpots.push({ ch: i + 1, char: v.recruit, talk: v.talk, at: '村' });
+        }
+      });
+      (ch.enemies || []).forEach(e => {
+        if (e.char && e.recruitable) {
+          obtainable.add(e.char);
+          recruitSpots.push({ ch: i + 1, char: e.char, talk: e.talkKey, at: e.x + ',' + e.y });
+        }
+      });
+    });
+    const missing = Object.keys(CHARS).filter(k => !obtainable.has(k));
+    eq('全部角色都有入队路径', missing.join(',') || '无', '无');
+    eq('招募点共 7 处（2 村 + 5 图）', recruitSpots.length, 7);
+    for (const s of recruitSpots) {
+      ok('招募点 ' + s.char + '（第' + s.ch + '章）对话存在', !!s.talk && !!DIALOGUES[s.talk], s.talk);
+      ok('招募点 ' + s.char + ' 是有效角色', !!CHARS[s.char]);
+    }
+    // 招募单位落点合法：可行走、不占部署格、不与其他单位/物件重叠
+    CHAPTERS.forEach((ch, i) => {
+      const deploy = new Set((ch.deployTiles || []).map(t => t[0] + ',' + t[1]));
+      const taken = new Set();
+      (ch.villages || []).forEach(v => taken.add(v.x + ',' + v.y));
+      (ch.chests || []).forEach(v => taken.add(v.x + ',' + v.y));
+      (ch.shrines || []).forEach(v => taken.add(v.x + ',' + v.y));
+      (ch.enemies || []).forEach(e => {
+        const k = e.x + ',' + e.y;
+        ok('第' + (i + 1) + '章单位 (' + k + ') 不与其他物件重叠', !taken.has(k), k);
+        taken.add(k);
+        if (e.char && e.recruitable) {
+          ok('第' + (i + 1) + '章招募单位 (' + k + ') 不在部署格', !deploy.has(k), k);
+          const t = TERRAIN[ch.map[e.y][e.x]];
+          ok('第' + (i + 1) + '章招募单位 (' + k + ') 地形可行走', !!t && !t.blocked, ch.map[e.y][e.x]);
+        }
+      });
+    });
+    // 持法 Boss 都在战役中出场
+    const bossInCampaign = new Set();
+    CHAPTERS.forEach(ch => (ch.enemies || []).forEach(e => { if (e.type) bossInCampaign.add(e.type); }));
+    for (const k in SPELLS) {
+      for (const h of (SPELLS[k].holders || [])) {
+        ok('持法 Boss ' + h + ' 在战役出场（' + SPELLS[k].name + '）', bossInCampaign.has(h));
+      }
+    }
+    // 第 5 章冰面：存在冰带，且从 (6,5) 向上进入会滑上阵眼 n1(6,2)
+    const ch5 = CHAPTERS[4];
+    const iceCount = ch5.map.join('').split('').filter(c => c === 'I').length;
+    ok('第 5 章有冰面（6 格）', iceCount === 6, '实际 ' + iceCount);
+    eq('冰带第 3 行', ch5.map[3], '....r.II.....r..');
+    eq('冰带第 4 行', ch5.map[4], '..h...IIII......');
+    ok('部署格无冰', (ch5.deployTiles || []).every(t => ch5.map[t[1]][t[0]] !== 'I'));
+    const gridAt = (grid) => (x, y) => (grid[y] && grid[y][x] !== undefined ? TERRAIN[grid[y][x]] : null);
+    const noOne = () => false;
+    const r5 = Combat.slide(gridAt(ch5.map), noOne, 16, 8, 6, 5, 0, -1);
+    eq('沿冰道向上滑上阵眼 n1 (6,2)', r5.x + ',' + r5.y, '6,2');
+    eq('滑行经过 3 格', r5.path.length, 3);
+    const r5b = Combat.slide(gridAt(ch5.map), noOne, 16, 8, 5, 4, 1, 0);
+    eq('第 4 行横滑停在 (10,4)', r5b.x + ',' + r5b.y, '10,4');
+    eq('横滑经过 5 格', r5b.path.length, 5);
+    ok('第 5 章提示说明滑行', ch5.tips.indexOf('滑行') >= 0);
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

@@ -81,6 +81,7 @@ const CHAPTERS = [
       { type: 'bandit', lv: 4, x: 2, y: 4 },
       { type: 'priest', lv: 4, x: 11, y: 2 },
       { type: 'wolf', lv: 6, x: 11, y: 4 },
+      { char: 'bailu', x: 13, y: 4, ai: 'idle', recruitable: true, talkKey: 'join_bailu' },
       { type: 'bamboo', lv: 7, x: 10, y: 1, boss: true }
     ],
     reinforcements: [
@@ -88,7 +89,7 @@ const CHAPTERS = [
     ],
     side: { type: 'shrines', text: '访问三处残祠', gold: 300, items: ['elixir'] },
     rewards: { gold: 700, items: ['potion'] },
-    tips: '守住六回合即可。生脉阵眼会在己方阶段开始时治疗周围友军。'
+    tips: '守住六回合即可。生脉阵眼会在己方阶段开始时治疗周围友军。东岸有位追车队的骑将，让云策相邻后使用「说得」。'
   },
   {
     id: 3, name: '断桥古渡', theme: 'river',
@@ -125,6 +126,7 @@ const CHAPTERS = [
       { type: 'bandit', lv: 6, x: 10, y: 2 },
       { type: 'priest', lv: 5, x: 11, y: 3 },
       { type: 'wolf', lv: 6, x: 14, y: 6 },
+      { char: 'xuanyi', x: 13, y: 1, ai: 'idle', recruitable: true, talkKey: 'join_xuanyi' },
       { type: 'waterghost', lv: 9, x: 12, y: 1, boss: true }
     ],
     reinforcements: [
@@ -132,7 +134,7 @@ const CHAPTERS = [
     ],
     side: { type: 'chest', text: '开启沉船古匣', gold: 200, items: ['elixir'] },
     rewards: { gold: 800, items: ['potion'] },
-    tips: '水鬼能踏水而行。两座木桥是攻守要点，行脉可让友军走得更远。'
+    tips: '水鬼能踏水而行。两座木桥是攻守要点，行脉可让友军走得更远。对岸渡口的守卫玄漪，让云策相邻后「说得」即可同行。'
   },
   {
     id: 4, name: '赤砂关隘', theme: 'fortress',
@@ -185,8 +187,8 @@ const CHAPTERS = [
       'MM..M......M..MM',
       'M.....h..h.....M',
       '..f...L...L....f',
-      '....r........r..',
-      '..h.............',
+      '....r.II.....r..',
+      '..h...IIII......',
       '.....f....f.....',
       '....f..L..f.....',
       '..v.............'
@@ -206,8 +208,9 @@ const CHAPTERS = [
       { type: 'shaman', lv: 8, x: 10, y: 3 },
       { type: 'elite', lv: 10, x: 9, y: 4 },
       { type: 'priest', lv: 8, x: 8, y: 2 },
-      { type: 'bandit', lv: 9, x: 6, y: 3 },
+      { type: 'bandit', lv: 9, x: 6, y: 5 },
       { type: 'shaman', lv: 9, x: 7, y: 4 },
+      { char: 'chisang', x: 3, y: 5, ai: 'idle', recruitable: true, talkKey: 'join_chisang' },
       { type: 'icexiao', lv: 12, x: 8, y: 1, boss: true }
     ],
     reinforcements: [
@@ -215,7 +218,7 @@ const CHAPTERS = [
     ],
     side: { type: 'kill_boss', text: '击杀冰魈', gold: 400, items: ['seal'] },
     rewards: { gold: 1000, items: ['potion'] },
-    tips: '两处浊脉初始属于敌方。站上阵眼结束行动即可抢占；全部占据后还要守住两个己方阶段。'
+    tips: '两处浊脉初始属于敌方。站上阵眼结束行动即可抢占；全部占据后还要守住两个己方阶段。乌冰踏上去会滑行——沿进入方向一路滑到阻挡前，想停在半路就别从冰上进。守坛人赤桑可用「说得」招募，冰魈会咏唱霜系咒法。'
   },
   {
     id: 6, name: '云梦泽', theme: 'swamp',
@@ -251,6 +254,7 @@ const CHAPTERS = [
       { type: 'priest', lv: 10, x: 11, y: 2 },
       { type: 'wolf', lv: 11, x: 6, y: 5 },
       { type: 'bird', lv: 10, x: 10, y: 1 },
+      { char: 'yunling', x: 14, y: 2, ai: 'idle', recruitable: true, talkKey: 'join_yunling' },
       { type: 'swampdragon', lv: 13, x: 12, y: 3, boss: true }
     ],
     reinforcements: [
@@ -258,7 +262,7 @@ const CHAPTERS = [
     ],
     side: { type: 'recruit', text: '在泽畔村找到阿蛮', char: 'aman', gold: 300, items: ['herb'] },
     rewards: { gold: 1100, items: ['elixir'] },
-    tips: '雾中视野有限，危险范围无法查看。所有存活友军抵达东岸才能脱身，别把伤员落在最后。'
+    tips: '雾中视野有限，危险范围无法查看。所有存活友军抵达东岸才能脱身，别把伤员落在最后。东岸撤离点附近的羽人云翎，让云策相邻后「说得」可同行。'
   },
   {
     id: 7, name: '天柱废墟', theme: 'ruins',
