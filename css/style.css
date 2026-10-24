@@ -607,6 +607,7 @@ img { display: block; }
 .shop-row:hover { background: rgba(255, 252, 240, .35); }
 .shop-row .s-name { flex: 1; }
 .shop-row .legend-icon { width: 46px; height: 46px; object-fit: contain; margin-right: 9px; vertical-align: top; flex: none; image-rendering: auto; }
+.shop-row .legend-mech { color: #8a6a35; }
 .shop-row .s-desc { font-size: 10px; color: #8a806a; }
 .shop-row .s-price { font-family: var(--sans); color: #84602e; min-width: 48px; text-align: right; }
 .shop-buy { font-size: 10px; padding: 4px 9px; border: 1px solid rgba(80,68,45,.35); background: rgba(255,252,240,.5); color: #4b4737; border-radius: 2px; transition: background .14s, border-color .14s, box-shadow .14s; }

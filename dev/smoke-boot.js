@@ -228,6 +228,9 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (body.innerHTML.indexOf('云却') < 0 || body.innerHTML.indexOf('data-act="forge"') < 0) {
       throw new Error('打造坊渲染缺块');
     }
+    if (body.innerHTML.indexOf('词条：') < 0 || body.innerHTML.indexOf('技能·断岳') < 0) {
+      throw new Error('图鉴缺少词条/技能说明');
+    }
     const r = Forge.craft(camp, 'iron_sword');
     console.log('打造铁剑：', r.ok ? '成功（-' + r.cost.gold + ' 金）' : '失败 ' + r.why,
                 '；行囊末件 =', camp.convoy[camp.convoy.length - 1].key);

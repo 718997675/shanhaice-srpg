@@ -84,6 +84,21 @@ function cdp(wsUrl) {
   if (!await c.waitJs(`!document.getElementById('campScreen').classList.contains('hidden')`, 20000)) throw new Error('营地未出现');
   await sleep(900);
 
+  /* 关掉教程弹窗（若有） */
+  for (let i = 0; i < 3; i++) {
+    const closed = await c.evalJs(`(() => {
+      const m = document.getElementById('modalOverlay');
+      if (m && !m.classList.contains('hidden')) {
+        const b = [...m.querySelectorAll('button')].find(x => /下山|知道了|继续|确认/.test(x.textContent));
+        if (b) { b.click(); return true; }
+      }
+      return false;
+    })()`);
+    if (!closed) break;
+    await sleep(400);
+  }
+  await sleep(400);
+
   /* 切到打造页签 */
   await c.evalJs(`document.querySelector('[data-tab="forge"]').click()`);
   await sleep(900);

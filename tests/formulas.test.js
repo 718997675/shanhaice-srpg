@@ -905,6 +905,20 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('龙骨弓对飞行猛兽伤害 +6', lgb.dmg, 6);
     eq('龙骨弓对飞行暴击 +15', lgb.crit, 15);
     eq('无武器无词条', Combat.weaponMods(null, {}).hit, 0);
+    /* --- 词条可读文本（图鉴展示） --- */
+    const t1 = Legendary.traitText(WEAPONS['lw_yunque']);
+    eq('云却词条文本', t1.traits, '命中 +10 · 暴击 +5 · 对猛兽暴击 +15');
+    eq('云却技能文本', t1.skill, '技能·断岳：对猛兽目标伤害 +3。');
+    const t2 = Legendary.traitText(WEAPONS['lw_fensha']);
+    eq('焚砂词条文本', t2.traits, '暴击 +10 · 命中 +5 · 护甲 +2');
+    const t3 = Legendary.traitText(WEAPONS['lw_pozhuo']);
+    eq('破浊符词条文本', t3.traits, '命中 +10 · 对重甲伤害 +3 · 对重甲暴击 +10');
+    for (const k in LEGENDARY_WEAPONS) {
+      const tt = Legendary.traitText(LEGENDARY_WEAPONS[k]);
+      ok('传说 ' + k + ' 词条文本非空', !!tt.traits, tt.traits);
+      ok('传说 ' + k + ' 技能文本非空', !!tt.skill, tt.skill);
+    }
+    eq('空武器无文本', Legendary.traitText(null).traits, '');
     /* --- modsFor 集成：装备传说兵器即获得加成 --- */
     const fake = Object.create(Battle);
     fake.B = { units: [], nodes: [], supports: {} };

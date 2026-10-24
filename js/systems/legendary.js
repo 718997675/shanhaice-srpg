@@ -101,6 +101,29 @@ const Legendary = {
     return '「' + (src ? src.name : w.source) + '」极小概率掉落 · 每未掉 +' +
       Math.round(LEGENDARY_DROP.ramp * 100) + '%（' + Math.round(LEGENDARY_DROP.cap * 100) +
       '% 封顶）· ' + LEGENDARY_DROP.hardPity + ' 次必掉 · 不可打造';
+  },
+
+  /* 词条与技能的可读文本（图鉴展示用）。
+   * 字段：hit 命中 / crit 暴击 / dmg 伤害 / def 护甲 / res 魔抗 / avoid 回避 / move 移动；
+   * 「Vs+标签」后缀转「对猛兽/飞行/重甲/草木/亡灵」。 */
+  traitText(wdef) {
+    const F = { hit: '命中', crit: '暴击', dmg: '伤害', def: '护甲', res: '魔抗', avoid: '回避', move: '移动' };
+    const T = { beast: '猛兽', flying: '飞行', armor: '重甲', plant: '草木', undead: '亡灵' };
+    if (!wdef) return { traits: '', skill: '' };
+    const one = t => {
+      for (const k in t) {
+        const mm = /^([a-zA-Z]+?)(?:Vs([A-Z][A-Za-z]*))?$/.exec(k);
+        if (!mm || !(mm[1] in F)) continue;
+        const tag = mm[2] ? (T[mm[2].toLowerCase()] || mm[2]) : null;
+        const v = t[k];
+        return (tag ? '对' + tag : '') + F[mm[1]] + ' ' + (v >= 0 ? '+' : '') + v;
+      }
+      return '';
+    };
+    const traits = (wdef.traits || []).map(one).filter(Boolean).join(' · ');
+    const sk = wdef.skill;
+    const skill = sk ? '技能·' + sk.name + '：' + sk.desc : '';
+    return { traits, skill };
   }
 };
 
