@@ -20,9 +20,11 @@ const CHAPTERS = [
       '........LL......',
       '..v...h...f.....'
     ],
+    // 阵眼升阶配置（P1.1）：tier 为初始阶数（省略 = 1 阶）。
+    // 占领后驻守 2 个己方阶段 +1 阶，效果按阶倍增，最高 3 阶；被夺则清零。
     nodes: [
-      { id: 'n1', x: 8, y: 6, type: 'attack' },
-      { id: 'n2', x: 9, y: 6, type: 'life' }
+      { id: 'n1', x: 8, y: 6, type: 'attack', tier: 1 },
+      { id: 'n2', x: 9, y: 6, type: 'life', tier: 1 }
     ],
     villages: [
       { x: 13, y: 3, name: '青岚村', recruit: 'qingluo', talk: 'join_qingluo' },
@@ -41,7 +43,7 @@ const CHAPTERS = [
     ],
     side: { type: 'villages', text: '访问两处村庄', gold: 300, items: ['elixir'] },
     rewards: { gold: 500, items: ['potion'] },
-    tips: '青萝在东北的青岚村。阵眼结束行动即可占领。'
+    tips: '青萝在东北的青岚村。阵眼结束行动即可占领；占领后驻守两个己方阶段可升华升阶，脉流效果翻倍。'
   },
   {
     id: 2, name: '雾隐竹海', theme: 'bamboo',
@@ -551,6 +553,37 @@ const NODE_INFO = {
   flow: { name: '行脉', desc: '三格内友军移动 +1。' },
   guard: { name: '护脉', desc: '两格内友军护甲与魔抗 +3。' }
 };
+
+/* ============================================================
+ * 阵眼升阶（P1.1）
+ * 占领后驻守：每满 2 个己方阶段 +1 阶（最高 3 阶），
+ * 所有脉流效果按阶倍增；被敌方夺取则阶数清零。
+ * ============================================================ */
+const NODE_TIER_MAX = 3;
+const NODE_TIER_HOLD = 2;
+
+function nodeEffectText(type, tier) {
+  const t = tier || 1;
+  switch (type) {
+    case 'attack': return '三格内友军命中 +' + 15 * t + '、暴击 +' + 5 * t;
+    case 'life':   return '己方阶段开始，三格内友军回复 ' + 8 * t + ' 生命';
+    case 'flow':   return '三格内友军移动 +' + t;
+    case 'guard':  return '两格内友军护甲魔抗 +' + 3 * t;
+    default:       return '结束行动后占领';
+  }
+}
+
+/* 驻守推进（纯函数，供测试）：held=true 表示本阶段有己方单位停在节点上。
+ * 返回升到的阶数（0 = 未升阶）。 */
+function nodeGarrisonTick(node, held) {
+  if (!node || node.owner === 'none' || !held) { node.hold = 0; return 0; }
+  node.hold += 1;
+  if (node.hold >= NODE_TIER_HOLD) {
+    node.hold = 0;
+    if (node.tier < NODE_TIER_MAX) { node.tier += 1; return node.tier; }
+  }
+  return 0;
+}
 
 const TERRAIN_HINTS = {
   f: '疏林：回避 +20，护甲 +1，移动消耗 2',

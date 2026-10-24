@@ -756,6 +756,10 @@ const Render = {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(NODE_INFO[node.type] ? NODE_INFO[node.type].name[0] : '脉', 0, 1);
+      if ((node.tier || 1) > 1) {
+        ctx.font = `600 ${Math.max(8, Math.round(t * 0.17))}px "Songti SC", "STSong", serif`;
+        ctx.fillText(['', 'Ⅰ', 'Ⅱ', 'Ⅲ'][Math.min(node.tier || 1, 3)], 0, -t * 0.46);
+      }
       ctx.restore();
     }
   },

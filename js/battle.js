@@ -84,7 +84,8 @@ const Battle = {
         id: n.id, x: n.x, y: n.y, type: n.type,
         owner: n.owner || 'none',
         startPhase: n.owner === 'enemy' ? 2 : 0,
-        active: false
+        active: false,
+        tier: n.tier || 1, hold: 0
       })),
       turn: 1,
       phase: 'player',
@@ -416,13 +417,15 @@ const Battle = {
     }
 
     // 灵脉阵眼
-    if (this.nodeAt(unit.x, unit.y)) m.avoid += 10;
+    const nodeHere = this.nodeAt(unit.x, unit.y);
+    if (nodeHere) m.avoid += 10 * (nodeHere.tier || 1);
     for (const node of this.B.nodes) {
       if (!node.active || node.owner !== unit.side) continue;
+      const t = node.tier || 1;
       const d = Combat.distance(node.x, node.y, unit.x, unit.y);
-      if (node.type === 'attack' && d <= 3) { m.hit += 15; m.crit += 5; }
-      else if (node.type === 'guard' && d <= 2) { m.def += 3; m.res += 3; }
-      else if (node.type === 'flow' && d <= 3) { m.move += 1; }
+      if (node.type === 'attack' && d <= 3) { m.hit += 15 * t; m.crit += 5 * t; }
+      else if (node.type === 'guard' && d <= 2) { m.def += 3 * t; m.res += 3 * t; }
+      else if (node.type === 'flow' && d <= 3) { m.move += t; }
     }
 
     // 羁绊
@@ -480,6 +483,8 @@ const Battle = {
     if (!node || node.owner === unit.side) return false;
     const old = node.owner;
     node.owner = unit.side;
+    node.tier = 1;          // 易主则升华进度清零
+    node.hold = 0;
     node.startPhase = this.B.phaseIndex + 2;
     node.active = false;
     this.updateNodes();
@@ -490,6 +495,25 @@ const Battle = {
     Render.floatText(info.name, unit.x, unit.y, unit.side === 'player' ? '#a8d2b7' : '#e0a393', 13);
     if (unit.side === 'player') UI.toast('占领' + info.name + ' · ' + info.desc);
     return true;
+  },
+
+  /* 驻守推进：己方阶段结束时，有己方存活单位停在节点上则累计，
+   * 满 NODE_TIER_HOLD 个阶段 +1 阶（最高 NODE_TIER_MAX），效果倍增。 */
+  tickNodeGarrison(side) {
+    const B = this.B;
+    for (const node of B.nodes) {
+      if (node.owner !== side) continue;
+      const held = B.units.some(u =>
+        u.side === side && u.hp > 0 && !u.escaped && u.x === node.x && u.y === node.y);
+      const up = nodeGarrisonTick(node, held);
+      if (up > 0 && side === 'player') {
+        const info = NODE_INFO[node.type] || { name: '阵眼' };
+        UI.log(info.name + '阵眼驻守升华，升至 ' + up + ' 阶 · ' + nodeEffectText(node.type, up), 'good');
+        UI.toast(info.name + '阵眼 ' + up + ' 阶 · ' + nodeEffectText(node.type, up), 2600);
+        Audio.sfx('node');
+        Render.floatText('升阶', node.x, node.y, '#c9b578', 13);
+      }
+    }
   },
 
   activeNodeEffectsFor(side) {
@@ -503,7 +527,7 @@ const Battle = {
       if (u.side !== side || u.hp <= 0 || u.escaped) continue;
       let healed = 0;
       for (const n of nodes) {
-        if (Combat.distance(n.x, n.y, u.x, u.y) <= 3) { healed += 8; }
+        if (Combat.distance(n.x, n.y, u.x, u.y) <= 3) { healed += 8 * (n.tier || 1); }
       }
       const terrain = this.tileAt(u.x, u.y);
       if (terrain && terrain.heal) healed += Math.ceil(u.stats.hp * terrain.heal);
@@ -633,6 +657,7 @@ const Battle = {
     UI.hideActionBar();
     UI.hideUnitCard();
     this.grantSupportPoints();
+    this.tickNodeGarrison('player');
     await this.resolveHoldObjectives();
     if (B.ending) { B.busy = false; return; }
     await this.checkVictory();
@@ -740,6 +765,7 @@ const Battle = {
     }
     B.turn++;
     B.phaseIndex++;
+    this.tickNodeGarrison('enemy');
     await this.beginPlayerPhase(false);
   },
 
@@ -1132,9 +1158,20 @@ const Battle = {
     buttons.push({ label: '待机', sub: '结束行动', cls: 'wait', onClick: () => this.finishUnitAction(u) });
     buttons.push({ label: '取消', sub: '退回', cls: 'cancel', onClick: () => this.cancelSelection() });
     const node = this.nodeAt(u.x, u.y);
-    const hint = node
-      ? '阵眼：' + (NODE_INFO[node.type] ? NODE_INFO[node.type].desc : '结束行动后占领') + (node.owner !== 'player' ? ' · 结束行动可占领' : '')
-      : (TERRAIN_HINTS[this.tileChar(u.x, u.y)] || '');
+    let hint;
+    if (node) {
+      const info = NODE_INFO[node.type] || { name: '阵眼', desc: '结束行动后占领' };
+      const t = node.tier || 1;
+      if (node.owner === 'player') {
+        hint = info.name + ' ' + t + ' 阶 · ' + nodeEffectText(node.type, t) +
+               ' · 驻守 ' + (node.hold || 0) + '/' + NODE_TIER_HOLD +
+               (t < NODE_TIER_MAX ? '（停在节点上结束行动可升华）' : '（已至满阶）');
+      } else {
+        hint = '阵眼：' + info.desc + (node.owner === 'none' ? ' · 结束行动可占领' : ' · 敌方脉流 · 结束行动可夺取');
+      }
+    } else {
+      hint = TERRAIN_HINTS[this.tileChar(u.x, u.y)] || '';
+    }
     UI.actionBar(buttons, hint);
     UI.unitCard(u, B, '选择行动');
     UI.updateBattle(B);
@@ -2116,7 +2153,8 @@ const Battle = {
     const B = this.B;
     B.grid = data.grid ? data.grid.slice() : this.chapter.map.slice();
     B.units = JSON.parse(JSON.stringify(data.units || []));
-    B.nodes = JSON.parse(JSON.stringify(data.nodes || []));
+    // 旧存档没有 tier/hold 字段，读取时补默认值
+    B.nodes = (data.nodes || []).map(n => Object.assign({ tier: 1, hold: 0 }, n));
     B.turn = data.turn || 1;
     B.phase = data.phase || 'player';
     B.phaseIndex = data.phaseIndex || 1;
