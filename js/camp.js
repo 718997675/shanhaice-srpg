@@ -114,9 +114,14 @@ const Camp = {
       const def = WEAPONS[it.key] || ITEMS[it.key];
       if (!def) return '';
       const full = rec.items.length >= 5;
+      const plus = WEAPONS[it.key] ? (it.plus || 0) : 0;
+      const sc = Smith.canStrengthen(it.key, it) ? Smith.cost(it) : null;
       return '<div class="convoy-item">' + this.weaponIconHTML(it.key, 'inv-icon sm') +
         '<span class="inv-name">' + UI.escape(def.name) +
+        (plus ? ' <span class="plus-badge">+' + plus + '</span>' : '') +
         '<small style="color:#83795f;margin-left:6px;">' + (WEAPONS[it.key] ? '耐久 ' + it.uses + '/' + def.uses : '× ' + it.uses) + '</small></span>' +
+        (sc ? '<button class="mini-btn" data-act="strengthen" data-where="convoy" data-i="' + i + '" title="' +
+          UI.escape(ITEMS[sc.mat].name + ' ×' + sc.n + ' + ' + sc.gold + ' 盘缠') + '">强化</button>' : '') +
         '<button class="mini-btn" data-act="take" data-i="' + i + '"' + (full ? ' disabled' : '') + '>携带</button></div>';
     }).join('') || '<div class="item-empty">行囊里没有多余兵装。</div>';
     const canLevel = rec.level >= PROMO_LEVEL;
@@ -150,20 +155,26 @@ const Camp = {
     if (!w && !d) return '';
     const equipped = w && rec.weaponIndex === i;
     const canEquip = w ? Combat.canEquipKey(rec, it.key) : false;
+    const plus = w ? (it.plus || 0) : 0;
     const meta = w
-      ? '耐久 ' + it.uses + '/' + (w.uses || 1) + ' · ' + (w.magic ? '灵' : '力') + '+' + w.mt + ' · 命中 ' + w.hit
+      ? '耐久 ' + it.uses + '/' + (w.uses || 1) + ' · ' + (w.magic ? '灵' : '力') + '+' + (w.mt + plus) + (plus ? '（+' + plus + '）' : '') +
+        ' · 命中 ' + (w.hit + 3 * plus) + (plus && plus >= Smith.cap() ? ' · 必杀 +5' : '')
       : '剩余 ' + it.uses + ' 次 · 回复 ' + (d.heal || 0);
     const max = w ? (w.uses || 1) : 0;
     const missing = w ? Math.max(0, max - it.uses) : 0;
     const cost = w ? this.repairCost(w, it) : 0;
+    const sc = w && Smith.canStrengthen(it.key, it) ? Smith.cost(it) : null;
     return '<div class="inv-item">' + this.weaponIconHTML(it.key) +
       '<span class="inv-name">' + UI.escape(w ? w.name : d.name) +
+      (plus ? ' <span class="plus-badge">+' + plus + '</span>' : '') +
       (w ? ' <span style="font-family:var(--sans);font-size:9px;color:#8a806a;">' + w.rank + ' · ' + (WEAPON_TYPES[w.type] ? WEAPON_TYPES[w.type].name : '') + '</span>' : '') +
       '<div class="inv-meta">' + meta + '</div>' + (w ? this.weaponMechHTML(w) : '') + '</span>' +
       (w ? (equipped
         ? '<span class="mini-btn gold" style="pointer-events:none;">已装备</span>'
         : '<button class="mini-btn" data-act="equip" data-i="' + i + '"' + (canEquip ? '' : ' disabled') + '>装备</button>') : '') +
       (w && missing > 0 ? '<button class="mini-btn" data-act="repair" data-i="' + i + '" title="修补 ' + cost + ' 盘缠">修 ' + cost + '</button>' : '') +
+      (sc ? '<button class="mini-btn" data-act="strengthen" data-where="item" data-i="' + i + '" title="' +
+        UI.escape(ITEMS[sc.mat].name + ' ×' + sc.n + ' + ' + sc.gold + ' 盘缠') + '">强化</button>' : '') +
       (rec.items.length > 1 ? '<button class="mini-btn danger" data-act="store" data-i="' + i + '">存入</button>' : '') +
       '</div>';
   },
@@ -236,6 +247,7 @@ const Camp = {
     body.innerHTML = '<div class="shop-wrap">' +
       '<div class="shop-col"><h3>打 造</h3>' +
       '<div class="shop-note">以盘缠与脉印请匠人开炉。高阶兵装还需脉印，品质与市集无异，打造的兵装进入行囊。</div>' +
+      '<div class="shop-note" style="margin-top:8px;color:#8a6a35;">强化：耐久完好的兵装可强化至 +3（每级 +1 威力、+3 命中，+3 额外 +5 必杀），消耗铁髓/钢核/银晶与盘缠；在「队伍」的兵装行或行囊行点击「强化」开炉。传说与损坏兵装不可强化。</div>' +
       (rows || '<div class="item-empty">当前章节无可打造的兵装。</div>') +
       '</div>' +
       '<div class="shop-col"><h3>传说图鉴</h3>' +
@@ -248,8 +260,9 @@ const Camp = {
 
   renderShop(body) {
     const c = Game.campaign;
-    const isWeapon = this.shopTab !== 'item';
-    const stock = isWeapon ? this.weaponStock() : this.itemStock();
+    const tab = this.shopTab || 'weapon';
+    const isWeapon = tab === 'weapon';
+    const stock = isWeapon ? this.weaponStock() : (tab === 'mat' ? this.matStock() : this.itemStock());
     const rows = stock.map(s => {
       const def = s.def;
       const desc = WEAPONS[s.key]
@@ -278,8 +291,11 @@ const Camp = {
       '<div class="shop-col"><h3>市 集</h3>' +
       '<div class="shop-tabs">' +
       '<button data-act="shopTab" data-tab="weapon" class="' + (isWeapon ? 'active' : '') + '">兵装</button>' +
-      '<button data-act="shopTab" data-tab="item" class="' + (!isWeapon ? 'active' : '') + '">药物</button></div>' +
-      '<div class="shop-note">购入的兵装与药物进入行囊，在「队伍」中交给同伴。' + (isWeapon ? '' : '脉印可直接向行商购得。') + '</div>' +
+      '<button data-act="shopTab" data-tab="item" class="' + (tab === 'item' ? 'active' : '') + '">药物</button>' +
+      '<button data-act="shopTab" data-tab="mat" class="' + (tab === 'mat' ? 'active' : '') + '">材料</button></div>' +
+      '<div class="shop-note">' + (tab === 'mat'
+        ? '强化材料堆叠进行囊。铁匠铺强化：耐久完好的兵装 +0 → +3，每级 +1 威力、+3 命中，+3 额外 +5 必杀；在「队伍」的兵装行或行囊行点击「强化」开炉。传说与损坏兵装不可强化。'
+        : '购入的兵装与药物进入行囊，在「队伍」中交给同伴。' + (tab === 'item' ? '脉印可直接向行商购得。' : '')) + '</div>' +
       rows + '</div>' +
       '<div class="shop-col"><h3>修 补</h3>' +
       (repairs.length ? repairs.join('') : '<div class="item-empty">所有兵装都还完好。</div>') +
@@ -317,6 +333,15 @@ const Camp = {
     }
     list.push({ key: 'seal', def: ITEMS.seal });
     return list;
+  },
+
+  /* 强化材料（按章节解锁） */
+  matStock() {
+    const chapter = Game.campaign.chapter;
+    const gate = { mat_iron: 1, mat_steel: 2, mat_silver: 4 };
+    return Object.keys(ITEMS)
+      .filter(k => ITEMS[k].kind === 'mat' && chapter >= (gate[k] || 1))
+      .map(key => ({ key, def: ITEMS[key] }));
   },
 
   /* ============================================================
@@ -517,6 +542,44 @@ const Camp = {
       if (!rec || !it) return;
       return this.repairItem(rec, it);
     }
+    if (act === 'strengthen') {
+      const where = btn.dataset.where;
+      const idx = +btn.dataset.i;
+      let item = null;
+      if (where === 'convoy') item = c.convoy[idx];
+      else {
+        const rec = this.currentUnit();
+        item = rec && rec.items[idx];
+      }
+      if (!item) return;
+      const cost = Smith.cost(item);
+      if (!cost) { UI.toast('已达强化上限 +' + Smith.cap()); return; }
+      const def = WEAPONS[item.key];
+      const mat = ITEMS[cost.mat];
+      UI.modal({
+        title: '铁匠铺 · 强化',
+        sub: UI.escape(def.name) + (item.plus ? ' +' + item.plus : '') + ' → +' + ((item.plus || 0) + 1),
+        list: [{
+          label: '消耗：' + UI.escape(mat.name) + ' ×' + cost.n + '　盘缠 ' + cost.gold +
+                 '（现有 ' + Smith.matCount(c, cost.mat) + ' / ' + c.gold + '）',
+          meta: Smith.effectText((item.plus || 0) + 1),
+          value: 'go'
+        }],
+        buttons: [{ label: '再想想', value: null }, { label: '开炉', value: 'go' }]
+      }).then(v => {
+        if (v !== 'go' || !this.active || !Game.campaign) return;
+        const r = Smith.strengthen(Game.campaign, item);
+        if (!r.ok) {
+          UI.toast(r.why === 'gold' ? '盘缠不足' : r.why === 'mat' ? '材料不足' : r.why === 'broken' ? '兵装已损坏，先修补' : '无法强化');
+          return;
+        }
+        Audio.sfx('levelup');
+        Game.saveCampaign();
+        UI.toast(r.name + ' 强化至 +' + r.plus + '（' + Smith.effectText(r.plus) + '）');
+        this.render();
+      });
+      return;
+    }
     if (act === 'promote') {
       const rec = c.roster.find(r => r.id === btn.dataset.id);
       if (rec) await this.promote(rec);
@@ -703,7 +766,13 @@ const Camp = {
     if (!def) return;
     if (c.gold < def.price) { UI.toast('盘缠不足'); return; }
     c.gold -= def.price;
-    c.convoy.push({ key, uses: def.uses || 1 });
+    if (def.stack) {   // 材料堆叠进行囊
+      const st = c.convoy.find(i => i.key === key);
+      if (st) st.uses = (st.uses || 0) + 1;
+      else c.convoy.push({ key, uses: 1 });
+    } else {
+      c.convoy.push({ key, uses: def.uses || 1 });
+    }
     Audio.sfx('gold');
     Game.saveCampaign();
     UI.toast('购入 ' + def.name + '，已放入行囊');

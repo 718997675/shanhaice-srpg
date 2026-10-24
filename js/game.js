@@ -119,6 +119,12 @@ const Game = {
       if (!pitySrc[k] || typeof v !== 'number' || v < 0) delete c.legendaryPity[k];
       else c.legendaryPity[k] = Math.floor(v);
     }
+    /* 强化等级钳制（旧档无 plus 字段；上限 +3） */
+    const clampPlus = it => {
+      if (it && typeof it.plus !== 'undefined') it.plus = Math.max(0, Math.min(3, Math.floor(it.plus) || 0));
+    };
+    c.roster.forEach(r => (r.items || []).forEach(clampPlus));
+    (c.convoy || []).forEach(clampPlus);
     if (!Array.isArray(c.roster)) c.roster = [];
     c.roster = c.roster.filter(r => r && CHARS[r.id]).map(r => {
       const base = this.makeRec(r.id);
@@ -408,6 +414,10 @@ const Game = {
           if (!def) continue;
           gainedItems.push(key);
           if (this.campaign.convoy.length < 60) {
+            if (def.stack) {   // 材料堆叠
+              const st = this.campaign.convoy.find(i => i.key === key);
+              if (st) { st.uses = (st.uses || 0) + (def.uses || 1); continue; }
+            }
             this.campaign.convoy.push({ key, uses: def.uses || 1 });
           }
         }

@@ -76,7 +76,7 @@ const Combat = {
       const w = WEAPONS[it.key];
       if (!w || w.type === 'staff') continue;
       if (!this.hasRank(unit, w)) continue;
-      const score = (w.mt || 0) * 2 + (w.hit || 0) / 10;
+      const score = (w.mt || 0) * 2 + (w.hit || 0) / 10 + (it.plus || 0) * 2;
       if (score > bestScore) { bestScore = score; best = i; }
     }
     return best;
@@ -117,6 +117,13 @@ const Combat = {
     if (TRIANGLE[at] === dt) return { state: 'good', hit: 15, dmg: 2, text: TRIANGLE_NAMES[at] + ' 克 ' + TRIANGLE_NAMES[dt] };
     if (TRIANGLE[dt] === at) return { state: 'bad', hit: -15, dmg: -2, text: TRIANGLE_NAMES[dt] + ' 克 ' + TRIANGLE_NAMES[at] };
     return { state: 'none', hit: 0, dmg: 0, text: '' };
+  },
+
+  /* 强化修正（纯函数）：+1/+2/+3 每级 +1 威力、+3 命中；+3 额外 +5 必杀。
+   * 强化不改变武器类型与重量；传说与 Boss 专属不可强化（入口在 systems/smith.js 把守）。 */
+  weaponPlusMods(plus) {
+    const p = Math.max(0, Math.min(3, Math.floor(plus || 0)));
+    return { mt: p, hit: 3 * p, crit: p >= 3 ? 5 : 0 };
   },
 
   isEffective(attacker, defender) {
@@ -202,7 +209,8 @@ const Combat = {
     const dm = this.modsOf(ctx, defender, attacker, false);
     const tri = this.triangle(attacker, defender);
     const tile = this.tileAt(ctx, defender.x, defender.y);
-    let hit = (w.w.hit || 0) + (attacker.stats.skl || 0) * 2 + Math.floor((attacker.stats.lck || 0) / 2) + tri.hit + am.hit;
+    const pm = this.weaponPlusMods(w.item.plus);
+    let hit = (w.w.hit || 0) + (attacker.stats.skl || 0) * 2 + Math.floor((attacker.stats.lck || 0) / 2) + tri.hit + am.hit + pm.hit;
     let avoid = this.attackSpeed(defender) * 2 + (defender.stats.lck || 0) + (tile.avoid || 0) + dm.avoid;
     return Math.max(0, Math.min(100, Math.round(hit - avoid)));
   },
@@ -212,7 +220,8 @@ const Combat = {
     if (!w) return 0;
     const am = this.modsOf(ctx, attacker, defender, initiating);
     const dm = this.modsOf(ctx, defender, attacker, false);
-    let crit = (w.w.crit || 0) + Math.floor((attacker.stats.skl || 0) / 2) + am.crit;
+    const pm = this.weaponPlusMods(w.item.plus);
+    let crit = (w.w.crit || 0) + Math.floor((attacker.stats.skl || 0) / 2) + am.crit + pm.crit;
     crit -= (defender.stats.lck || 0) + dm.critAvoid;
     return Math.max(0, Math.min(100, Math.round(crit)));
   },
@@ -229,7 +238,8 @@ const Combat = {
     const defBase = magic ? (defender.stats.res || 0) : (defender.stats.def || 0);
     const defMod = magic ? dm.res : dm.def;
     const terrainDef = magic ? 0 : (tile.def || 0);
-    let raw = main + (w.w.mt || 0) + tri.dmg + am.dmg - defBase - defMod - terrainDef;
+    const pm = this.weaponPlusMods(w.item.plus);
+    let raw = main + (w.w.mt || 0) + pm.mt + tri.dmg + am.dmg - defBase - defMod - terrainDef;
     raw = Math.max(0, raw);
     if (this.isEffective(attacker, defender)) raw *= 2;
     return Math.max(0, Math.round(raw));

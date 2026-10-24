@@ -188,7 +188,8 @@ const UI = {
     }
     const weaponLine = w
       ? '<span class="wchip">' + this.escape(WEAPON_TYPES[w.w.type] ? WEAPON_TYPES[w.w.type].name : '') + '</span>' +
-        this.escape(w.w.name) + ' <span class="wchip">耐久 ' + w.item.uses + '</span>'
+        this.escape(w.w.name) + (w.item.plus ? ' <span class="wchip plus">+' + w.item.plus + '</span>' : '') +
+        ' <span class="wchip">耐久 ' + w.item.uses + '</span>'
       : '<span class="wchip">无武器</span>';
     const sideName = unit.side === 'player' ? (unit.summoned ? '友军召唤' : (unit.cls === 'swordsman' && unit.charId === 'yunce' ? '守脉人' : (cls ? cls.name : '友军'))) : (unit.rawType && ENEMY_TYPES[unit.rawType] ? ENEMY_TYPES[unit.rawType].name : (cls ? cls.name : '敌军'));
     this.el.unitCard.innerHTML =

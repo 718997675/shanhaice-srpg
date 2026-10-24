@@ -544,6 +544,7 @@ img { display: block; }
 .inv-icon { width: 34px; height: 34px; object-fit: contain; margin-right: 8px; flex: none; align-self: flex-start; margin-top: 2px; }
 .inv-icon.sm { width: 26px; height: 26px; margin-top: 0; }
 .inv-mech { color: #8a6a35; font-size: 10.5px; line-height: 1.5; }
+.plus-badge { font-family: var(--sans); font-size: 10px; color: #b08540; border: 1px solid rgba(176,133,64,.5); border-radius: 2px; padding: 0 3px; margin-left: 2px; }
 .mini-btn {
   font-family: var(--sans);
   font-size: 10px;
@@ -821,6 +822,7 @@ img { display: block; }
 .uc-hptext { display: flex; justify-content: space-between; font-family: var(--sans); font-size: 9px; color: #6e644f; margin-top: 2px; }
 .uc-weapon { font-size: 10px; color: #5d5543; margin-top: 3px; display: flex; gap: 6px; align-items: center; white-space: nowrap; overflow: hidden; }
 .uc-weapon .wchip { font-family: var(--sans); font-size: 9px; border: 1px solid rgba(80,68,44,.3); padding: 0 4px; border-radius: 2px; color: #6d5a3a; }
+.uc-weapon .wchip.plus { color: #b08540; border-color: rgba(176,133,64,.55); }
 .uc-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; margin-top: 5px; border-top: 1px dashed rgba(80,68,45,.22); padding-top: 5px; }
 .uc-stats div { font-family: var(--sans); font-size: 9px; color: #6f6652; text-align: center; }
 .uc-stats b { display: block; color: #363a2d; font-size: 11px; font-weight: 500; }

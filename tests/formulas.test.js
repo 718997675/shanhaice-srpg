@@ -9,7 +9,7 @@ const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
 const ctx = vm.createContext({ console });
-for (const f of ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/combat.js', 'js/systems/legendary.js']) {
+for (const f of ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/combat.js', 'js/systems/legendary.js', 'js/systems/smith.js']) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
 }
 // 注意：脚本顶层 const 不挂到 context 对象，需用表达式从全局词法作用域取回
@@ -1151,6 +1151,84 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     const mst2 = Battle.modsFor.call(fake, stU);
     eq('过期力量状态失效', mst2.dmg, 0);
     eq('过期命中状态失效', mst2.hit, 0);
+  }
+
+  /* ---------------- 18. 铁匠铺 · 武器强化 +3 ---------------- */
+  {
+    const { Smith, ITEMS } = vm.runInContext('({ Smith, ITEMS })', ctx);
+    /* 18.1 强化数值公式（combat.weaponPlusMods） */
+    eq('+0 无加成', JSON.stringify(Combat.weaponPlusMods(0)), JSON.stringify({ mt: 0, hit: 0, crit: 0 }));
+    eq('+1 威力+1 命中+3', JSON.stringify(Combat.weaponPlusMods(1)), JSON.stringify({ mt: 1, hit: 3, crit: 0 }));
+    eq('+2 威力+2 命中+6', JSON.stringify(Combat.weaponPlusMods(2)), JSON.stringify({ mt: 2, hit: 6, crit: 0 }));
+    eq('+3 威力+3 命中+9 必杀+5', JSON.stringify(Combat.weaponPlusMods(3)), JSON.stringify({ mt: 3, hit: 9, crit: 5 }));
+    eq('越界钳制在 +3', Combat.weaponPlusMods(9).mt, 3);
+    eq('负值钳制在 +0', Combat.weaponPlusMods(-2).mt, 0);
+    /* 18.2 强化资格 */
+    const good = { key: 'iron_sword', uses: 20, plus: 0 };
+    ok('普通兵装可强化', Smith.canStrengthen('iron_sword', good));
+    ok('损坏兵装不可强化', !Smith.canStrengthen('iron_sword', { key: 'iron_sword', uses: 0 }));
+    ok('传说不可强化', !Smith.canStrengthen('lw_yunque', { key: 'lw_yunque', uses: 30 }));
+    ok('Boss 专属不可强化', !Smith.canStrengthen('boss_turbid', { key: 'boss_turbid', uses: 20 }));
+    ok('次数道具不可强化', !Smith.canStrengthen('potion', { key: 'potion', uses: 3 }));
+    ok('满级 +3 不可再强化', !Smith.canStrengthen('iron_sword', { key: 'iron_sword', uses: 20, plus: 3 }));
+    eq('强化上限 3', Smith.cap(), 3);
+    /* 18.3 费用表 */
+    eq('+1 费铁髓×2+100', JSON.stringify(Smith.cost({ plus: 0 })), JSON.stringify({ mat: 'mat_iron', n: 2, gold: 100 }));
+    eq('+2 费钢核×2+300', JSON.stringify(Smith.cost({ plus: 1 })), JSON.stringify({ mat: 'mat_steel', n: 2, gold: 300 }));
+    eq('+3 费银晶×2+600', JSON.stringify(Smith.cost({ plus: 2 })), JSON.stringify({ mat: 'mat_silver', n: 2, gold: 600 }));
+    eq('满级无费用', Smith.cost({ plus: 3 }), null);
+    /* 18.4 材料数据 */
+    for (const k of ['mat_iron', 'mat_steel', 'mat_silver']) {
+      ok('材料 ' + k + ' 存在', !!ITEMS[k]);
+      ok('材料 ' + k + ' 可堆叠', ITEMS[k] && ITEMS[k].stack === true);
+      ok('材料 ' + k + ' 有售价', ITEMS[k] && ITEMS[k].price > 0);
+    }
+    /* 18.5 强化全流程：扣材料堆叠 + 扣金 + 升级 */
+    const camp = { gold: 5000, convoy: [{ key: 'mat_iron', uses: 3 }] };
+    const item = { key: 'iron_sword', uses: 20, plus: 0 };
+    const r1 = Smith.strengthen(camp, item);
+    ok('强化 +1 成功', r1.ok && r1.plus === 1);
+    eq('强化扣金 100', camp.gold, 4900);
+    eq('材料堆叠余 1', camp.convoy[0].uses, 1);
+    eq('物品 plus = 1', item.plus, 1);
+    camp.convoy = [{ key: 'mat_steel', uses: 2 }];
+    camp.gold = 5000;
+    const r2 = Smith.strengthen(camp, item);
+    ok('强化 +2 成功', r2.ok && r2.plus === 2);
+    eq('材料扣空后出行囊', camp.convoy.length, 0);
+    eq('+2 扣金 300', camp.gold, 4700);
+    eq('+2 效果文本', Smith.effectText(2), '+2：威力 +2 · 命中 +6');
+    eq('+3 效果文本含必杀', Smith.effectText(3).indexOf('必杀 +5') >= 0, true);
+    /* 18.6 各类拒绝 */
+    const poor = { gold: 10, convoy: [{ key: 'mat_iron', uses: 5 }] };
+    eq('盘缠不足被拒', Smith.strengthen(poor, { key: 'iron_sword', uses: 20 }).why, 'gold');
+    const nomat = { gold: 5000, convoy: [] };
+    eq('材料不足被拒', Smith.strengthen(nomat, { key: 'iron_sword', uses: 20 }).why, 'mat');
+    eq('满级被拒', Smith.strengthen({ gold: 5000, convoy: [{ key: 'mat_silver', uses: 9 }] }, { key: 'iron_sword', uses: 20, plus: 3 }).why, 'cap');
+    eq('损坏被拒', Smith.strengthen({ gold: 5000, convoy: [{ key: 'mat_iron', uses: 9 }] }, { key: 'iron_sword', uses: 0 }).why, 'broken');
+    eq('传说被拒', Smith.strengthen({ gold: 5000, convoy: [{ key: 'mat_iron', uses: 9 }] }, { key: 'lw_yunque', uses: 30 }).why, 'bad');
+    /* 18.7 强化接入战斗公式 */
+    const fake2 = Object.create(Battle);
+    fake2.B = { units: [], nodes: [], supports: {} };
+    const ctx3 = { mods: (u, f, init) => Battle.modsFor.call(fake2, u, f, init), tileAt: () => TERRAIN['.'], rng: RNG };
+    const hero = give(mkUnit({ cls: 'zzz', x: 0, y: 0 }), 'iron_sword');
+    hero.ranks.sword = 'A';
+    hero.items[0].plus = 3;
+    const foe = mkUnit({ cls: 'zzz', side: 'enemy', x: 1, y: 0 });
+    // 铁剑 mt 5 hit 90；+3 后 mt 8 hit 99、暴击 +5
+    eq('+3 铁剑伤害 = 力10+威8-防5', Combat.damage(hero, foe, ctx3), 13);
+    eq('+3 铁剑命中 = 90+9+20+2-25', Combat.hitChance(hero, foe, ctx3), 96);
+    eq('+3 铁剑暴击 = 0+5+5-5', Combat.critChance(hero, foe, ctx3), 5);
+    const fc3 = Combat.forecast(hero, foe, ctx3);
+    eq('预测含强化威力', fc3.attacker.dmg, 13);
+    hero.items[0].plus = 0;
+    eq('+0 铁剑伤害回到 10', Combat.damage(hero, foe, ctx3), 10);
+    /* 18.8 装备优选考虑强化 */
+    const two = mkUnit({ cls: 'zzz', x: 0, y: 0 });
+    two.items = [{ key: 'iron_sword', uses: 20 }, { key: 'iron_sword', uses: 20, plus: 3 }];
+    two.ranks.sword = 'A';
+    two.weaponIndex = -1;
+    eq('优选强化后的同款', Combat.weaponOf(two).idx, 1);
   }
 
   console.log('\n----------------------------------------');

@@ -137,7 +137,11 @@ const ITEMS = {
   potion: { key: 'potion', name: '金创药', kind: 'heal', heal: 12, uses: 3, price: 120, desc: '草药捣成的伤药，回复 12 点生命。', icon: '药' },
   herb: { key: 'herb', name: '灵草', kind: 'heal', heal: 20, uses: 2, price: 220, desc: '带露的灵草，回复 20 点生命。', icon: '草' },
   elixir: { key: 'elixir', name: '回春丹', kind: 'heal', heal: 40, uses: 1, price: 360, desc: '一粒回春，回复 40 点生命。', icon: '丹' },
-  seal: { key: 'seal', name: '脉印', kind: 'seal', uses: 1, price: 1400, desc: '以灵脉石磨成的印，十级后可转职。', icon: '印' }
+  seal: { key: 'seal', name: '脉印', kind: 'seal', uses: 1, price: 1400, desc: '以灵脉石磨成的印，十级后可转职。', icon: '印' },
+  /* 强化材料（stack 可堆叠；铁匠铺强化 +3 消耗，见 systems/smith.js） */
+  mat_iron: { key: 'mat_iron', name: '铁髓', kind: 'mat', uses: 1, price: 60, stack: true, desc: '最常见的铁料，强化 +1 的底子。', icon: '铁' },
+  mat_steel: { key: 'mat_steel', name: '钢核', kind: 'mat', uses: 1, price: 150, stack: true, desc: '百炼钢的芯，强化 +2 少不得它。', icon: '钢' },
+  mat_silver: { key: 'mat_silver', name: '银晶', kind: 'mat', uses: 1, price: 300, stack: true, desc: '银脉里结出的晶，强化 +3 压轴用。', icon: '银' }
 };
 
 /* ---------------- 职业 ---------------- */

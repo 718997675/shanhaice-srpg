@@ -55,7 +55,7 @@ sandboxWindow.console = console;
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
                'js/audio.js', 'js/render.js', 'js/ui.js', 'js/battle.js',
                'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
-               'js/systems/legendary.js',
+               'js/systems/legendary.js', 'js/systems/smith.js',
                'js/camp.js', 'js/game.js'];
 
 (async () => {
@@ -245,6 +245,57 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     }
     const plainRow = Camp.itemRow.call(Camp, yunceRec, { key: 'iron_sword', uses: 20 }, 1);
     if (plainRow.indexOf('wpn_') >= 0 || plainRow.indexOf('词条：') >= 0) throw new Error('普通兵装行不应带传说图标/词条');
+  }
+
+  /* 武器强化 +3：材料铺 → 行囊堆叠 → 兵装行强化钮 → 扣费升级 → 加成落进战斗公式 */
+  {
+    const { Smith, Camp } = vm.runInContext('({ Smith, Camp })', ctx);
+    camp.gold = 5000;
+    camp.convoy = [];
+    const yunceRec2 = camp.roster.find(x => x.id === 'yunce');
+    yunceRec2.items = [{ key: 'iron_sword', uses: 20, plus: 0 }];
+    yunceRec2.weaponIndex = 0;
+    /* 材料页签 */
+    Camp.shopTab = 'mat';
+    const shopBody = el();
+    Camp.renderShop(shopBody);
+    console.log('材料铺：含铁髓 =', shopBody.innerHTML.indexOf('铁髓') >= 0,
+                '；含强化说明 =', shopBody.innerHTML.indexOf('铁匠铺强化') >= 0);
+    if (shopBody.innerHTML.indexOf('铁髓') < 0 || shopBody.innerHTML.indexOf('铁匠铺强化') < 0) {
+      throw new Error('材料页签缺块');
+    }
+    /* 购材堆叠 */
+    await Camp.buy('mat', 'mat_iron');
+    await Camp.buy('mat', 'mat_iron');
+    console.log('购入铁髓 ×2 后行囊：', camp.convoy.map(i => i.key + '×' + i.uses).join(','));
+    if (camp.convoy.length !== 1 || camp.convoy[0].uses !== 2) throw new Error('材料堆叠异常');
+    /* 兵装行强化钮 */
+    const sRow = Camp.itemRow.call(Camp, yunceRec2, yunceRec2.items[0], 0);
+    console.log('兵装行：含强化钮 =', sRow.indexOf('data-act="strengthen"') >= 0,
+                '；含铁髓花费 =', sRow.indexOf('铁髓 ×2') >= 0);
+    if (sRow.indexOf('data-act="strengthen"') < 0 || sRow.indexOf('铁髓 ×2') < 0) throw new Error('兵装行缺强化钮');
+    /* 开炉：扣 2 铁髓 + 100 金 → +1 */
+    const item2 = yunceRec2.items[0];
+    const sr = Smith.strengthen(camp, item2);
+    console.log('强化铁剑：', sr.ok ? '成功 → +' + sr.plus : '失败 ' + sr.why,
+                '；余金', camp.gold, '；余材', camp.convoy.length ? camp.convoy[0].uses : 0);
+    if (!sr.ok || sr.plus !== 1 || camp.gold !== 4780 || camp.convoy.length !== 0) throw new Error('强化 +1 流程异常');
+    /* 行显示加成 */
+    const pRow = Camp.itemRow.call(Camp, yunceRec2, item2, 0);
+    console.log('+1 兵装行：徽标 =', pRow.indexOf('plus-badge">+1') >= 0,
+                '；威力 =', pRow.indexOf('力+6') >= 0);
+    if (pRow.indexOf('plus-badge">+1') < 0 || pRow.indexOf('力+6') < 0) throw new Error('强化后行内加成缺失');
+    /* 行囊行强化钮（data-where=convoy） */
+    camp.convoy = [{ key: 'iron_sword', uses: 20, plus: 0 }];
+    const detailHTML = Camp.unitDetail(yunceRec2);
+    console.log('行囊行：含行囊强化钮 =', detailHTML.indexOf('data-where="convoy"') >= 0);
+    if (detailHTML.indexOf('data-where="convoy"') < 0) throw new Error('行囊行缺强化钮');
+    /* 传说不可强化（按钮不渲染） */
+    camp.convoy = [{ key: 'lw_wanbi', uses: 20 }];
+    const legendRow = Camp.itemRow.call(Camp, yunceRec2, { key: 'lw_wanbi', uses: 20 }, 0);
+    if (legendRow.indexOf('data-act="strengthen"') >= 0) throw new Error('传说兵装不应有强化钮');
+    camp.convoy = [];
+    Camp.shopTab = 'weapon';
   }
 
   console.log('\n冒烟通过：无引用错误');

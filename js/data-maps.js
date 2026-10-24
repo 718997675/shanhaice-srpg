@@ -45,7 +45,7 @@ const CHAPTERS = [
       { turn: 5, units: [{ type: 'bandit', lv: 2, x: 6, y: 0 }, { type: 'bandit', lv: 2, x: 9, y: 0 }] }
     ],
     side: { type: 'villages', text: '访问两处村庄', gold: 300, items: ['elixir'] },
-    rewards: { gold: 500, items: ['potion'] },
+    rewards: { gold: 500, items: ['potion', 'mat_iron', 'mat_iron'] },
     tips: '青萝在东北的青岚村。阵眼结束行动即可占领；占领后驻守两个己方阶段可升华升阶，脉流效果翻倍。'
   },
   {
@@ -91,7 +91,7 @@ const CHAPTERS = [
       { turn: 3, units: [{ type: 'wolf', lv: 5, x: 6, y: 0 }, { type: 'wolf', lv: 5, x: 7, y: 0 }] }
     ],
     side: { type: 'shrines', text: '访问三处残祠', gold: 300, items: ['elixir'] },
-    rewards: { gold: 700, items: ['potion'] },
+    rewards: { gold: 700, items: ['potion', 'mat_iron', 'mat_iron'] },
     tips: '守住六回合即可。生脉阵眼会在己方阶段开始时治疗周围友军。东岸有位追车队的骑将，让云策相邻后使用「说得」。'
   },
   {
@@ -136,7 +136,7 @@ const CHAPTERS = [
       { turn: 4, units: [{ type: 'bandit', lv: 6, x: 14, y: 2 }, { type: 'bandit', lv: 6, x: 15, y: 5 }] }
     ],
     side: { type: 'chest', text: '开启沉船古匣', gold: 200, items: ['elixir'] },
-    rewards: { gold: 800, items: ['potion'] },
+    rewards: { gold: 800, items: ['potion', 'mat_iron', 'mat_steel'] },
     tips: '水鬼能踏水而行。两座木桥是攻守要点，行脉可让友军走得更远。对岸渡口的守卫玄漪，让云策相邻后「说得」即可同行。'
   },
   {
@@ -177,7 +177,7 @@ const CHAPTERS = [
       { turn: 3, units: [{ type: 'bandit', lv: 7, x: 7, y: 0 }, { type: 'bandit', lv: 7, x: 8, y: 0 }, { type: 'elite', lv: 8, x: 11, y: 0 }] }
     ],
     side: { type: 'recruit', text: '说得墨鸦', char: 'moya', gold: 300, items: ['shadow_dagger'] },
-    rewards: { gold: 900, items: ['potion'] },
+    rewards: { gold: 900, items: ['potion', 'mat_steel', 'mat_steel'] },
     tips: '让云策与墨鸦相邻，使用「说得」。守住五回合后，还要取下赤砂将军首级。'
   },
   {
@@ -220,7 +220,7 @@ const CHAPTERS = [
       { turn: 3, units: [{ type: 'wolf', lv: 9, x: 1, y: 3 }, { type: 'wolf', lv: 9, x: 14, y: 3 }] }
     ],
     side: { type: 'kill_boss', text: '击杀冰魈', gold: 400, items: ['seal'] },
-    rewards: { gold: 1000, items: ['potion'] },
+    rewards: { gold: 1000, items: ['potion', 'mat_steel', 'mat_steel'] },
     tips: '两处浊脉初始属于敌方。站上阵眼结束行动即可抢占；全部占据后还要守住两个己方阶段。乌冰踏上去会滑行——沿进入方向一路滑到阻挡前，想停在半路就别从冰上进。守坛人赤桑可用「说得」招募，冰魈会咏唱霜系咒法。'
   },
   {
@@ -264,7 +264,7 @@ const CHAPTERS = [
       { turn: 4, units: [{ type: 'wolf', lv: 10, x: 0, y: 5 }, { type: 'wolf', lv: 10, x: 15, y: 5 }] }
     ],
     side: { type: 'recruit', text: '在泽畔村找到阿蛮', char: 'aman', gold: 300, items: ['herb'] },
-    rewards: { gold: 1100, items: ['elixir'] },
+    rewards: { gold: 1100, items: ['elixir', 'mat_steel', 'mat_silver'] },
     tips: '雾中视野有限，危险范围无法查看。所有存活友军抵达东岸才能脱身，别把伤员落在最后。东岸撤离点附近的羽人云翎，让云策相邻后「说得」可同行。'
   },
   {
@@ -309,7 +309,7 @@ const CHAPTERS = [
       { turn: 5, units: [{ type: 'elite', lv: 13, x: 1, y: 3 }, { type: 'elite', lv: 13, x: 14, y: 3 }] }
     ],
     side: { type: 'kill_boss', text: '斩杀浊将', gold: 500, items: ['seal'] },
-    rewards: { gold: 1300, items: ['potion'] },
+    rewards: { gold: 1300, items: ['potion', 'mat_silver', 'mat_silver'] },
     tips: '三处阵眼相距很远。分兵占领，并守住三个连续的己方阶段。浊将可选，但战利丰厚。'
   },
   {
@@ -353,7 +353,7 @@ const CHAPTERS = [
       { turn: 5, units: [{ type: 'wolf', lv: 16, x: 1, y: 5 }, { type: 'wolf', lv: 16, x: 14, y: 5 }] }
     ],
     side: { type: 'weaken', text: '守持三处阵眼三个己方阶段，削弱噬脉兽', gold: 600, items: ['seal'] },
-    rewards: { gold: 2000, items: ['elixir'] },
+    rewards: { gold: 2000, items: ['elixir', 'mat_silver', 'mat_silver'] },
     tips: '玄阙倒下后会化作噬脉兽。占据全部阵眼并守持三个己方阶段，可永久削弱它。'
   }
 ];
