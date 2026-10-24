@@ -541,6 +541,9 @@ img { display: block; }
 .inv-item:last-child, .convoy-item:last-child { border-bottom: none; }
 .inv-name { flex: 1; color: #3a3b2e; }
 .inv-meta { font-family: var(--sans); font-size: 10px; color: #83795f; }
+.inv-icon { width: 34px; height: 34px; object-fit: contain; margin-right: 8px; flex: none; align-self: flex-start; margin-top: 2px; }
+.inv-icon.sm { width: 26px; height: 26px; margin-top: 0; }
+.inv-mech { color: #8a6a35; font-size: 10.5px; line-height: 1.5; }
 .mini-btn {
   font-family: var(--sans);
   font-size: 10px;

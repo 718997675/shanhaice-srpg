@@ -114,7 +114,8 @@ const Camp = {
       const def = WEAPONS[it.key] || ITEMS[it.key];
       if (!def) return '';
       const full = rec.items.length >= 5;
-      return '<div class="convoy-item"><span class="inv-name">' + UI.escape(def.name) +
+      return '<div class="convoy-item">' + this.weaponIconHTML(it.key, 'inv-icon sm') +
+        '<span class="inv-name">' + UI.escape(def.name) +
         '<small style="color:#83795f;margin-left:6px;">' + (WEAPONS[it.key] ? '耐久 ' + it.uses + '/' + def.uses : '× ' + it.uses) + '</small></span>' +
         '<button class="mini-btn" data-act="take" data-i="' + i + '"' + (full ? ' disabled' : '') + '>携带</button></div>';
     }).join('') || '<div class="item-empty">行囊里没有多余兵装。</div>';
@@ -155,9 +156,10 @@ const Camp = {
     const max = w ? (w.uses || 1) : 0;
     const missing = w ? Math.max(0, max - it.uses) : 0;
     const cost = w ? this.repairCost(w, it) : 0;
-    return '<div class="inv-item"><span class="inv-name">' + UI.escape(w ? w.name : d.name) +
+    return '<div class="inv-item">' + this.weaponIconHTML(it.key) +
+      '<span class="inv-name">' + UI.escape(w ? w.name : d.name) +
       (w ? ' <span style="font-family:var(--sans);font-size:9px;color:#8a806a;">' + w.rank + ' · ' + (WEAPON_TYPES[w.type] ? WEAPON_TYPES[w.type].name : '') + '</span>' : '') +
-      '<div class="inv-meta">' + meta + '</div></span>' +
+      '<div class="inv-meta">' + meta + '</div>' + (w ? this.weaponMechHTML(w) : '') + '</span>' +
       (w ? (equipped
         ? '<span class="mini-btn gold" style="pointer-events:none;">已装备</span>'
         : '<button class="mini-btn" data-act="equip" data-i="' + i + '"' + (canEquip ? '' : ' disabled') + '>装备</button>') : '') +
@@ -170,6 +172,20 @@ const Camp = {
     const max = def.uses || 1;
     const missing = Math.max(0, max - item.uses);
     return Math.max(15, Math.round((def.price || 100) * (missing / max) * 0.55));
+  },
+
+  /* 传说武器图标（assets/icons/weapons/wpn_{key}.png，文件缺失时 onerror 自动隐藏） */
+  weaponIconHTML(key, cls) {
+    if (!LEGENDARY_WEAPONS[key]) return '';
+    return '<img class="' + (cls || 'inv-icon') + '" src="assets/icons/weapons/wpn_' + key + '.png" alt="" onerror="this.style.display=\'none\'">';
+  },
+
+  /* 传说武器的词条/技能说明行（图鉴与兵装行共用） */
+  weaponMechHTML(wdef) {
+    if (!wdef || !LEGENDARY_WEAPONS[wdef.key]) return '';
+    const tt = Legendary.traitText(wdef);
+    return (tt.traits ? '<div class="inv-mech">词条：' + UI.escape(tt.traits) + '</div>' : '') +
+      (tt.skill ? '<div class="inv-mech">' + UI.escape(tt.skill) + '</div>' : '');
   },
 
   /* ============================================================

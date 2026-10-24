@@ -235,6 +235,16 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     console.log('打造铁剑：', r.ok ? '成功（-' + r.cost.gold + ' 金）' : '失败 ' + r.why,
                 '；行囊末件 =', camp.convoy[camp.convoy.length - 1].key);
     if (!r.ok || camp.convoy[camp.convoy.length - 1].key !== 'iron_sword') throw new Error('打造失败');
+    /* 兵装行/行囊行同步图标与词条说明 */
+    const yunceRec = camp.roster.find(x => x.id === 'yunce');
+    const row = Camp.itemRow.call(Camp, yunceRec, { key: 'lw_wanbi', uses: 20 }, 0);
+    console.log('兵装行：含图标 =', row.indexOf('wpn_lw_wanbi.png') >= 0,
+                '；含词条 =', row.indexOf('词条：') >= 0, '；含技能 =', row.indexOf('技能·同春') >= 0);
+    if (row.indexOf('wpn_lw_wanbi.png') < 0 || row.indexOf('词条：') < 0 || row.indexOf('技能·同春') < 0) {
+      throw new Error('兵装行缺少图标/词条说明');
+    }
+    const plainRow = Camp.itemRow.call(Camp, yunceRec, { key: 'iron_sword', uses: 20 }, 1);
+    if (plainRow.indexOf('wpn_') >= 0 || plainRow.indexOf('词条：') >= 0) throw new Error('普通兵装行不应带传说图标/词条');
   }
 
   console.log('\n冒烟通过：无引用错误');
