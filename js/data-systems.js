@@ -294,6 +294,9 @@ const SUMMON_WEAPONS = {
 
 /* 并入主武器表：Combat.weaponOf 只查 WEAPONS */
 Object.assign(WEAPONS, SUMMON_WEAPONS);
+/* 传说兵器同样并入：掉落进行囊 / 装备 / 打造坊过滤都走 WEAPONS
+ * （price 为 0，市集 weaponStock 的 price>0 过滤会自动排除） */
+Object.assign(WEAPONS, LEGENDARY_WEAPONS);
 
 /* 召唤阶位描述（UI 展示用） */
 const SUMMON_TIER_NAMES = { 1: '异兽', 2: '灵兽', 3: '神兽' };

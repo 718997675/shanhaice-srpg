@@ -73,11 +73,12 @@ const Game = {
     };
   },
 
-  newCampaign(diffKey) {
+  newCampaign(diffKey, cycle) {
     const roster = ['yunce', 'yankui', 'luming'].map(id => this.makeRec(id)).filter(Boolean);
     return {
       version: SAVE_VERSION,
       difficulty: DIFFICULTIES[diffKey] ? diffKey : 'normal',
+      cycle: Math.max(1, Math.floor(cycle || 1)),
       chapter: 1,
       gold: 800,
       seals: 0,
@@ -87,6 +88,7 @@ const Game = {
       convoy: [{ key: 'potion', uses: 3 }],
       sideCleared: {},
       introSeen: {},
+      legendary: {},
       cleared: false,
       startedAt: Date.now(),
       savedAt: Date.now(),
@@ -100,8 +102,13 @@ const Game = {
     const c = raw;
     if (!DIFFICULTIES[c.difficulty]) c.difficulty = 'normal';
     c.chapter = Math.max(1, Math.min(9, c.chapter || 1));
+    c.cycle = Math.max(1, Math.floor(c.cycle || 1));
     c.gold = Math.max(0, Math.floor(c.gold || 0));
     c.seals = Math.max(0, Math.floor(c.seals || 0));
+    if (!c.legendary || typeof c.legendary !== 'object') c.legendary = {};
+    for (const k of Object.keys(c.legendary)) {
+      if (!LEGENDARY_WEAPONS[k] || !c.legendary[k]) delete c.legendary[k];
+    }
     if (!Array.isArray(c.roster)) c.roster = [];
     c.roster = c.roster.filter(r => r && CHARS[r.id]).map(r => {
       const base = this.makeRec(r.id);
@@ -209,11 +216,12 @@ const Game = {
     }
     const ch = CHAPTERS[camp.chapter - 1];
     const diff = DIFFICULTIES[camp.difficulty] || DIFFICULTIES.normal;
+    const cyc = Math.max(1, camp.cycle || 1);
     if (camp.cleared) {
-      info.textContent = '旅程已完成 · ' + diff.name + '难度 · 可回营地重游旧章';
+      info.textContent = '旅程已完成 · ' + diff.name + '难度' + (cyc > 1 ? ' · ' + cyc + ' 周目' : '') + ' · 可回营地重游旧章';
     } else {
       info.textContent = '行旅进行中 · ' + (ch ? UI.chapterLabel(ch.id) + ' ' + ch.name : '终章') +
-        ' · ' + diff.name + '难度 · 盘缠 ' + camp.gold;
+        ' · ' + diff.name + '难度' + (cyc > 1 ? ' · ' + cyc + ' 周目' : '') + ' · 盘缠 ' + camp.gold;
     }
   },
 
@@ -230,12 +238,20 @@ const Game = {
   /* ---------------- 新旅程 ---------------- */
   async askNewJourney(diffKey) {
     const hasSave = !!this.loadCampaign() || !!this.loadSuspend();
+    let cycle = 1;
     if (hasSave) {
-      const ok = await UI.confirm('新的旅程', '现有的行旅记录与续战存档都会被覆盖。', '重新入山', '再想想');
-      if (!ok) return;
+      const prev = this.loadCampaign();
+      if (prev && prev.cleared) {
+        const ok = await UI.confirm('再入山海 · 二周目',
+          '上一轮旅程已通关。新的旅程将继承难度设定并开启新一轮：传说武器重打保底翻倍（400 金 + 2 印）。',
+          '开启新一轮', '重头开始');
+        if (ok) cycle = Math.max(1, Math.floor(prev.cycle || 1)) + 1;
+      }
+      const ok2 = await UI.confirm('新的旅程', '现有的行旅记录与续战存档都会被覆盖。', '重新入山', '再想想');
+      if (!ok2) return;
     }
     this.removeSuspend();
-    this.campaign = this.newCampaign(diffKey);
+    this.campaign = this.newCampaign(diffKey, cycle);
     this.settings.speed = this.settings.speed === 2 ? 2 : 1;
     this.saveCampaign();
     this.currentChapter = 0;
@@ -374,7 +390,7 @@ const Game = {
       }
 
       let gold = (result.loot && result.loot.gold ? result.loot.gold : 0) + ((ch.rewards && ch.rewards.gold) || 0);
-      let seals = 0;
+      let seals = (result.loot && result.loot.seals ? result.loot.seals : 0);
       const addLoot = keys => {
         for (const key of keys || []) {
           if (key === 'seal') { seals++; continue; }

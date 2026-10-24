@@ -1922,6 +1922,22 @@ const Battle = {
       Audio.sfx('death');
       UI.log(unit.name + '倒下了。', 'good');
       Render.floatText('破', unit.x, unit.y, '#e7d5b0', 18);
+      const lg = (typeof Legendary !== 'undefined') ? Legendary.onBossKilled(this.campaign, unit.rawType) : null;
+      if (lg) {
+        if (lg.action === 'drop') {
+          this.B.loot.items.push(lg.key);
+          UI.log('获得传说武器【' + lg.name + '】！', 'good');
+          UI.toast('传说武器【' + lg.name + '】入手！');
+          Audio.sfx('levelup');
+          Render.floatText('传说', unit.x, unit.y, '#f0c25a', 22);
+        } else {
+          this.B.loot.gold += lg.gold;
+          this.B.loot.seals = (this.B.loot.seals || 0) + lg.seals;
+          UI.log('【' + lg.name + '】已持有，转化为 ' + lg.gold + ' 金 + ' + lg.seals + ' 印。', 'good');
+          UI.toast('重复掉落转化：+' + lg.gold + '金 +' + lg.seals + '印');
+          Render.floatText('+' + lg.gold + '金', unit.x, unit.y, '#f0c25a', 18);
+        }
+      }
       if (killer && killer.side === 'player' && killer.hp > 0 && !killer.summoned) {
         await this.grantKillExp(killer, unit);
       }

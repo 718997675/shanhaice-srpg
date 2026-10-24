@@ -9,14 +9,15 @@ const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
 const ctx = vm.createContext({ console });
-for (const f of ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/combat.js']) {
+for (const f of ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/combat.js', 'js/systems/legendary.js']) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
 }
 // 注意：脚本顶层 const 不挂到 context 对象，需用表达式从全局词法作用域取回
 const { Combat, TERRAIN, WEAPONS, SUPPORT_RANKS, STAT_ORDER, STAT_CAPS, TRIANGLE,
         ELEMENTS, ELEMENT_COUNTERS, ELEMENT_MULTIPLIER, SPELLS, LEGENDARY_WEAPONS,
-        SUMMON_TIERS, SUMMON_FIELD_CAP, SUMMON_WEAPONS, SUMMON_TIER_NAMES } =
-  vm.runInContext('({ Combat, TERRAIN, WEAPONS, SUPPORT_RANKS, STAT_ORDER, STAT_CAPS, TRIANGLE, ELEMENTS, ELEMENT_COUNTERS, ELEMENT_MULTIPLIER, SPELLS, LEGENDARY_WEAPONS, SUMMON_TIERS, SUMMON_FIELD_CAP, SUMMON_WEAPONS, SUMMON_TIER_NAMES })', ctx);
+        SUMMON_TIERS, SUMMON_FIELD_CAP, SUMMON_WEAPONS, SUMMON_TIER_NAMES,
+        Legendary, Forge } =
+  vm.runInContext('({ Combat, TERRAIN, WEAPONS, SUPPORT_RANKS, STAT_ORDER, STAT_CAPS, TRIANGLE, ELEMENTS, ELEMENT_COUNTERS, ELEMENT_MULTIPLIER, SPELLS, LEGENDARY_WEAPONS, SUMMON_TIERS, SUMMON_FIELD_CAP, SUMMON_WEAPONS, SUMMON_TIER_NAMES, Legendary, Forge })', ctx);
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {
@@ -791,6 +792,80 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('第 4 行横滑停在 (10,4)', r5b.x + ',' + r5b.y, '10,4');
     eq('横滑经过 5 格', r5b.path.length, 5);
     ok('第 5 章提示说明滑行', ch5.tips.indexOf('滑行') >= 0);
+  }
+
+  /* ---------------- 16. 传说武器与打造坊 ---------------- */
+  {
+    const { CHAPTERS, ENEMY_TYPES } = vm.runInContext('({ CHAPTERS, ENEMY_TYPES })', ctx);
+    const fresh = () => ({ gold: 5000, seals: 5, convoy: [], legendary: {}, cycle: 1 });
+    const camp = fresh();
+    // 首杀必掉
+    const first = Legendary.onBossKilled(camp, 'shanxiao');
+    eq('山魈首杀掉落 key', first && first.key, 'lw_yunque');
+    eq('山魈首杀动作 drop', first && first.action, 'drop');
+    ok('首杀标记已持有', Legendary.isOwned(camp, 'lw_yunque'));
+    ok('掉落物为传说剑', WEAPONS['lw_yunque'] && WEAPONS['lw_yunque'].name === '云却');
+    ok('掉落物不可打造', WEAPONS['lw_yunque'].forgeable === false);
+    // 普通敌人不触发
+    ok('普通敌不掉传说', Legendary.onBossKilled(camp, 'bandit') === null);
+    // 7 把传说各绑一个 Boss
+    eq('传说武器 7 把', Object.keys(LEGENDARY_WEAPONS).length, 7);
+    const sources = Object.keys(LEGENDARY_WEAPONS).map(k => LEGENDARY_WEAPONS[k].source);
+    eq('首领互不重复', new Set(sources).size, 7);
+    const bossInCampaign = new Set();
+    CHAPTERS.forEach(ch => (ch.enemies || []).forEach(e => { if (e.type) bossInCampaign.add(e.type); }));
+    for (const k in LEGENDARY_WEAPONS) {
+      ok('传说 ' + k + ' 的首领在战役出场', bossInCampaign.has(LEGENDARY_WEAPONS[k].source));
+    }
+    // 重打保底：一周目 250 金 + 1 印
+    const rematch = Legendary.onBossKilled(camp, 'shanxiao');
+    eq('重打动作 convert', rematch && rematch.action, 'convert');
+    eq('一周目重打保底金', rematch && rematch.gold, 250);
+    eq('一周目重打保底印', rematch && rematch.seals, 1);
+    ok('一周目非二周目保底', !rematch.ngplus);
+    // 二周目翻倍
+    camp.cycle = 2;
+    const ng = Legendary.onBossKilled(camp, 'shanxiao');
+    eq('二周目重打保底金', ng && ng.gold, 400);
+    eq('二周目重打保底印', ng && ng.seals, 2);
+    ok('二周目标记', ng && ng.ngplus);
+    eq('持有计数', Legendary.ownedCount(camp), 1);
+    ok('提示含保底说明', Legendary.hint('lw_yunque').indexOf('保底') >= 0);
+    // 打造定价
+    eq('D 阶打造费', Forge.cost('iron_sword').gold, 200);
+    eq('C 阶打造费', Forge.cost('steel_sword').gold, 350);
+    eq('B 阶打造费金', Forge.cost('silver_sword').gold, 600);
+    eq('B 阶打造费印', Forge.cost('silver_sword').seals, 1);
+    eq('S 阶定价 1600 金', Forge.cost('lw_yunque').gold, 1600);
+    eq('S 阶定价 3 印', Forge.cost('lw_yunque').seals, 3);
+    // 打造校验
+    ok('普通兵装可打造', Forge.canCraft('iron_sword'));
+    ok('传说不可打造', !Forge.canCraft('lw_yunque'));
+    ok('Boss 兵装不可打造', !Forge.canCraft('boss_turbid'));
+    ok('未知道具不可打造', !Forge.canCraft('nope'));
+    const f1 = Forge.craft(camp, 'iron_sword');
+    ok('打造成功', f1.ok);
+    ok('打造扣金', camp.gold === 5000 - 200, 'gold=' + camp.gold);
+    ok('打造品进行囊', camp.convoy.length === 1 && camp.convoy[0].key === 'iron_sword' && camp.convoy[0].uses > 0);
+    camp.gold = 10;
+    eq('盘缠不足被拒', Forge.craft(camp, 'steel_sword').why, 'gold');
+    camp.gold = 5000; camp.seals = 0;
+    eq('脉印不足被拒', Forge.craft(camp, 'silver_sword').why, 'seals');
+    camp.seals = 5; camp.convoy = [];
+    eq('传说打造被拒', Forge.craft(camp, 'lw_yunque').why, 'legendary');
+    camp.convoy = new Array(60).fill(0).map((_, i) => ({ key: 'potion', uses: 1 }));
+    eq('行囊满被拒', Forge.craft(camp, 'iron_sword').why, 'convoy');
+    // 所有可打造兵装的费用表完整（不含传说与 Boss 专属）
+    let craftableCount = 0;
+    for (const k in WEAPONS) {
+      if (!Forge.canCraft(k)) continue;
+      craftableCount++;
+      const cost = Forge.cost(k);
+      ok('可打造兵装 ' + k + ' 有定价', !!cost && cost.gold > 0);
+      ok('可打造兵装 ' + k + ' 印数合法', cost.seals >= 0 && cost.seals <= 3);
+    }
+    ok('可打造兵装数量 > 10', craftableCount > 10, '实际 ' + craftableCount);
+    ok('打造列表不含传说', !Forge.canCraft('lw_yunque'));
   }
 
   console.log('\n----------------------------------------');

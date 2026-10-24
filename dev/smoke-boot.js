@@ -55,6 +55,7 @@ sandboxWindow.console = console;
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
                'js/audio.js', 'js/render.js', 'js/ui.js', 'js/battle.js',
                'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
+               'js/systems/legendary.js',
                'js/camp.js', 'js/game.js'];
 
 (async () => {
@@ -177,10 +178,46 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (ma.dmg !== 3 || ma.def !== -2) throw new Error('召唤指令修正异常');
     Summon.setOrder(pet1, 'escort');
     const victim = B.units.find(x => x.side === 'player' && x.hp > 0 && x.id !== pet1.id && x.id !== pet2.id);
-    pet1.x = victim.x; pet1.y = Math.min(7, victim.y + 1);
+    // 找 victim 的一个空格邻位放随行召唤物（避免与 victim 同格或越界）
+    const spots = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+      .map(d => ({ x: victim.x + d[0], y: victim.y + d[1] }))
+      .filter(p => p.x >= 0 && p.x < 16 && p.y >= 0 && p.y < 8 &&
+        !B.units.some(u => u.x === p.x && u.y === p.y && u.hp > 0));
+    pet1.x = spots[0].x; pet1.y = spots[0].y;
     const guard = Summon.interceptTarget(B, bamboo, victim);
     console.log('随行拦截：', guard ? guard.name + ' 替 ' + victim.name : '无');
     if (!guard || guard.id !== pet1.id) throw new Error('随行拦截异常');
+  }
+
+  /* 传说武器掉落 / 保底转化 / 打造坊渲染 */
+  {
+    const { Legendary, Forge, Camp } = vm.runInContext('({ Legendary, Forge, Camp })', ctx);
+    vm.runInContext('(c) => { Game.campaign = c; }', ctx)(camp);
+    for (const m of ['renderForge']) {
+      if (typeof Camp[m] !== 'function') throw new Error('Camp 缺少方法 ' + m);
+    }
+    const before = JSON.stringify(camp.legendary);
+    const boss = { id: 'bossL', name: '竹妖', side: 'enemy', rawType: 'bamboo', level: 8,
+      x: 3, y: 5, hp: 0, boss: true, statuses: {} };
+    await Battle.handleDeath(boss, null);
+    const drop = B.loot.items[B.loot.items.length - 1];
+    console.log('竹妖首杀掉落：', drop, '；战役持有数 =', Legendary.ownedCount(camp));
+    if (drop !== 'lw_wanbi' || JSON.stringify(camp.legendary) === before) throw new Error('传说掉落未入战利品');
+    const goldBefore = B.loot.gold;
+    await Battle.handleDeath(boss, null);
+    console.log('竹妖重打保底：+' + (B.loot.gold - goldBefore) + ' 金 +' + B.loot.seals + ' 印');
+    if (B.loot.gold - goldBefore !== 250 || B.loot.seals !== 1) throw new Error('重打保底数值异常');
+    const body = el();
+    Camp.renderForge(body);
+    console.log('打造坊渲染：', body.innerHTML.length, '字符；含图鉴 =', body.innerHTML.indexOf('云却') >= 0,
+                '；含打造行 =', body.innerHTML.indexOf('data-act="forge"') >= 0);
+    if (body.innerHTML.indexOf('云却') < 0 || body.innerHTML.indexOf('data-act="forge"') < 0) {
+      throw new Error('打造坊渲染缺块');
+    }
+    const r = Forge.craft(camp, 'iron_sword');
+    console.log('打造铁剑：', r.ok ? '成功（-' + r.cost.gold + ' 金）' : '失败 ' + r.why,
+                '；行囊末件 =', camp.convoy[camp.convoy.length - 1].key);
+    if (!r.ok || camp.convoy[camp.convoy.length - 1].key !== 'iron_sword') throw new Error('打造失败');
   }
 
   console.log('\n冒烟通过：无引用错误');

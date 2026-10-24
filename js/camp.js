@@ -71,6 +71,7 @@ const Camp = {
     if (!body) return;
     if (this.tab === 'team') this.renderTeam(body);
     else if (this.tab === 'shop') this.renderShop(body);
+    else if (this.tab === 'forge') this.renderForge(body);
     else if (this.tab === 'support') this.renderSupport(body);
     else if (this.tab === 'record') this.renderRecord(body);
     else if (this.tab === 'deploy') this.renderDeploy(body);
@@ -172,6 +173,51 @@ const Camp = {
   /* ============================================================
    * 市集
    * ============================================================ */
+  renderForge(body) {
+    const c = Game.campaign;
+    const gate = rank => {
+      if (rank === 'D') return 1;
+      if (rank === 'C') return 2;
+      if (rank === 'B') return 4;
+      if (rank === 'A') return 6;
+      return 8;
+    };
+    const order = { sword: 1, axe: 2, lance: 3, bow: 4, tome: 5, talisman: 6, dagger: 7, staff: 8 };
+    const list = Object.keys(WEAPONS)
+      .filter(key => Forge.canCraft(key) && WEAPONS[key].type !== 'beast' && gate(WEAPONS[key].rank) <= c.chapter)
+      .sort((a, b) => (order[WEAPONS[a].type] || 9) - (order[WEAPONS[b].type] || 9) || (WEAPONS[a].mt || 0) - (WEAPONS[b].mt || 0));
+    const rows = list.map(key => {
+      const def = WEAPONS[key];
+      const cost = Forge.cost(key);
+      const desc = (WEAPON_TYPES[def.type] ? WEAPON_TYPES[def.type].name : '') + ' · ' + def.rank +
+        ' · 威力 ' + def.mt + ' · 命中 ' + def.hit + (def.uses ? ' · 耐久 ' + def.uses : '');
+      const afford = c.gold >= cost.gold && c.seals >= cost.seals && c.convoy.length < 60;
+      return '<div class="shop-row"><span class="s-name">' + UI.escape(def.name) +
+        '<div class="s-desc">' + UI.escape(desc) + '</div></span>' +
+        '<span class="s-price">' + cost.gold + ' 金' + (cost.seals ? ' + ' + cost.seals + ' 印' : '') + '</span>' +
+        '<button class="shop-buy" data-act="forge" data-key="' + key + '"' + (afford ? '' : ' disabled') + '>打造</button></div>';
+    }).join('');
+    const legend = Object.keys(LEGENDARY_WEAPONS).map(key => {
+      const w = LEGENDARY_WEAPONS[key];
+      const owned = Legendary.isOwned(c, key);
+      const boss = ENEMY_TYPES[w.source];
+      return '<div class="shop-row"><span class="s-name">' + UI.escape(w.name) +
+        '<div class="s-desc">' + UI.escape((boss ? boss.name : w.source) + ' · ' + w.desc) + '</div></span>' +
+        '<span class="s-price" style="color:' + (owned ? '#9fd39a' : '#c9a37a') + '">' + (owned ? '已入手' : '未获得') + '</span>' +
+        '<span class="s-desc" style="max-width:180px;text-align:right;">' + UI.escape(Legendary.hint(key)) + '</span></div>';
+    }).join('');
+    body.innerHTML = '<div class="shop-wrap">' +
+      '<div class="shop-col"><h3>打 造</h3>' +
+      '<div class="shop-note">以盘缠与脉印请匠人开炉。高阶兵装还需脉印，品质与市集无异，打造的兵装进入行囊。</div>' +
+      (rows || '<div class="item-empty">当前章节无可打造的兵装。</div>') +
+      '</div>' +
+      '<div class="shop-col"><h3>传说图鉴</h3>' +
+      '<div class="shop-note">七把传说兵器各随一位守关首领。首杀必掉，入手后重打转化为盘缠与脉印；二周目保底翻倍。传说兵器不可打造。</div>' +
+      legend +
+      '<div class="shop-note" style="margin-top:10px;">已收录 ' + Legendary.ownedCount(c) + ' / 7</div>' +
+      '</div></div>';
+  },
+
   renderShop(body) {
     const c = Game.campaign;
     const isWeapon = this.shopTab !== 'item';
@@ -401,6 +447,25 @@ const Camp = {
     const act = btn.dataset.act;
     const c = Game.campaign;
     if (!c) return;
+    if (act === 'forge') {
+      const key = btn.dataset.key;
+      if (!Forge.canCraft(key)) { UI.toast('此物不可打造'); return; }
+      const cost = Forge.cost(key);
+      const r = Forge.craft(c, key);
+      if (!r.ok) {
+        if (r.why === 'gold') UI.toast('盘缠不足（需 ' + cost.gold + '）');
+        else if (r.why === 'seals') UI.toast('脉印不足（需 ' + cost.seals + '）');
+        else if (r.why === 'convoy') UI.toast('行囊已满');
+        else if (r.why === 'legendary') UI.toast('传说兵器不可打造，需击败首领');
+        else UI.toast('此物不可打造');
+        return;
+      }
+      Game.saveCampaign();
+      UI.toast('打造成功：' + WEAPONS[key].name + '（-' + cost.gold + ' 金' + (cost.seals ? ' -' + cost.seals + ' 印' : '') + '）');
+      Audio.sfx('gold');
+      this.render();
+      return;
+    }
     if (act === 'selectUnit') {
       this.selectedId = btn.dataset.id;
       this.render();
