@@ -7,8 +7,10 @@ const root = path.resolve(__dirname, '..');
 const files = [
   'js/rng.js',
   'js/data-core.js',
+  'js/data-systems.js',
   'js/data-maps.js',
-  'js/combat.js'
+  'js/combat.js',
+  'js/item-icons.js'
 ];
 
 let code = '';
@@ -230,6 +232,57 @@ eq(Combat.supportRank(50), 'B', '支援 B');
 eq(Combat.supportRank(90), 'A', '支援 A');
 eq(Combat.supportBonus(50).hit, 10, '支援命中加成');
 
+console.log('—— H-P1 物品图标 ——');
+/* 呈现层：只读 WEAPONS/ITEMS/SPELLS 数据表判类别，不算任何数值 */
+for (const key of Object.keys(WEAPONS)) {
+  const c = ItemIcons.categoryOf(key);
+  ok(!!c && (c.kind === 'weapon' || c.kind === 'legendary'), '兵装类别 ' + key);
+  ok(!!ItemIcons.svgFor(key), '兵装有图 ' + key);
+  ok(!!ItemIcons.uriFor(key), '兵装 URI ' + key);
+  ok(!!ItemIcons.WSHAPES[WEAPONS[key].type], '武器底形覆盖 ' + key + ' -> ' + WEAPONS[key].type);
+}
+for (const key of Object.keys(ITEMS)) {
+  const c = ItemIcons.categoryOf(key);
+  ok(!!c && ['mat', 'seal', 'potion'].includes(c.kind), '道具类别 ' + key + ' -> ' + (c && c.kind));
+  ok(!!ItemIcons.svgFor(key), '道具有图 ' + key);
+}
+for (const key of Object.keys(SPELLS)) {
+  const c = ItemIcons.categoryOf(key);
+  ok(!!c && c.kind === 'spell', '法术类别 ' + key);
+  ok(c.aoe === !!SPELLS[key].aoe, '法术范围标记 ' + key);
+  ok(!!ItemIcons.svgFor(key), '法术有图 ' + key);
+  const svg = decodeURIComponent(ItemIcons.uriFor(key));
+  if (SPELLS[key].aoe) ok(svg.indexOf('stroke-dasharray') >= 0, '范围法术带范围框 ' + key);
+  else ok(svg.indexOf('stroke-dasharray') < 0, '单体法术无范围框 ' + key);
+}
+ok(!ItemIcons.categoryOf('__nope__'), '未知 id 无类别');
+eq(ItemIcons.iconHTML('__nope__'), '', '未知 id 渲染为空');
+ok(!ItemIcons.uriFor('__nope__'), '未知 id 无 URI');
+const ironUri = ItemIcons.uriFor('iron_sword');
+ok(ironUri && ironUri.indexOf('data:image/svg+xml') === 0, 'data URI 协议');
+const ironSvg = decodeURIComponent(ironUri);
+ok(ironSvg.indexOf('viewBox="0 0 64 64"') >= 0, 'viewBox 64×64');
+ok(ironSvg.indexOf('</svg>') >= 0, 'SVG 闭合');
+ok(ironSvg.indexOf('{b}') < 0 && ironSvg.indexOf('{h}') < 0 && ironSvg.indexOf('{i}') < 0 && ironSvg.indexOf('{c}') < 0, '占位符全部替换');
+for (const key of Object.keys(LEGENDARY_WEAPONS)) {
+  eq(ItemIcons.categoryOf(key).kind, 'legendary', '传说标记 ' + key);
+  const svg = decodeURIComponent(ItemIcons.uriFor(key));
+  ok(svg.indexOf('#a02c2c') >= 0, '传说赤框 ' + key);
+  ok(svg.indexOf('#f0c25a') >= 0, '传说外发光 ' + key);
+}
+const ih = ItemIcons.iconHTML('iron_sword', 'ii-22');
+ok(ih.indexOf('class="ii ii-22"') >= 0, 'iconHTML class');
+ok(ih.indexOf('width="40"') >= 0, 'iconHTML 默认尺寸 40');
+ok(ItemIcons.iconHTML('iron_sword', 'ii-22', 22).indexOf('width="22"') >= 0, 'iconHTML 指定尺寸');
+eq(ItemIcons.tierOfRank('D'), 'iron', 'D 阶铁');
+eq(ItemIcons.tierOfRank('B'), 'steel', 'B 阶钢');
+eq(ItemIcons.tierOfRank('S'), 'silver', 'S 阶银');
+/* 铁/钢同形换材质色：同 type 不同 tier 去色后骨架一致 */
+const stripColor = s => s.replace(/#[0-9a-fA-F]{6}/g, '#');
+eq(stripColor(decodeURIComponent(ItemIcons.uriFor('iron_sword'))),
+   stripColor(decodeURIComponent(ItemIcons.uriFor('silver_sword'))), '铁剑/银剑同形换色');
+ok(ItemIcons.svgFor('mat_iron') && ItemIcons.svgFor('mat_steel') && ItemIcons.svgFor('mat_silver'), '材料三档有图');
+
 console.log('\n结果：' + __pass + ' 通过，' + __fail + ' 失败');
 if (__fail) process.exitCode = 1;
 `;
@@ -240,3 +293,11 @@ try {
   console.error(e);
   process.exit(1);
 }
+
+/* 静态断言：呈现层不碰战斗公式（红线） */
+const iconSrc = fs.readFileSync(path.join(root, 'js/item-icons.js'), 'utf8');
+if (iconSrc.indexOf('Combat.') >= 0) {
+  console.error('✗ item-icons.js 出现 Combat. 调用（呈现层禁止算战斗公式）');
+  process.exit(1);
+}
+console.log('✓ item-icons.js 无 Combat. 调用（呈现层纯洁）');

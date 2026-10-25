@@ -9,21 +9,23 @@
 
 **P6 已搁置**（用户决定，`dev/regress.js` 停在 75 通过 / 2 失败未提交）。**二期已启动**，主文档：`docs/山海策-灵脉-二期计划.md`（四根主轴：尺度/传承/宿命/呈现）。执行顺序按计划 §3：**P1 = A 战略层 + D 宿命脚本 + G 打击感 + H-P1 图标**，其中 **G 与 H-P1 投入产出比最高，最先做**。
 
-### 进行中：G 打击感（二期计划主轴四）
+### ✅ G 打击感（提交 `ff46190`，四连全绿：3178 / 1653 / 冒烟双变体）
 
-- ✅ `docs/山海策-灵脉-二期计划.md` 已落库（284 行，唯一主文档）
-- ✅ `js/juice.js` 已写完（368 行，语法校验通过）：顿帧/闪白/trauma 抖动/击退/挤压/粒子/冲击帧/暗角/必杀四段式（静→蓄→爆→余）/击杀慢动作+倒地；虚拟时钟模型（`Juice.update(rawDt)` 顿帧期返回 0 且时钟停走；`Juice.now()` 供渲染层读）；调参表 `TUNING`；设置懒读 `Game.settings.juice/reducedMotion/haptics`；倍速按比例缩短；`clearAll()` 供点击跳过。
-- ⬜ **未接线、未测试、未提交**。下一步（按序）：
-  1. `index.html` 在 `js/audio.js` 后、`js/render.js` 前加 `<script src="js/juice.js">`
-  2. `js/render.js`：`draw()` 的 `this.time` 改读 `Juice.now()`；`animateMove`/`lunge`/`slash`/`flash`/`floatText`/`shake` 的 `performance.now()` 全改 `Juice.now()`；`getUnitPos` 加 knock 击退与 fall 倒地偏移；`drawUnit` 加 squash 挤压与倒地淡出；`draw()` 加 trauma 震屏与 zoom 推镜；`drawFx` 末尾调 `Juice.drawFx(ctx, geo)`；`floatText` 加第 6 参 `pop`（会心大字弹出）；`clearFx` 调 `Juice.clearAll()`
-  3. `js/battle.js` `performCombat`（约 2395-2465 行）：必杀冲斩前 `await Juice.critWindUp(striker, B.speed)`；命中块把 `Render.shake/Render.flash` 换成 `Juice.hitFromEv(ev, B.speed)`（Juice 关时回退旧行为，判 `Juice._cfg().on`）；必杀收势 `await Juice.critWindDown(B.speed)`；致命时 `wait` 加长到 560ms；横版路由由 `BattleView.strike` 在命中时刻定时调 `Juice.hitFromEv`
-  4. `js/render-battleview.js`：`now()` 改读 `Juice.now()`；`strike()` 在冲刺段后定时触发 `Juice.hitFromEv`
-  5. `js/main.js`：主循环传 rAF 时间戳给 `Juice.update`；canvas `pointerdown` 在 `B.busy` 时 `Juice.clearAll()`（点击跳过必须清零）
-  6. `js/audio.js`：新增 `duck(sec)`（必杀前静音一拍）；`hit` 加 90→30Hz sine thump；`crit` 改静音 0.1s 后 thump+crunch
-  7. `js/game.js`：settings 加 `juice/reducedMotion/haptics` 三键（默认 开/关/开）；`loadSettings` 与 campaign 快照两处（约 104/222 行）补键；`openSettings` 加三行
-  8. 测试：`tests/formulas.test.js` 加第 34 节（顿帧冻结/倍速缩短/reduced 只留 2 帧/clearAll/粒子积分/不碰公式静态断言）；`dev/smoke-boot.js` 加 Juice 存在性与接线断言
-  9. 验证四连全绿 → 提交（中文信息）→ 更新本文档与 memory 日志
-- 之后：死亡定格（微改动 2）→ H-P1 类别占位图标（微改动 4，SVG 程序图 + `itemIcon()` 统一入口）→ 军议卡/结算摘要 → A 战略层 / D 宿命脚本。
+- `js/juice.js`（368 行）：虚拟时钟（`update` 顿帧期返回 0 时钟停走，`Juice.now()` 供渲染层读）；顿帧三件套 + 粒子池 + 冲击帧 + 击退/挤压 + 击杀慢动作/倒地/暗角；必杀四段式（推镜 + 立绘切入 + 0.35 慢放）；`TUNING` 调参表；`reducedMotion` 只留 2 帧顿帧；倍速按比例缩短；`clearAll()` 点击跳过清零。
+- 接线：`render.js`（演出计时全读 `Juice.now()`、击退/倒地偏移、挤压淡出、trauma 震屏、推镜、`Juice.drawFx`、floatText pop）、`battle.js`（`critWindUp/critWindDown/hitFromEv`，关设置回退旧行为）、`render-battleview.js`（`now()` 读 Juice 时钟；`strike` 命中时刻定时触发——**必须先捕获 `fxRef` 再清 `s.fx`，顺序反了永远不触发**）、`main.js`（rAF dt + busy 点屏 clearAll）、`audio.js`（`duck()` 静音一拍 + thump/crunch）、`game.js`（设置三键 juice/reducedMotion/haptics）。
+- 测试：formulas 第 38 节 49 条 + smoke Juice 区块。**vm 里测试 Juice 的坑**：`update` 单帧 dt 钳 50ms；上下文已有 `const Battle`（第 11 节载入 battle.js），只能改 `.B` 不能 `var` 重声明。
+
+### ✅ 死亡定格（提交 `0a200c3`，四连全绿）
+
+- `Juice.deathCardFor(unit, speed)`：handleDeath 挂卡（名字 + EPITAPHS 遗言，与英魂碑同源）+ `freeze(dur)` 世界冻结；卡片真实时钟演淡入淡出（`setTransform` 重置避震屏偏移）；1200ms，倍速缩钳 500~1500；`clearAll`/到点撤卡。battle.js 我方阵亡分支 await 等量 wait。
+
+### 🔄 进行中：H-P1 物品图标化（微改动 4）
+
+计划：10 类武器剪影（剑/重刃/枪/弓/匕首/符/杖/兽爪/骨笛/潮声）+ 五行灵术符号（金刃芒/木藤蔓/水水滴/火焰舌/土岩块 × 单/范围）+ 药水 3 瓶型（圆瓶回复/方瓶增益/皮袋杂项）+ 材料 4 枚（铁髓/钢核/银晶/脉印），全部 **SVG 程序图**（`assets/icons/` 下武器图标是 PNG，新的别再进 PNG）；统一入口 `itemIcon(id)`（manifest 取图 → 缺图回退**类别占位**，不回退文字）；接商店/行囊/战斗预测/灵术选择/强化/单位卡。当前 HEAD `0a200c3`，四连全绿（3178/1661/冒烟双变体）。
+
+### ⬜ 之后再排
+
+战前军议卡（微改动 3）/ 章节结算摘要（微改动 5）→ A 战略层 / D 宿命脚本 → B 薪火 / E 军令声望 / F 机动 → C 圣脉。
 
 ---
 

@@ -213,10 +213,17 @@ const Camp = {
     return Math.max(15, Math.round((def.price || 100) * (missing / max) * 0.55));
   },
 
-  /* 传说武器图标（assets/icons/weapons/wpn_{key}.png，文件缺失时 onerror 自动隐藏） */
+  /* 物品图标（二期 H）：传说优先 PNG（加载失败回退 SVG 占位，不再躲起来）；
+   * 其余兵装/道具/材料直接给 SVG 类别占位——永远不回退成纯文字。 */
   weaponIconHTML(key, cls) {
-    if (!LEGENDARY_WEAPONS[key]) return '';
-    return '<img class="' + (cls || 'inv-icon') + '" src="assets/icons/weapons/wpn_' + key + '.png" alt="" onerror="this.style.display=\'none\'">';
+    if (!key) return '';
+    if (LEGENDARY_WEAPONS[key]) {
+      const fb = (typeof ItemIcons !== 'undefined' && ItemIcons.uriFor(key)) || '';
+      return '<img class="' + (cls || 'inv-icon') + '" src="assets/icons/weapons/wpn_' + key +
+        '.png" alt="" onerror="this.onerror=null;this.src=\'' + fb + '\'">';
+    }
+    if (typeof ItemIcons === 'undefined') return '';
+    return ItemIcons.iconHTML(key, cls);
   },
 
   /* 传说武器的词条/技能说明行（图鉴与兵装行共用） */
@@ -249,7 +256,8 @@ const Camp = {
       const desc = (WEAPON_TYPES[def.type] ? WEAPON_TYPES[def.type].name : '') + ' · ' + def.rank +
         ' · 威力 ' + def.mt + ' · 命中 ' + def.hit + (def.uses ? ' · 耐久 ' + def.uses : '');
       const afford = c.gold >= cost.gold && c.seals >= cost.seals && c.convoy.length < 60;
-      return '<div class="shop-row"><span class="s-name">' + UI.escape(def.name) +
+      return '<div class="shop-row">' + (typeof ItemIcons !== 'undefined' ? ItemIcons.iconHTML(key, 'ii-row') : '') +
+        '<span class="s-name">' + UI.escape(def.name) +
         '<div class="s-desc">' + UI.escape(desc) + '</div></span>' +
         '<span class="s-price">' + cost.gold + ' 金' + (cost.seals ? ' + ' + cost.seals + ' 印' : '') + '</span>' +
         '<button class="shop-buy" data-act="forge" data-key="' + key + '"' + (afford ? '' : ' disabled') + '>打造</button></div>';
@@ -299,7 +307,8 @@ const Camp = {
       /* 传送武器的机制说明直接上架（读得懂才有人买） */
       if (def.warp) desc += ' · 射程 ' + def.rng[1] + ' · 把友军传到身侧（耗行动）';
       if (def.swapOnHit) desc += ' · 命中后与目标换位（对 Boss 无效）';
-      return '<div class="shop-row"><span class="s-name">' + UI.escape(def.name) +
+      return '<div class="shop-row">' + (typeof ItemIcons !== 'undefined' ? ItemIcons.iconHTML(s.key, 'ii-row') : '') +
+        '<span class="s-name">' + UI.escape(def.name) +
         '<div class="s-desc">' + UI.escape(desc) + '</div></span>' +
         '<span class="s-price">' + def.price + '</span>' +
         '<button class="shop-buy" data-act="buy" data-kind="' + (isWeapon ? 'weapon' : 'item') + '" data-key="' + s.key + '"' + (c.gold < def.price ? ' disabled' : '') + '>购入</button></div>';
@@ -771,6 +780,7 @@ const Camp = {
         title: '铁匠铺 · 强化',
         sub: UI.escape(def.name) + (item.plus ? ' +' + item.plus : '') + ' → +' + ((item.plus || 0) + 1),
         list: [{
+          icon: typeof ItemIcons !== 'undefined' ? ItemIcons.iconHTML(item.key, 'ii-22') + ItemIcons.iconHTML(cost.mat, 'ii-22') : '',
           label: '消耗：' + UI.escape(mat.name) + ' ×' + cost.n + '　盘缠 ' + cost.gold +
                  '（现有 ' + Smith.matCount(c, cost.mat) + ' / ' + c.gold + '）',
           meta: Smith.effectText((item.plus || 0) + 1),
@@ -810,6 +820,7 @@ const Camp = {
         title: '铁匠铺 · 进化',
         sub: UI.escape(from.name) + (item.plus ? ' +' + item.plus : '') + ' → ' + UI.escape(to.name),
         list: [{
+          icon: typeof ItemIcons !== 'undefined' ? ItemIcons.iconHTML(item.key, 'ii-22') + ItemIcons.iconHTML(spec.mat, 'ii-22') + ItemIcons.iconHTML(spec.to, 'ii-22') : '',
           label: '消耗：' + UI.escape(mat.name) + ' ×' + spec.n + '　盘缠 ' + spec.gold +
                  '（现有 ' + Smith.matCount(c, spec.mat) + ' / ' + c.gold + '）',
           meta: Smith.evolveText(item.key, item.plus),

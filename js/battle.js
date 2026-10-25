@@ -1904,6 +1904,7 @@ const Battle = {
       title: '五行法术',
       sub: u.name + ' · 次数每章重置',
       list: spells.map(sp => ({
+        icon: typeof ItemIcons !== 'undefined' ? ItemIcons.iconHTML(sp.key, 'ii-24') : '',
         label: sp.name + '（' + (ELEMENTS[sp.element] ? ELEMENTS[sp.element].name : '') + '·' + sp.rank + '阶）',
         meta: '剩 ' + Spells.usesLeft(u, sp.key) + ' 次 · 射程 ' + sp.rng[0] + '-' + sp.rng[1] +
               (sp.aoe ? ' · 范围半径 ' + sp.aoe.radius : '') +

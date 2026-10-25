@@ -220,7 +220,8 @@ const UI = {
       }
     }
     const weaponLine = w
-      ? '<span class="wchip">' + this.escape(WEAPON_TYPES[w.w.type] ? WEAPON_TYPES[w.w.type].name : '') + '</span>' +
+      ? (typeof ItemIcons !== 'undefined' ? ItemIcons.iconHTML(w.item.key, 'ii-20') : '') +
+        '<span class="wchip">' + this.escape(WEAPON_TYPES[w.w.type] ? WEAPON_TYPES[w.w.type].name : '') + '</span>' +
         this.escape(w.w.name) + (w.item.plus ? ' <span class="wchip plus">+' + w.item.plus + '</span>' : '') +
         ' <span class="wchip">耐久 ' + w.item.uses + '</span>'
       : '<span class="wchip">无武器</span>';
@@ -310,7 +311,9 @@ const UI = {
       if (opt.body) html += '<div class="modal-body">' + opt.body + '</div>';
       if (opt.list && opt.list.length) {
         html += '<div class="modal-list">' + opt.list.map((item, i) =>
-          '<button data-mi="' + i + '"' + (item.disabled ? ' disabled' : '') + '><span class="ml-name">' + this.escape(item.label) + '</span><span class="ml-meta">' + this.escape(item.meta || '') + '</span></button>'
+          '<button data-mi="' + i + '"' + (item.disabled ? ' disabled' : '') + (item.icon ? ' class="has-icon"' : '') + '>' +
+          (item.icon ? '<span class="ml-icon">' + item.icon + '</span>' : '') +
+          '<span class="ml-name">' + this.escape(item.label) + '</span><span class="ml-meta">' + this.escape(item.meta || '') + '</span></button>'
         ).join('') + '</div>';
       }
       html += '<div class="modal-actions">' + (opt.buttons || [{ label: '关闭', value: null }]).map((b, i) =>
@@ -405,7 +408,7 @@ const UI = {
         const counterOk = !isDef || f.defender.canCounter;
         return '<div class="fc-side ' + (isDef ? 'def' : '') + '">' +
           '<div class="fc-who">' + this.escape(title) + '<small>' + this.escape(CLASSES[u.cls] ? CLASSES[u.cls].name : (ENEMY_TYPES[u.rawType] ? ENEMY_TYPES[u.rawType].name : '')) + ' Lv.' + u.level + '</small></div>' +
-          '<div class="fc-hp">生命 ' + u.hp + ' / ' + u.stats.hp + (weapon ? ' · ' + this.escape(weapon.w.name) + '（' + weapon.item.uses + '）' : '') + '</div>' +
+          '<div class="fc-hp">生命 ' + u.hp + ' / ' + u.stats.hp + (weapon ? ' · <span class="fc-wicon">' + (typeof ItemIcons !== 'undefined' ? ItemIcons.iconHTML(weapon.item.key, 'ii-16') : '') + this.escape(weapon.w.name) + '</span>（' + weapon.item.uses + '）' : '') + '</div>' +
           (counterOk ? '<div class="fc-row"><span>伤害</span><span class="big">' + dmg + (double ? ' ×2' : '') + '</span></div>' +
           '<div class="fc-row"><span>命中</span><span class="hit">' + hit + '%</span></div>' +
           '<div class="fc-row"><span>暴击</span><span class="crit">' + crit + '%</span></div>' :

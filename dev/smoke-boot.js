@@ -53,7 +53,7 @@ sandboxWindow.globalThis = sandboxWindow;
 sandboxWindow.console = console;
 
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
-              'js/audio.js', 'js/juice.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/ui-icons.js', 'js/battle.js',
+              'js/audio.js', 'js/juice.js', 'js/item-icons.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/ui-icons.js', 'js/battle.js',
               'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
               'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js',
               'js/camp.js', 'js/relations.js', 'js/game.js'];
@@ -1391,6 +1391,44 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     J.clearAll();
     BB.units = BB.units.filter(u => u.id !== 'du2');
     console.log('打击感：冻结语义 / 倍速缩短 / reduced / 实战接入 / 跳过清零，均通过');
+  }
+
+  /* H-P1 物品图标：商店/打造坊/兵装行/行囊行接 SVG 程序图，未知 id 不回退文字 */
+  {
+    const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const { ItemIcons, WEAPONS, ITEMS, SPELLS, Camp } =
+      vm.runInContext('({ ItemIcons, WEAPONS, ITEMS, SPELLS, Camp })', ctx);
+    vm.runInContext('(c) => { Game.campaign = c; }', ctx)(camp);
+    Camp.shopTab = 'weapon';
+    const shopB = el();
+    Camp.renderShop(shopB);
+    const forgeB = el();
+    Camp.renderForge(forgeB);
+    console.log('商店图标：含 SVG data URI =', shopB.innerHTML.indexOf('data:image/svg+xml') >= 0,
+                '；打造坊 =', forgeB.innerHTML.indexOf('data:image/svg+xml') >= 0);
+    if (shopB.innerHTML.indexOf('data:image/svg+xml') < 0) throw new Error('商店行未接物品图标');
+    if (forgeB.innerHTML.indexOf('data:image/svg+xml') < 0) throw new Error('打造坊未接物品图标');
+    const yunceRec3 = camp.roster.find(x => x.id === 'yunce');
+    yunceRec3.items = [{ key: 'iron_sword', uses: 20, plus: 0 }];
+    yunceRec3.weaponIndex = 0;
+    camp.convoy = [{ key: 'potion', uses: 2 }, { key: 'mat_iron', uses: 1 }];
+    const detail3 = Camp.unitDetail(yunceRec3);
+    console.log('兵装行/行囊行图标：含 SVG =', detail3.indexOf('data:image/svg+xml') >= 0);
+    if (detail3.indexOf('data:image/svg+xml') < 0) throw new Error('兵装/行囊行未接物品图标');
+    /* 覆盖校验：数据表每个 key 都有图，未知 id 返回空（调用方落文字，不炸） */
+    const all = [].concat(Object.keys(WEAPONS), Object.keys(ITEMS), Object.keys(SPELLS));
+    let noIcon = 0;
+    for (const key of all) if (!ItemIcons.uriFor(key)) noIcon++;
+    console.log('图标覆盖：', all.length - noIcon, '/', all.length, '（缺图', noIcon, '）');
+    if (noIcon !== 0) throw new Error('有数据表条目缺图标');
+    if (ItemIcons.iconHTML('__nope__') !== '') throw new Error('未知 id 应渲染为空');
+    /* 静态接线：预测/单位卡/灵术菜单 */
+    if (src('js/ui.js').indexOf("ItemIcons.iconHTML(w.item.key") < 0) throw new Error('ui.js 单位卡未接图标');
+    if (src('js/ui.js').indexOf('ItemIcons.iconHTML(weapon.item.key') < 0) throw new Error('ui.js 战斗预测未接图标');
+    if (src('js/battle.js').indexOf('ItemIcons.iconHTML(sp.key') < 0) throw new Error('battle.js 灵术菜单未接图标');
+    if (src('js/item-icons.js').indexOf('Combat.') >= 0) throw new Error('图标库不许碰公式');
+    camp.convoy = [];
+    console.log('H-P1 图标化：渲染接入 / 全表覆盖 / 未知回退 / 呈现层纯洁，均通过');
   }
 
   console.log('\n冒烟通过：无引用错误');
