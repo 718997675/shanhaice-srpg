@@ -420,6 +420,22 @@ const NEW_SFX = ['swing_light', 'swing_heavy', 'swing_sharp', 'hit_flesh', 'hit_
   'cast_metal', 'cast_wood', 'cast_water', 'cast_fire', 'cast_earth',
   'burst_metal', 'burst_wood', 'burst_water', 'burst_fire', 'burst_earth',
   'death_hero', 'node_capture', 'ui_confirm', 'heal'];
+
+/* ---------- 打击感加厚：静态断言 ---------- */
+let kf = 0;
+const kok = (c, m) => { if (c) console.log('  ✓ ' + m); else { kf++; console.error('  ✗ ' + m); } };
+kok(audioSrc.indexOf('clang(base, vol, delay)') >= 0, 'audio.js 有金属撞击原语 clang');
+kok(audioSrc.indexOf('growl(dur, f0, f1, vol, delay)') >= 0, 'audio.js 有嘶吼原语 growl');
+kok(battleSrc.indexOf('this.hitSfxFor(') >= 0, 'battle.js 命中音分流（妖物/金属/木/肉身）');
+kok(battleSrc.indexOf('this.deathSfxFor(') >= 0, 'battle.js 阵亡音分流（Boss/妖物/人类/我军）');
+kok(battleSrc.indexOf('this.playStepSfx(') >= 0, 'battle.js 脚步音接线（移动类型分流）');
+kok(battleSrc.indexOf("Audio.sfx('death_hero')") >= 0, 'battle.js 我军阵亡走 death_hero');
+for (const n of ['hit_metal', 'foe_hit', 'foe_death', 'boss_death',
+  'step_foot', 'step_armor', 'step_beast', 'step_fly', 'step_horse']) {
+  kok(audioSrc.indexOf("case '" + n + "'") >= 0, 'audio.js 有音效 ' + n);
+}
+console.log(kf === 0 ? '✓ 打击感加厚：静态断言通过' : '✗ 打击感加厚静态断言有 ' + kf + ' 条失败');
+if (kf) process.exitCode = 1;
 let af = 0;
 const ack = (c, m) => { if (c) console.log('  ✓ ' + m); else { af++; console.error('  ✗ ' + m); } };
 for (const n of NEW_SFX) ack(audioSrc.indexOf("case '" + n + "'") >= 0, '音效 case ' + n);

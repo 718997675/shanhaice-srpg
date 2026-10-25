@@ -40,7 +40,7 @@ const sandboxWindow = {
   performance: { now: () => Date.now() },
   addEventListener() {},
   requestAnimationFrame() {},
-  setTimeout, clearTimeout,
+  setTimeout, clearTimeout, setInterval, clearInterval,
   localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
   navigator: { userAgent: 'smoke' },
   Audio: function () { return { play() {}, pause() {} }; },
@@ -1508,20 +1508,86 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (src('js/audio.js').indexOf('Combat.') >= 0 || src('js/audio-bgm.js').indexOf('Combat.') >= 0) {
       throw new Error('音频层不许碰公式');
     }
-    for (const n of ['swing_light', 'swing_heavy', 'swing_sharp', 'hit_flesh', 'hit_armor', 'hit_wood', 'hit_crit',
+    for (const n of ['swing_light', 'swing_heavy', 'swing_sharp', 'hit_flesh', 'hit_armor', 'hit_metal', 'hit_wood', 'hit_crit',
       'cast_metal', 'cast_wood', 'cast_water', 'cast_fire', 'cast_earth',
       'burst_metal', 'burst_wood', 'burst_water', 'burst_fire', 'burst_earth',
-      'death_hero', 'node_capture', 'ui_confirm']) {
+      'death_hero', 'death', 'foe_hit', 'foe_death', 'boss_death',
+      'step_foot', 'step_armor', 'step_beast', 'step_fly', 'step_horse',
+      'node_capture', 'ui_confirm']) {
       if (src('js/audio.js').indexOf("case '" + n + "'") < 0) throw new Error('audio.js 缺音效 ' + n);
     }
+    /* 打击感接线（二期加厚）：金属原语 clang / 嘶吼原语 growl 存在 */
+    if (src('js/audio.js').indexOf('clang(') < 0) throw new Error('audio.js 缺金属撞击原语 clang');
+    if (src('js/audio.js').indexOf('growl(') < 0) throw new Error('audio.js 缺嘶吼原语 growl');
     if (src('js/battle.js').indexOf("Audio.sfx(swing)") < 0) throw new Error('battle.js 缺挥击音接线');
-    if (src('js/battle.js').indexOf("'hit_armor'") < 0) throw new Error('battle.js 缺材质命中音接线');
+    if (src('js/battle.js').indexOf("this.hitSfxFor(") < 0) throw new Error('battle.js 缺命中音分流接线');
+    if (src('js/battle.js').indexOf("this.deathSfxFor(") < 0) throw new Error('battle.js 缺阵亡音分流接线');
+    if (src('js/battle.js').indexOf("this.playStepSfx(") < 0) throw new Error('battle.js 缺脚步音接线');
     if (src('js/game.js').indexOf('BGM.setMusicOn') < 0) throw new Error('game.js 缺音乐开关接线');
     /* 沙盒 DOM 桩没有真 audio 能力：SFX 关闭、Audio.sfx 走合成不炸 */
     if (SFX.play('hit_flesh') !== false) throw new Error('沙盒桩下 SFX 应关闭');
-    vm.runInContext('Audio.sfx("swing_light"); Audio.sfx("hit_armor"); Audio.sfx("cast_fire");', ctx);
+    vm.runInContext('Audio.sfx("swing_light"); Audio.sfx("hit_metal"); Audio.sfx("hit_crit"); Audio.sfx("foe_death"); Audio.sfx("step_armor"); Audio.sfx("cast_fire");', ctx);
     BGM.play('camp');   // 无文件 → 回退程序音乐，不应抛错
-    console.log('音频架构：文件层加载 / 21 音效 / 接线 / 回退不炸，均通过');
+    console.log('音频架构：文件层加载 / 29 音效 / clang+growl / 分流接线 / 回退不炸，均通过');
+
+    /* 打击感行为：WebAudio 桩验证 clang/growl 节点构成 + 命中/阵亡/脚步分流 */
+    const nodes = { osc: 0, gain: 0, filter: 0, buf: 0, started: 0 };
+    const fakeParam = () => ({
+      value: 0,
+      setValueAtTime() { return this; },
+      exponentialRampToValueAtTime() { return this; },
+      setTargetAtTime() { return this; },
+      cancelScheduledValues() { return this; }
+    });
+    const fakeCtx = {
+      currentTime: 0, sampleRate: 44100, state: 'running', destination: {},
+      resume() { return Promise.resolve(); },
+      createOscillator() { nodes.osc++; return { type: '', frequency: fakeParam(), connect() {}, start() { nodes.started++; }, stop() {} }; },
+      createGain() { nodes.gain++; return { gain: fakeParam(), connect() {} }; },
+      createBiquadFilter() { nodes.filter++; return { type: '', frequency: fakeParam(), Q: fakeParam(), connect() {} }; },
+      createBuffer(ch, len) { return { getChannelData: () => new Float32Array(len) }; },
+      createBufferSource() { nodes.buf++; return { buffer: null, connect() {}, start() { nodes.started++; }, stop() {} }; }
+    };
+    sandboxWindow.AudioContext = function () { return fakeCtx; };
+    /* failed 是终身标记：早前无桩调用已把它置 true，先复位再 ensure */
+    vm.runInContext('Audio.failed = false; Audio.ctx = null; Audio.ensure();', ctx);
+    if (!vm.runInContext('!!Audio.ctx', ctx)) throw new Error('WebAudio 桩未生效');
+    const before = Object.assign({}, nodes);
+    vm.runInContext('Audio.clang(2100, 0.13);', ctx);
+    /* clang = 3 共振峰 + 1 body 共 4 osc + 1 瞬态 buffer */
+    if (nodes.osc - before.osc !== 4) throw new Error('clang 节点构成异常（osc +' + (nodes.osc - before.osc) + '）');
+    if (nodes.buf - before.buf !== 1) throw new Error('clang 缺瞬态噪声层');
+    const beforeG = Object.assign({}, nodes);
+    vm.runInContext('Audio.growl(0.5, 240, 60, 0.11);', ctx);
+    /* growl = 1 osc + noise buffer */
+    if (nodes.osc - beforeG.osc !== 1) throw new Error('growl 节点构成异常（osc +' + (nodes.osc - beforeG.osc) + '）');
+    if (nodes.buf - beforeG.buf !== 1) throw new Error('growl 缺呼气噪声层');
+    /* 分流 helper：妖物 / 披甲 / 杖 / 肉身 */
+    const sfxOf = (expr) => vm.runInContext(expr, ctx);
+    if (sfxOf("Battle.hitSfxFor(Battle.B.units.find(u => u.side === 'player'), { moveType: 'beast', tags: [] })") !== 'foe_hit') {
+      throw new Error('妖物受击应走 foe_hit');
+    }
+    if (sfxOf("Battle.hitSfxFor(Battle.B.units.find(u => u.side === 'player'), { moveType: 'foot', tags: ['armor'] })") !== 'hit_metal') {
+      throw new Error('披甲目标应走 hit_metal');
+    }
+    if (sfxOf("Battle.deathSfxFor({ side: 'enemy', boss: true, moveType: 'foot' })") !== 'boss_death' ||
+        sfxOf("Battle.deathSfxFor({ side: 'enemy', boss: false, moveType: 'plant' })") !== 'foe_death' ||
+        sfxOf("Battle.deathSfxFor({ side: 'enemy', boss: false, moveType: 'foot' })") !== 'death' ||
+        sfxOf("Battle.deathSfxFor({ side: 'player', boss: false, moveType: 'foot' })") !== 'death_hero') {
+      throw new Error('阵亡音分流异常');
+    }
+    if (sfxOf("Battle.stepSfxFor({ moveType: 'flying', tags: [] })") !== 'step_fly' ||
+        sfxOf("Battle.stepSfxFor({ moveType: 'beast', tags: [] })") !== 'step_beast' ||
+        sfxOf("Battle.stepSfxFor({ moveType: 'horse', tags: [] })") !== 'step_horse' ||
+        sfxOf("Battle.stepSfxFor({ moveType: 'foot', tags: ['armor'] })") !== 'step_armor' ||
+        sfxOf("Battle.stepSfxFor({ moveType: 'foot', tags: [] })") !== 'step_foot') {
+      throw new Error('脚步音分流异常');
+    }
+    console.log('打击感行为：clang 4osc+瞬态 / growl 1osc+呼气 / 命中·阵亡·脚步三路分流，均通过');
+    /* 收尾：停合成音乐 timer，再撤掉 fake ctx 恢复「无声」态——
+     * 否则后文 Battle.start 的 BGM.play 回退会真在 fake ctx 上起 setInterval，挂住进程 */
+    vm.runInContext('Audio.stopMusic(); Audio.ctx = null; Audio.failed = true;', ctx);
+    sandboxWindow.AudioContext = undefined;
   }
 
   /* 高低地形差（二期）：height 网格 / ctx 暴露 / 射程命中判定 / 快照兼容 / 渲染抬升 */

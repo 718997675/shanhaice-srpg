@@ -411,6 +411,45 @@ const Battle = {
     unit.facing = this.facingFromDelta(tx - unit.x, ty - unit.y);
   },
 
+  /* 是否妖物（非人敌军）：moveType 兽/植/两栖——受击嘶吼与死亡悲鸣分流用 */
+  isFoeBeast(unit) {
+    return !!unit && (unit.moveType === 'beast' || unit.moveType === 'plant' || unit.moveType === 'amphibious');
+  },
+
+  /* 脚步音（二期打击感）：按移动类型选音色，人类甲胄另算 */
+  stepSfxFor(unit) {
+    if (!unit) return 'step_foot';
+    if (unit.moveType === 'flying') return 'step_fly';
+    if (this.isFoeBeast(unit)) return 'step_beast';
+    if (unit.moveType === 'horse') return 'step_horse';
+    if (unit.tags && unit.tags.indexOf('armor') >= 0) return 'step_armor';
+    return 'step_foot';
+  },
+
+  /* 行进音：立即一拍；路程 ≥5 格时约半程再补一拍（animateMove 每格约 120ms） */
+  playStepSfx(unit, pathLen) {
+    const s = this.stepSfxFor(unit);
+    Audio.sfx(s);
+    if (pathLen >= 5) setTimeout(() => Audio.sfx(s), 260);
+  },
+
+  /* 命中音按攻受两端分流（二期打击感）：妖物嘶吼 / 对金铁 clang / 杖与木腔 / 肉身 */
+  hitSfxFor(striker, foe) {
+    if (this.isFoeBeast(foe)) return 'foe_hit';
+    const sw = Combat.weaponOf(striker);
+    if (foe.tags && foe.tags.indexOf('armor') >= 0) return 'hit_metal';
+    if (sw && sw.w.type === 'staff') return 'hit_wood';
+    return 'hit_flesh';
+  },
+
+  /* 阵亡音：我军披甲倒地 / Boss 长嘶吼 / 妖物悲鸣 / 敌军人类倒地 */
+  deathSfxFor(unit) {
+    if (unit.side === 'player') return 'death_hero';
+    if (unit.boss) return 'boss_death';
+    if (this.isFoeBeast(unit)) return 'foe_death';
+    return 'death';
+  },
+
   /* 武器射程判定（含高低差）：高打低射程上限 +1。攻击/连携候选筛选统一走这里。 */
   inWeaponRange(unit, tx, ty) {
     const w = Combat.weaponOf(unit);
@@ -1124,7 +1163,7 @@ const Battle = {
         unit.hasMoved = spellPlan.x !== oldX || spellPlan.y !== oldY;
         unit.movedDist = Math.max(0, path.length - 1);
         this.computeVisibility(false);
-        Audio.sfx('move');
+        this.playStepSfx(unit, path.length - 1);
         await Render.animateMove(unit, path, B.speed);
         this.computeVisibility(false);
         UI.updateBattle(B);
@@ -1139,7 +1178,7 @@ const Battle = {
         unit.movedDist = Math.max(0, path.length - 1);
         this.computeVisibility(false);
         Render.hpView = null;
-        Audio.sfx('move');
+        this.playStepSfx(unit, path.length - 1);
         await Render.animateMove(unit, path, B.speed);
         this.computeVisibility(false);
         UI.updateBattle(B);
@@ -1478,7 +1517,7 @@ const Battle = {
     const spend = slide ? Math.max(0, slide.path.length - 1) : (destNode ? destNode.cost : Math.max(0, path.length - 1));
     u.moveUsed = (u.moveUsed || 0) + spend;
     if (slide) UI.log(u.name + '在冰面上滑行至 (' + u.x + ', ' + u.y + ')。', '');
-    Audio.sfx('move');
+    this.playStepSfx(u, (slide ? slide.path.length : path.length) - 1);
     this.computeVisibility(false);
     await Render.animateMove(u, slide ? slide.path : path, B.speed);
     B.busy = false;
@@ -1851,7 +1890,7 @@ const Battle = {
       Render.slash(target.x, target.y, crit ? 'crit' : 'hit');
       Render.shake(crit ? 8 : 3);
       Render.floatText((crit ? '必杀 ' : '') + '-' + dmg, target.x, target.y, crit ? '#f1cd7a' : '#f0b8a8', crit ? 19 : 15);
-      Audio.sfx(crit ? 'crit' : 'hit');
+      Audio.sfx(crit ? 'crit' : this.hitSfxFor(ally, target));
       if (target.hp <= 0) await this.handleDeath(target, ally);
     } else {
       Render.slash(target.x, target.y, 'miss');
@@ -2568,14 +2607,9 @@ const Battle = {
               Render.flash(ev.crit ? '#f4d79a' : '#f0e8d4', ev.crit ? 0.3 : 0.12);
             }
           }
-          /* 命中音按材质分流（披甲/木器/肉身），必杀走重击 */
+          /* 命中音按攻受两端分流（披甲/木器/肉身/妖物嘶吼），必杀走金属双拍 */
           if (ev.crit) Audio.sfx('hit_crit');
-          else {
-            const sw0 = Combat.weaponOf(striker);
-            const mat = (foe.tags && foe.tags.indexOf('armor') >= 0) ? 'hit_armor'
-              : (sw0 && sw0.w.type === 'staff') ? 'hit_wood' : 'hit_flesh';
-            Audio.sfx(mat);
-          }
+          else Audio.sfx(this.hitSfxFor(striker, foe));
           UI.log(ev.attackerName + '命中' + ev.defenderName + (ev.crit ? '，必杀' : '') + '，造成 ' + ev.dmg + ' 伤害。', striker.side === 'player' ? 'good' : 'bad');
           if (ev.effective) UI.log('特效克制！', 'gold');
           if (striker.side === 'player') B.stats.damage += ev.dmg;
@@ -2698,7 +2732,8 @@ const Battle = {
       this.B.stats.kills++;
       this.noteCodex(unit);
       unit.hp = 0;
-      Audio.sfx('death');
+      /* 阵亡音分流（二期打击感）：Boss 长嘶吼 / 妖物悲鸣 / 人类倒地 */
+      Audio.sfx(this.deathSfxFor(unit));
       UI.log(unit.name + '倒下了。', 'good');
       Render.floatText('破', unit.x, unit.y, '#e7d5b0', 18);
       const lg = (typeof Legendary !== 'undefined') ? Legendary.onBossKilled(this.campaign, unit.rawType) : null;
@@ -2727,7 +2762,8 @@ const Battle = {
       unit.hp = 0;
       this.B.stats.lost++;
       if (unit.charId) this.B.casualties.push(unit.charId);
-      Audio.sfx('death');
+      /* 我军阵亡：披甲倒地闷响 + 远钟（二期打击感，与死亡定格同帧） */
+      Audio.sfx('death_hero');
       UI.log(unit.name + '倒下了。', 'bad');
       Render.floatText('殁', unit.x, unit.y, '#df9b8c', 18);
       Render.shake(6);
