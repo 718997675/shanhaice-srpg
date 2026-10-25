@@ -411,3 +411,15 @@ const KNOT_FINAL_BONUS = { hit: 5, crit: 5 };  // 全解：终章全队 +5 命�
 const KNOT_FINAL_NO = 9;                 // 终章章号
 
 if (typeof window !== 'undefined') window.HEART_KNOTS = HEART_KNOTS;
+
+/* ---------------- 技能继承与熟练度成长（P2.2） ----------------
+ * 技能继承：转职时把原职业技能写入 rec.inherited（上限 INHERIT_CAP 条，先进先出），
+ *   与职业技/个人技一起进 battle.skillFieldsOf；同名字段取较大值，不叠乘。
+ * 熟练度成长：每章按「用该武器出手次数」累计，满 RANK_UP_USES 升一阶（D→C→B→A→S）。 */
+const INHERIT_CAP = 2;                   // 每人最多带 2 条继承技（先进先出）
+const RANK_UP_USES = 40;                 // 累计出手 40 次升一阶（跨章累加，升阶后清零）
+
+if (typeof window !== 'undefined') {
+  window.INHERIT_CAP = INHERIT_CAP;
+  window.RANK_UP_USES = RANK_UP_USES;
+}

@@ -181,8 +181,12 @@ const Battle = {
       growth: JSON.parse(JSON.stringify(base.growth)),
       ranks: JSON.parse(JSON.stringify(rec.ranks || base.ranks)),
       items,
+      /* 本章起始耐久（P2.2 熟练度成长：用出手消耗量折算出击次数） */
+      itemsStart: items.map(it => (it && it.uses) || 0),
       weaponIndex: wi,
       personal: JSON.parse(JSON.stringify(base.personal || {})),
+      personal2: JSON.parse(JSON.stringify(base.personal2 || {})),
+      inherited: JSON.parse(JSON.stringify(rec.inherited || [])),
       move: cls.move,
       moveType: cls.moveType,
       tags: (cls.tags || []).slice(),
@@ -221,6 +225,8 @@ const Battle = {
         items: JSON.parse(JSON.stringify(c.items)),
         weaponIndex: 0,
         personal: JSON.parse(JSON.stringify(c.personal || {})),
+        personal2: JSON.parse(JSON.stringify(c.personal2 || {})),
+        inherited: [],
         move: CLASSES[c.cls].move,
         moveType: CLASSES[c.cls].moveType,
         tags: (CLASSES[c.cls].tags || []).slice(),
@@ -263,6 +269,8 @@ const Battle = {
       items: [{ key: wkey, uses: 99 }],
       weaponIndex: 0,
       personal: {},
+      personal2: {},
+      inherited: [],
       move: type.move,
       moveType: type.moveType,
       tags: (type.tags || []).slice(),
@@ -381,13 +389,41 @@ const Battle = {
     };
   },
 
+  /* 技能字段合并（P2.2）：职业技 → 个人技① → 个人技② → 继承技。
+   * 前两层沿用覆盖语义（保持旧数值不变）；后两层按「同名字段取较大值」合并，
+   * 免得个人技②/继承技把职业技的数值压低（例如兽使的 summon: true）。 */
   skillFieldsOf(unit) {
     const out = {};
     if (!unit) return out;
     const cls = CLASSES[unit.cls];
     if (cls && cls.skill) Object.assign(out, cls.skill);
     if (unit.personal) Object.assign(out, unit.personal);
+    if (unit.personal2) this.mergeSkillMax(out, unit.personal2);
+    for (const sk of unit.inherited || []) this.mergeSkillMax(out, sk);
     return out;
+  },
+
+  /* 同名字段取较大值；非数值字段仅在空缺时补上。name/desc 不进公式。 */
+  mergeSkillMax(out, sk) {
+    if (!sk) return out;
+    for (const k of Object.keys(sk)) {
+      if (k === 'name' || k === 'desc') continue;
+      const v = sk[k];
+      if (typeof v === 'number') out[k] = Math.max(out[k] || 0, v);
+      else if (out[k] === undefined) out[k] = v;
+    }
+    return out;
+  },
+
+  /* 已生效的技能条目（营地/图鉴展示用）：职业技 + 两条个人技 + 继承技 */
+  skillListOf(unit) {
+    const list = [];
+    const cls = CLASSES[unit && unit.cls];
+    if (cls && cls.skill) list.push(Object.assign({ kind: 'cls' }, cls.skill));
+    if (unit && unit.personal) list.push(Object.assign({ kind: 'personal' }, unit.personal));
+    if (unit && unit.personal2) list.push(Object.assign({ kind: 'personal' }, unit.personal2));
+    for (const sk of (unit && unit.inherited) || []) list.push(Object.assign({ kind: 'inherit' }, sk));
+    return list;
   },
 
   hasSkillField(unit, field) {
@@ -2148,12 +2184,14 @@ const Battle = {
     if (!B.ending) await this.checkDefeat();
   },
 
-  /* 每章召唤剩余次数：单位按职业 skill.summonUses 记（缺省 1 次）。
+  /* 每章召唤剩余次数：单位按职业 skill.summonUses 记（缺省 1 次），
+   * 个人技②的 summonUsesBonus 在此叠加（阿蛮·唤兽）。
    * 单位每章从战役存档重建，计数器自然每章重置；summonUsed 兼容旧语义。 */
   summonUsesLeft(unit) {
     if (!unit) return 0;
     if (unit.summonUsed) return 0;
-    const per = (this.skillFieldsOf(unit).summonUses) || 1;
+    const f = this.skillFieldsOf(unit);
+    const per = (f.summonUses || 1) + (f.summonUsesBonus || 0);
     if (unit.summonUsesLeft === undefined) unit.summonUsesLeft = per;
     return Math.max(0, unit.summonUsesLeft);
   },
@@ -2686,6 +2724,45 @@ const Battle = {
     if (Game.onChapterDefeat) Game.onChapterDefeat(reason, this.chapterId);
   },
 
+  /* 本章各武器类型的出手次数（P2.2 熟练度成长）：按耐久消耗折算。
+   * 兵器每次交锋扣 1、杖每次治疗扣 1、咒每次施法扣 1，因此消耗量≈出手次数。 */
+  weaponUsesOf(u) {
+    const out = {};
+    const start = u.itemsStart || [];
+    const items = u.items || [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const w = it && WEAPONS[it.key];
+      if (!w) continue;
+      const spent = Math.max(0, (start[i] || 0) - (it.uses || 0));
+      if (!spent) continue;
+      out[w.type] = (out[w.type] || 0) + spent;
+    }
+    return out;
+  },
+
+  /* 熟练度成长（P2.2）：纯函数，战役结算与测试共用。
+   * ranks / rankPts 原地更新；uses 为本章各武器类型的出手次数。
+   * 满 RANK_UP_USES 升一阶，余数留到下章，每章每类最多升一阶，S 阶封顶。
+   * 返回本章升阶记录 [{ wt, from, to, uses }]。 */
+  rankGrowth(ranks, rankPts, uses) {
+    const ups = [];
+    if (!ranks || !rankPts || !uses || typeof uses !== 'object') return ups;
+    for (const wt of Object.keys(uses)) {
+      const n = Math.max(0, uses[wt] || 0);
+      if (!n) continue;
+      const cur = RANK_ORDER[ranks[wt]];
+      if (cur === undefined || cur >= RANK_NAMES.length - 1) { rankPts[wt] = 0; continue; }
+      const pts = (rankPts[wt] || 0) + n;
+      if (pts < RANK_UP_USES) { rankPts[wt] = pts; continue; }
+      rankPts[wt] = pts - RANK_UP_USES;
+      const from = RANK_NAMES[cur];
+      ranks[wt] = RANK_NAMES[cur + 1];
+      ups.push({ wt, from, to: ranks[wt], uses: n });
+    }
+    return ups;
+  },
+
   collectResult() {
     const B = this.B;
     const rosterOut = [];
@@ -2700,7 +2777,9 @@ const Battle = {
         stats: JSON.parse(JSON.stringify(u.stats)),
         ranks: JSON.parse(JSON.stringify(u.ranks)),
         items: JSON.parse(JSON.stringify(u.items)),
-        weaponIndex: u.weaponIndex
+        weaponIndex: u.weaponIndex,
+        weaponUses: this.weaponUsesOf(u),
+        inherited: JSON.parse(JSON.stringify(u.inherited || []))
       });
     }
     const fallen = B.units.filter(u => u.side === 'player' && u.charId && u.hp <= 0).map(u => u.charId);

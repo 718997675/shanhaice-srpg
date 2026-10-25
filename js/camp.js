@@ -108,6 +108,23 @@ const Camp = {
       '<span class="val">' + (rec.stats[k] || 0) + '</span><span class="grow">' + ((base.growth && base.growth[k]) || 0) + '%</span></div>'
     ).join('');
     const img = 'assets/portraits/' + rec.id + '.svg';
+    /* 技能列表（P2.2）：职业技 + 个人技① + 个人技② + 继承技 */
+    const pseudo = { cls: rec.cls, personal: base.personal, personal2: base.personal2, inherited: rec.inherited || [] };
+    const skillList = (typeof Battle !== 'undefined' && Battle.skillListOf) ? Battle.skillListOf(pseudo) : [];
+    const kindLabel = { cls: '职业技', personal: '个人技', inherit: '继承技' };
+    const skillHTML = skillList.map(s =>
+      '<div class="unit-skillline' + (s.kind === 'inherit' ? ' inherited' : '') + '">' +
+      (kindLabel[s.kind] || '技能') + '：<b>' + UI.escape(s.name || '—') + '</b>　' + UI.escape(s.desc || '') + '</div>'
+    ).join('');
+    /* 熟练度进度（P2.2）：每类武器当前阶位与距下一阶的累计出手数 */
+    const profHTML = Object.keys(rec.ranks || {}).map(wt => {
+      const nm = (WEAPON_TYPES[wt] && WEAPON_TYPES[wt].name) || wt;
+      const top = rec.ranks[wt] === RANK_NAMES[RANK_NAMES.length - 1];
+      const pts = (rec.rankPts && rec.rankPts[wt]) || 0;
+      return '<span class="prof-chip"><span class="prof-name">' + UI.escape(nm) + '</span>' +
+        '<b>' + UI.escape(rec.ranks[wt] || '—') + '</b>' +
+        (top ? '<small>已至化境</small>' : '<small>' + Math.min(pts, RANK_UP_USES) + '/' + RANK_UP_USES + '</small>') + '</span>';
+    }).join('');
     const equip = rec.items.map((it, i) => this.itemRow(rec, it, i)).join('') ||
       '<div class="item-empty">行囊空着。</div>';
     const convoy = (Game.campaign.convoy || []).map((it, i) => {
@@ -143,10 +160,10 @@ const Camp = {
       '<img src="' + img + '" alt="" onerror="this.style.display=\'none\'"></div>' +
       '<div class="unit-id"><div class="unit-name">' + UI.escape(base.name) + '</div>' +
       '<div class="unit-class">' + UI.escape(cls.name || '') + ' · Lv.' + rec.level + ' · ' + (rec.exp || 0) + '/100</div>' +
-      '<div class="unit-skillline">职业技：<b>' + UI.escape((cls.skill && cls.skill.name) || '—') + '</b>　' + UI.escape((cls.skill && cls.skill.desc) || '') + '</div>' +
-      '<div class="unit-skillline">个人技：<b>' + UI.escape((base.personal && base.personal.name) || '—') + '</b>　' + UI.escape((base.personal && base.personal.desc) || '') + '</div>' +
+      skillHTML +
       '<div class="unit-bio">' + UI.escape(base.bio || '') + '</div></div></div>' +
       '<h4>能力</h4><div class="stat-grid">' + stats + '</div>' +
+      '<h4>熟练</h4><div class="prof-row">' + (profHTML || '<span class="prof-chip"><small>尚无熟练兵器</small></span>') + '</div>' +
       '<h4>兵装</h4>' + equip +
       '<div class="detail-actions">' + promoBtn + '</div>' + promoHint +
       '<h4>行囊</h4>' + convoy;
@@ -819,7 +836,16 @@ const Camp = {
     const ok = await UI.confirm('转职 · ' + next.name, '消耗 1 枚脉印，' + CHARS[rec.id].name + ' 将转职为「' + next.name + '」。', '转职', '再等等');
     if (!ok) return;
     c.seals--;
+    /* 技能继承（P2.2）：转职前先把原职业技能记下来，上限 INHERIT_CAP 条，先进先出 */
+    const learned = cls.skill && cls.skill.name ? JSON.parse(JSON.stringify(cls.skill)) : null;
     rec.cls = Object.keys(CLASSES).find(k => CLASSES[k] === next) || cls.promote;
+    if (learned) {
+      if (!Array.isArray(rec.inherited)) rec.inherited = [];
+      const dup = rec.inherited.findIndex(s => s && s.name === learned.name);
+      if (dup >= 0) rec.inherited.splice(dup, 1);
+      rec.inherited.push(learned);
+      while (rec.inherited.length > INHERIT_CAP) rec.inherited.shift();
+    }
     for (const k of Object.keys(cls.promoGain || {})) {
       rec.stats[k] = Math.min(STAT_CAPS[k] || 99, (rec.stats[k] || 0) + cls.promoGain[k]);
     }
@@ -830,7 +856,7 @@ const Camp = {
     }
     Game.saveCampaign();
     Audio.sfx('levelup');
-    UI.toast(CHARS[rec.id].name + ' 转职为 ' + next.name);
+    UI.toast(CHARS[rec.id].name + ' 转职为 ' + next.name + (learned ? '，继承「' + learned.name + '」' : ''));
     this.render();
   },
 

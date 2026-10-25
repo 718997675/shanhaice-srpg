@@ -378,6 +378,7 @@ const CHARS = {
     stats: { hp: 23, str: 8, mag: 0, skl: 9, spd: 9, lck: 7, def: 6, res: 3 },
     growth: { hp: 62, str: 45, mag: 5, skl: 55, spd: 50, lck: 40, def: 35, res: 25 },
     ranks: { sword: 'C' }, personal: { name: '守脉人', desc: '相邻友军命中与回避 +5；站在阵眼上时伤害 +2。', adjacentAllyHit: 5, adjacentAllyAvoid: 5, selfDamageOnNode: 2 },
+    personal2: { name: '承脉', desc: '魔抗 +2；生命低于一半时护甲 +2。', res: 2, defIfWounded: 2 },
     items: [{ key: 'qinglan', uses: 40 }, { key: 'iron_sword', uses: 35 }, { key: 'potion', uses: 3 }],
     bio: '青岚宗最后的守脉人。剑不出鞘时像个沉默的书生，出鞘后山风都会让路。'
   },
@@ -386,6 +387,7 @@ const CHARS = {
     stats: { hp: 27, str: 9, mag: 0, skl: 4, spd: 4, lck: 3, def: 11, res: 1 },
     growth: { hp: 75, str: 55, mag: 0, skl: 30, spd: 25, lck: 25, def: 45, res: 15 },
     ranks: { axe: 'C' }, personal: { name: '山岳之骨', desc: '生命低于一半时护甲 +3。', defIfWounded: 3 },
+    personal2: { name: '负山', desc: '本回合移动 4 格以上时命中 +10。', hitIfMoved4: 10 },
     items: [{ key: 'iron_blade', uses: 30 }, { key: 'potion', uses: 3 }],
     bio: '青岚宗守山弟子，话少，饭量大。他说石头不会骗人，人比石头难懂。'
   },
@@ -394,6 +396,7 @@ const CHARS = {
     stats: { hp: 18, str: 2, mag: 6, skl: 6, spd: 7, lck: 8, def: 3, res: 7 },
     growth: { hp: 45, str: 15, mag: 55, skl: 45, spd: 45, lck: 50, def: 20, res: 45 },
     ranks: { staff: 'C' }, personal: { name: '药心', desc: '相邻友军回避 +5。', adjacentAllyAvoid: 5 },
+    personal2: { name: '药囊', desc: '相邻友军命中 +5。', adjacentAllyHit: 5 },
     items: [{ key: 'heal_staff', uses: 20 }, { key: 'potion', uses: 3 }, { key: 'herb', uses: 2 }],
     bio: '背着比人还高的药篓，走到哪里都能认出能入药的草。怕血，却从不后退。'
   },
@@ -402,6 +405,7 @@ const CHARS = {
     stats: { hp: 19, str: 5, mag: 0, skl: 8, spd: 8, lck: 6, def: 4, res: 4 },
     growth: { hp: 50, str: 35, mag: 0, skl: 60, spd: 55, lck: 40, def: 25, res: 25 },
     ranks: { bow: 'D' }, personal: { name: '鹰眼', desc: '对飞行目标命中 +20；未移动时暴击 +10。', hitVsFlying: 20, critIfNoMove: 10 },
+    personal2: { name: '采药人', desc: '回避 +5。', avoidFlat: 5 },
     items: [{ key: 'iron_bow', uses: 30 }, { key: 'potion', uses: 3 }],
     bio: '青岚山下的猎户之女。她说射箭和看人一样，急不得，看准了再松手。'
   },
@@ -410,6 +414,7 @@ const CHARS = {
     stats: { hp: 24, str: 8, mag: 0, skl: 7, spd: 7, lck: 5, def: 7, res: 3 },
     growth: { hp: 55, str: 45, mag: 0, skl: 45, spd: 40, lck: 35, def: 35, res: 20 },
     ranks: { lance: 'C' }, personal: { name: '踏浪', desc: '本回合移动 4 格以上时命中 +10。', hitIfMoved4: 10 },
+    personal2: { name: '逃将', desc: '相邻无友军时回避 +10。', avoidIfLone: 10 },
     items: [{ key: 'iron_lance', uses: 30 }, { key: 'javelin', uses: 20 }, { key: 'potion', uses: 3 }],
     bio: '游历四方的骑将，曾在断桥边救下整村人。笑起来很响，心事却从不外露。'
   },
@@ -418,6 +423,7 @@ const CHARS = {
     stats: { hp: 19, str: 1, mag: 10, skl: 8, spd: 8, lck: 4, def: 3, res: 8 },
     growth: { hp: 40, str: 10, mag: 60, skl: 50, spd: 45, lck: 30, def: 20, res: 50 },
     ranks: { tome: 'C' }, personal: { name: '霜心', desc: '命中后使目标下回合移动 -1。', movePenaltyOnHit: 1 },
+    personal2: { name: '寒川', desc: '两格内敌军命中 -8。', enemyAuraHit: 8 },
     items: [{ key: 'ice_tome', uses: 25 }, { key: 'potion', uses: 3 }],
     bio: '断桥古渡的守渡人，性子冷，咒也冷。她记得每一个渡河人的名字。'
   },
@@ -426,6 +432,7 @@ const CHARS = {
     stats: { hp: 22, str: 7, mag: 0, skl: 10, spd: 12, lck: 7, def: 5, res: 4 },
     growth: { hp: 45, str: 40, mag: 0, skl: 60, spd: 65, lck: 50, def: 25, res: 25 },
     ranks: { dagger: 'B' }, personal: { name: '无影', desc: '相邻无友军时回避 +15。', avoidIfLone: 15 },
+    personal2: { name: '旧主', desc: '对披甲目标暴击 +10。', critVsArmor: 10 },
     items: [{ key: 'shadow_dagger', uses: 20 }, { key: 'potion', uses: 3 }],
     bio: '赤砂关里谁的账都敢偷的人。没人知道他从哪来，包括他自己。'
   },
@@ -434,6 +441,7 @@ const CHARS = {
     stats: { hp: 23, str: 2, mag: 11, skl: 10, spd: 7, lck: 5, def: 5, res: 8 },
     growth: { hp: 45, str: 10, mag: 55, skl: 55, spd: 40, lck: 30, def: 25, res: 45 },
     ranks: { talisman: 'C' }, personal: { name: '引雷', desc: '对披甲目标暴击 +10。', critVsArmor: 10 },
+    personal2: { name: '守坛人', desc: '站在阵眼上时伤害 +2。', selfDamageOnNode: 2 },
     items: [{ key: 'spirit_talisman', uses: 25 }, { key: 'potion', uses: 3 }],
     bio: '玄冰祭坛的守符人，画符时从不说话。他说雷落下来之前，天地会先安静一瞬。'
   },
@@ -442,6 +450,7 @@ const CHARS = {
     stats: { hp: 30, str: 11, mag: 4, skl: 7, spd: 6, lck: 4, def: 9, res: 4 },
     growth: { hp: 70, str: 55, mag: 10, skl: 40, spd: 35, lck: 25, def: 40, res: 20 },
     ranks: { beast: 'S' }, personal: { name: '兽语', desc: '山灵狼存活时自身伤害 +2。', selfDamageIfSummon: 2 },
+    personal2: { name: '唤兽', desc: '每章可多召唤 1 次。', summonUsesBonus: 1 },
     items: [{ key: 'beast_claw', uses: 99 }, { key: 'herb', uses: 2 }],
     bio: '云梦泽长大的兽使，能和山灵说话。她不太会说人的客套话，但会分你半只烤鱼。'
   },
@@ -450,6 +459,7 @@ const CHARS = {
     stats: { hp: 24, str: 8, mag: 2, skl: 11, spd: 12, lck: 7, def: 5, res: 6 },
     growth: { hp: 50, str: 40, mag: 10, skl: 60, spd: 60, lck: 40, def: 25, res: 35 },
     ranks: { bow: 'C', lance: 'D' }, personal: { name: '御风', desc: '站在阵眼上时回避 +15。', avoidOnNode: 15 },
+    personal2: { name: '天羽', desc: '对飞行目标命中 +15。', hitVsFlying: 15 },
     items: [{ key: 'iron_bow', uses: 30 }, { key: 'iron_lance', uses: 30 }, { key: 'potion', uses: 3 }],
     bio: '天柱废墟的羽人游侠，翅羽在月光下是银色的。她答应过一个人，要替他把山外的天看完。'
   },
@@ -458,6 +468,7 @@ const CHARS = {
     stats: { hp: 24, str: 4, mag: 9, skl: 8, spd: 6, lck: 6, def: 5, res: 9 },
     growth: { hp: 55, str: 25, mag: 50, skl: 45, spd: 35, lck: 40, def: 30, res: 50 },
     ranks: { voice: 'C' }, personal: { name: '通兽语', desc: '己方每有 1 只召唤兽在场，自身与相邻友军伤害 +2。', dmgPerSummon: 2 },
+    personal2: { name: '遗音', desc: '命中 +5。', hit: 5 },
     items: [{ key: 'bone_flute', uses: 30 }, { key: 'potion', uses: 3 }],
     bio: '巫咸氏最后的祭裔，笛声一起，山野百兽都认得她。她说兽比人守信，所以宁愿和兽说话。'
   },
@@ -466,6 +477,7 @@ const CHARS = {
     stats: { hp: 20, str: 2, mag: 10, skl: 9, spd: 8, lck: 7, def: 3, res: 8 },
     growth: { hp: 45, str: 15, mag: 55, skl: 50, spd: 45, lck: 45, def: 20, res: 50 },
     ranks: { voice: 'C' }, personal: { name: '鲛绡', desc: '相邻友军回避 +5；歌类法术命中 +5。', adjacentAllyAvoid: 5, hit: 5 },
+    personal2: { name: '潮生', desc: '歌的射程 +1。', songRange: 1 },
     items: [{ key: 'tide_voice', uses: 25 }, { key: 'potion', uses: 3 }],
     bio: '溯游而上的鲛人歌者，尾鳍在月下是淡水色的。她的歌能安魂，也能让千军静默一瞬。'
   }

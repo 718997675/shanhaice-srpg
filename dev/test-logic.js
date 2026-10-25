@@ -34,6 +34,15 @@ for (const id of HERO_ORDER) {
   for (const it of c.items) ok(!!WEAPONS[it.key] || !!ITEMS[it.key], '初始物品存在 ' + id + ':' + it.key);
   const cls = CLASSES[c.cls];
   for (const t of cls.weapons) ok(c.ranks[t], '武器等级 ' + id + ':' + t);
+  ok(!!c.personal && !!c.personal.name && !!c.personal.desc, '个人技① 完整 ' + id);
+  ok(!!c.personal2 && !!c.personal2.name && !!c.personal2.desc, '个人技② 完整 ' + id);
+  ok(c.personal.name !== c.personal2.name, '两条个人技不同名 ' + id);
+  for (const p of [c.personal, c.personal2]) {
+    for (const k of Object.keys(p || {})) {
+      if (k === 'name' || k === 'desc') continue;
+      ok(typeof p[k] === 'number' || typeof p[k] === 'boolean', '个人技字段为数值 ' + id + '.' + k);
+    }
+  }
   for (const it of c.items) {
     const w = WEAPONS[it.key];
     if (w) ok(cls.weapons.includes(w.type), '初始武器职业可用 ' + id + ':' + it.key);

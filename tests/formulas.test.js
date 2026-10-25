@@ -1619,6 +1619,163 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('敌方不吃心结', Battle.modsFor.call(fake, foeKnot, hero).hit, 0);
   }
 
+  console.log('\n== 26. 个人技② + 技能继承 + 熟练度成长（P2.2） ==');
+  {
+    const { CHARS, CLASSES, INHERIT_CAP, RANK_UP_USES, RANK_ORDER, RANK_NAMES } =
+      vm.runInContext('({ CHARS, CLASSES, INHERIT_CAP, RANK_UP_USES, RANK_ORDER, RANK_NAMES })', ctx);
+    const { Battle } = vm.runInContext('({ Battle })', ctx);
+
+    /* --- 26.1 个人技② 数据完整性 --- */
+    const ids = Object.keys(CHARS);
+    eq('角色 12 人', ids.length, 12);
+    const missing = ids.filter(id => !CHARS[id].personal2 || !CHARS[id].personal2.name || !CHARS[id].personal2.desc);
+    eq('每人都有第二条个人技', missing.join(',') || '无', '无');
+    const names2 = ids.map(id => CHARS[id].personal2.name);
+    eq('个人技② 不重名', new Set(names2).size, names2.length);
+    const dupWith1 = ids.filter(id => CHARS[id].personal && CHARS[id].personal2 &&
+      CHARS[id].personal.name === CHARS[id].personal2.name);
+    eq('个人技② 不与个人技① 同名', dupWith1.join(',') || '无', '无');
+
+    /* 每个字段都必须真被引擎读（否则写了等于没写） */
+    const READ_FIELDS = [
+      'hit', 'crit', 'hitIfNoMove', 'critIfNoMove', 'hitVsFlying', 'hitVsArmor', 'critVsArmor',
+      'hitIfMoved4', 'avoidFlat', 'avoidIfLone', 'avoidOnNode', 'defIfWounded', 'def', 'res',
+      'healBonus', 'dmg', 'move', 'selfDamageOnNode', 'selfDamageIfSummon', 'dmgPerSummon',
+      'adjacentAllyHit', 'adjacentAllyAvoid', 'enemyAuraHit', 'songRange', 'songPower',
+      'summon', 'summonUses', 'summonUsesBonus', 'summonAuraHit', 'summonBuff', 'movePenaltyOnHit', 'weapon'
+    ];
+    ok('引擎字段清单规模合理', READ_FIELDS.length >= 30);
+    const unknown = [];
+    for (const id of ids) {
+      for (const k of Object.keys(CHARS[id].personal2)) {
+        if (k === 'name' || k === 'desc') continue;
+        if (!READ_FIELDS.includes(k)) unknown.push(id + '.' + k);
+      }
+    }
+    eq('个人技② 字段全部有引擎读取', unknown.join(',') || '无', '无');
+    const noEffect = ids.filter(id => Object.keys(CHARS[id].personal2)
+      .filter(k => k !== 'name' && k !== 'desc').length === 0);
+    eq('个人技② 都有实际效果', noEffect.join(',') || '无', '无');
+
+    /* --- 26.2 合并进 skillFieldsOf（两条个人技共存） --- */
+    const mkChar = (id, over) => {
+      const c = CHARS[id];
+      return Object.assign({
+        id: 'u_' + id, charId: id, name: c.name, side: 'player', cls: c.cls, level: c.level,
+        stats: Object.assign({}, c.stats), growth: {}, ranks: Object.assign({}, c.ranks),
+        items: [], weaponIndex: 0,
+        personal: JSON.parse(JSON.stringify(c.personal || {})),
+        personal2: JSON.parse(JSON.stringify(c.personal2 || {})),
+        inherited: [], statuses: {}, tags: [], x: 0, y: 0
+      }, over || {});
+    };
+    const yunce = mkChar('yunce');
+    yunce.hp = yunce.stats.hp;
+    const fy = Battle.skillFieldsOf(yunce);
+    eq('个人技① 仍生效（相邻友军命中）', fy.adjacentAllyHit, 5);
+    eq('个人技② 生效（魔抗 +2）', fy.res, 2);
+    eq('个人技② 生效（残血护甲 +2）', fy.defIfWounded, 2);
+
+    const merged = [];
+    for (const id of ids) {
+      const c = CHARS[id];
+      const f = Battle.skillFieldsOf(mkChar(id));
+      for (const k of Object.keys(c.personal2)) {
+        if (k === 'name' || k === 'desc') continue;
+        const v = c.personal2[k];
+        if (typeof v === 'number') { if (!(f[k] >= v)) merged.push(id + '.' + k); }
+        else if (f[k] === undefined) merged.push(id + '.' + k);
+      }
+    }
+    eq('12 条个人技② 全部进 skillFieldsOf', merged.join(',') || '无', '无');
+    ok('skillListOf 列出职业技+两条个人技', Battle.skillListOf(yunce).length >= 3);
+
+    /* --- 26.3 同名字段取较大值，不叠乘、不压低 --- */
+    const fake = Object.create(Battle);
+    const foe = mkUnit({ id: 'e', side: 'enemy', x: 1, y: 0 });
+    fake.B = { units: [yunce], nodes: [], supports: {}, phaseIndex: 0 };
+    eq('个人技② 魔抗真进公式', Battle.modsFor.call(fake, yunce, foe).res, 2);
+    const wounded = mkChar('yunce');
+    wounded.hp = 1;
+    fake.B.units = [wounded];
+    eq('残血护甲真进公式', Battle.modsFor.call(fake, wounded, foe).def, 2);
+
+    const clash = mkUnit({ cls: 'zzz', personal: { name: 'a', hit: 8 }, personal2: { name: 'b', hit: 5 } });
+    eq('同名取较大值（个人技①更大）', Battle.skillFieldsOf(clash).hit, 8);
+    const clash2 = mkUnit({ cls: 'zzz', personal: { name: 'a', hit: 3 }, personal2: { name: 'b', hit: 9 } });
+    eq('同名取较大值（个人技②更大）', Battle.skillFieldsOf(clash2).hit, 9);
+    const clash3 = mkUnit({ cls: 'zzz', personal: { name: 'a', def: 4 }, personal2: { name: 'b', def: 4 } });
+    eq('同值不叠乘', Battle.skillFieldsOf(clash3).def, 4);
+    eq('个人技② 的 name 不覆盖个人技①', Battle.skillFieldsOf(clash2).name, 'a');
+    eq('继承技的 name 不入公式', Battle.skillFieldsOf(mkUnit({ cls: 'zzz', inherited: [{ name: '破阵', dmg: 2 }] })).name, undefined);
+
+    /* 兽使：个人技② 只加召唤次数，不许把职业的 summon 阶位压低 */
+    const aman = mkChar('aman');
+    const fa = Battle.skillFieldsOf(aman);
+    eq('兽使 summon 阶位不被覆盖', fa.summon, true);
+    eq('唤兽：每章召唤 2 次', Battle.summonUsesLeft.call(fake, aman), 2);
+    const beastking = mkChar('aman', { cls: 'beastking' });
+    eq('山灵御兽：基础 1 次 + 唤兽 1 次', Battle.summonUsesLeft.call(fake, beastking), 2);
+
+    /* --- 26.4 继承技进公式 --- */
+    eq('继承上限 2 条', INHERIT_CAP, 2);
+    const heir = mkUnit({ cls: 'zzz', inherited: [{ name: '破阵', dmg: 2 }] });
+    fake.B.units = [heir];
+    eq('继承技伤害 +2', Battle.modsFor.call(fake, heir, foe).dmg, 2);
+    const heir2 = mkUnit({ cls: 'zzz', personal2: { name: 'p', dmg: 3 }, inherited: [{ name: '破阵', dmg: 2 }] });
+    fake.B.units = [heir2];
+    eq('继承技与个人技② 同名取大', Battle.modsFor.call(fake, heir2, foe).dmg, 3);
+    const heir3 = mkUnit({ cls: 'zzz', inherited: [{ name: 'x', dmg: 2 }, { name: 'y', dmg: 5 }] });
+    fake.B.units = [heir3];
+    eq('两条继承技也不叠乘', Battle.modsFor.call(fake, heir3, foe).dmg, 5);
+    ok('无继承技时字段为空', Battle.skillFieldsOf(mkUnit({ cls: 'zzz' })).dmg === undefined);
+
+    /* --- 26.5 熟练度成长阈值与进位 --- */
+    eq('升阶阈值 40 次', RANK_UP_USES, 40);
+    eq('阶位 5 级', RANK_NAMES.length, 5);
+    eq('阶位表 D→S', RANK_NAMES.join(''), 'DCBAS');
+    const runRank = (ranks, pts, uses) => {
+      const r = Object.assign({}, ranks), p = Object.assign({}, pts);
+      return { ups: Battle.rankGrowth(r, p, uses), ranks: r, pts: p };
+    };
+    let t = runRank({ sword: 'D' }, {}, { sword: 39 });
+    eq('39 次不升阶', t.ranks.sword, 'D');
+    eq('39 次进度留存', t.pts.sword, 39);
+    eq('39 次无升阶记录', t.ups.length, 0);
+    t = runRank({ sword: 'D' }, {}, { sword: 40 });
+    eq('40 次升 C', t.ranks.sword, 'C');
+    eq('升阶后进度清零', t.pts.sword, 0);
+    eq('升阶记录 1 条', t.ups.length, 1);
+    eq('升阶记录 from', t.ups[0].from, 'D');
+    eq('升阶记录 to', t.ups[0].to, 'C');
+    t = runRank({ sword: 'D' }, { sword: 25 }, { sword: 20 });
+    eq('跨章累加升阶', t.ranks.sword, 'C');
+    eq('跨章累加余数 5', t.pts.sword, 5);
+    t = runRank({ sword: 'D' }, {}, { sword: 130 });
+    eq('单章最多升一阶', t.ranks.sword, 'C');
+    eq('溢出的 90 次留作进度', t.pts.sword, 90);
+    t = runRank({ sword: 'S' }, {}, { sword: 200 });
+    eq('S 阶封顶', t.ranks.sword, 'S');
+    eq('S 阶不再累计', t.pts.sword, 0);
+    eq('S 阶无升阶记录', t.ups.length, 0);
+    t = runRank({ sword: 'D', bow: 'C' }, {}, { sword: 40, bow: 40 });
+    eq('多武器同时升阶', t.ups.length, 2);
+    eq('多武器各自进位', t.ranks.bow, 'B');
+    t = runRank({ sword: 'D' }, {}, {});
+    eq('没出手不升阶', t.ranks.sword, 'D');
+    ok('空参数不报错', Battle.rankGrowth(null, null, null).length === 0);
+
+    /* --- 26.6 出手次数按耐久消耗折算 --- */
+    const u2 = mkUnit({ itemsStart: [20, 5, 3], items: [
+      { key: 'iron_sword', uses: 8 }, { key: 'potion', uses: 5 }, { key: 'iron_bow', uses: 1 }
+    ] });
+    const wu = Battle.weaponUsesOf(u2);
+    eq('铁剑出手 12 次', wu.sword, 12);
+    eq('弓出手 2 次', wu.bow, 2);
+    ok('道具不计熟练', wu.potion === undefined);
+    eq('无出手则无记录', Object.keys(Battle.weaponUsesOf(mkUnit())).length, 0);
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

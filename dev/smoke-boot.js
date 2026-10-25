@@ -605,5 +605,98 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     B.units = B.units.filter(u => u.id !== 'kt' && u.id !== 'kt2');
   }
 
+  /* P2.2 个人技② + 技能继承 + 熟练度成长 */
+  {
+    const { Camp, CLASSES, Game: Gv, INHERIT_CAP, RANK_UP_USES, Combat: CB2 } = vm.runInContext(
+      '({ Camp, CLASSES, Game, INHERIT_CAP, RANK_UP_USES, Combat })', ctx);
+    /* 营地详情页应同时列出职业技 / 两条个人技 / 熟练进度 */
+    const rec = camp.roster.find(x => x.id === 'yunce');
+    const detail = Camp.unitDetail(rec);
+    const has = s => detail.indexOf(s) >= 0;
+    console.log('详情页：个人技①', has('守脉人'), '；个人技②', has('承脉'), '；熟练行', has('prof-row'));
+    if (!has('守脉人') || !has('承脉')) throw new Error('详情页未同时展示两条个人技');
+    if (!has('prof-row')) throw new Error('详情页缺熟练进度');
+    /* 个人技② 真进公式：魔抗 +2 */
+    const probe = { id: 'p2', charId: 'yunce', side: 'player', cls: 'swordsman', x: 3, y: 3, hp: 23,
+      stats: { hp: 23, str: 8, mag: 0, skl: 9, spd: 9, lck: 7, def: 6, res: 3 },
+      personal: JSON.parse(JSON.stringify(vm.runInContext('CHARS', ctx).yunce.personal)),
+      personal2: JSON.parse(JSON.stringify(vm.runInContext('CHARS', ctx).yunce.personal2)),
+      inherited: [], items: [], weaponIndex: -1, statuses: {}, tags: ['human'] };
+    B.units.push(probe);
+    const resMod = Battle.modsFor(probe, null).res;
+    console.log('承脉魔抗修正：', resMod);
+    if (resMod !== 2) throw new Error('个人技② 未进公式：' + resMod);
+    B.units = B.units.filter(u => u.id !== 'p2');
+
+    /* 技能继承：转职把原职业技能写进 inherited，上限 2 条先进先出 */
+    const temp = Gv.makeRec('yunce');
+    temp.cls = 'swordsman';
+    temp.level = 20;
+    camp.seals = Math.max(3, camp.seals || 0);
+    const UIv3 = vm.runInContext('({ UI })', ctx).UI;
+    const oM = UIv3.modal, oC = UIv3.confirm;
+    UIv3.modal = () => Promise.resolve('剑圣');
+    UIv3.confirm = () => Promise.resolve(true);
+    await Camp.promote(temp);
+    console.log('转职继承：', temp.cls, '；inherited =', (temp.inherited || []).map(s => s.name).join('/'));
+    if (temp.cls !== 'swordmaster') throw new Error('单分支转职失败');
+    if (!(temp.inherited || []).some(s => s.name === '剑术精通')) throw new Error('转职未继承原职业技能');
+    /* 继承技必须真进公式（剑术精通 = 装备剑命中 +10），同名时取较大值不叠乘 */
+    temp.items = [{ key: 'iron_sword', uses: 20 }];
+    temp.weaponIndex = 0;
+    const sf = Battle.skillFieldsOf(temp);
+    const bare = Battle.skillFieldsOf({ cls: 'zzz', inherited: temp.inherited });
+    console.log('继承技字段：剑圣 hit =', sf.hit, '（职业 15 压过继承 10，不叠乘）；裸职 hit =', bare.hit,
+                '；weapon =', bare.weapon);
+    if (sf.hit !== 15) throw new Error('同名继承技应与职业技取较大值：' + sf.hit);
+    if (bare.hit !== 10 || bare.weapon !== 'sword') throw new Error('继承技未进 skillFieldsOf');
+    if (!Battle.skillListOf(temp).some(s => s.kind === 'inherit' && s.name === '剑术精通')) {
+      throw new Error('skillListOf 未列出继承技');
+    }
+    /* 上限：塞满后先进先出 */
+    temp.inherited = [{ name: '旧技甲', dmg: 1 }, { name: '旧技乙', dmg: 2 }];
+    temp.cls = 'swordsman';
+    await Camp.promote(temp);
+    console.log('继承上限 ' + INHERIT_CAP + '：', temp.inherited.map(s => s.name).join('/'));
+    if (temp.inherited.length !== INHERIT_CAP) throw new Error('继承条数超上限');
+    if (temp.inherited.some(s => s.name === '旧技甲')) throw new Error('继承未先进先出');
+    UIv3.modal = oM; UIv3.confirm = oC;
+
+    /* 熟练度成长：本章出手 40 次 → 章末升一阶，进度清零 */
+    const row = camp.roster.find(x => x.id === 'yunce');
+    row.ranks.sword = 'D';
+    row.rankPts = { sword: 0 };
+    const ups = Gv.applyRankGrowth({ id: 'yunce', weaponUses: { sword: RANK_UP_USES } });
+    console.log('熟练成长：剑 D →', row.ranks.sword, '；升阶记录', ups.length, '条；余进度', row.rankPts.sword);
+    if (row.ranks.sword !== 'C') throw new Error('满次数未升阶');
+    if (ups.length !== 1 || ups[0].from !== 'D' || ups[0].to !== 'C') throw new Error('升阶记录异常');
+    if (row.rankPts.sword !== 0) throw new Error('升阶后进度未清零');
+    /* 不足阈值只累计 */
+    row.ranks.bow = 'D';
+    row.rankPts.bow = 0;
+    Gv.applyRankGrowth({ id: 'yunce', weaponUses: { bow: 15 } });
+    console.log('未满阈值：弓', row.ranks.bow, '；进度', row.rankPts.bow);
+    if (row.ranks.bow !== 'D' || row.rankPts.bow !== 15) throw new Error('未满阈值行为异常');
+    /* 实战：交战后耐久消耗被折算成出手次数 */
+    const atk = B.units.find(x => x.side === 'player' && x.charId && x.hp > 0);
+    atk.items = [{ key: 'iron_sword', uses: 20 }];
+    atk.itemsStart = [20];
+    atk.weaponIndex = 0;
+    atk.ranks = Object.assign({}, atk.ranks, { sword: 'A' });
+    const dummy = { id: 'du1', name: '木桩', side: 'enemy', charId: null, hp: 999, x: atk.x, y: atk.y + 1,
+      stats: { hp: 999, str: 1, mag: 0, skl: 1, spd: 1, lck: 1, def: 1, res: 1 },
+      items: [], weaponIndex: -1, ranks: {}, statuses: {}, tags: ['human'] };
+    B.units.push(dummy);
+    await Battle.performCombat(atk, dummy, false);
+    const used = Battle.weaponUsesOf(atk);
+    console.log('交战后出手统计：', JSON.stringify(used), '；耐久', atk.items[0].uses);
+    if (!used.sword || used.sword !== 20 - atk.items[0].uses) throw new Error('出手统计与耐久消耗不一致');
+    B.units = B.units.filter(u => u.id !== 'du1');
+    /* 存档归一化保留继承技（普通章节不该洗掉） */
+    const norm = Gv.normalizeUnitRecord({ id: 'yunce', cls: 'swordmaster' }, { inherited: [{ name: '剑术精通', hit: 10 }] });
+    console.log('归一化保留继承技：', (norm.inherited || []).map(s => s.name).join('/'));
+    if (!(norm.inherited || []).length) throw new Error('归一化丢了继承技');
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

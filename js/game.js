@@ -405,15 +405,18 @@ const Game = {
 
       this.campaign.supports = Object.assign({}, this.campaign.supports, result.supports || {});
       const byId = new Map(this.campaign.roster.map(r => [r.id, r]));
+      const rankUps = [];
       for (const rec of result.units || []) {
         if (!CHARS[rec.id]) continue;
-        const clean = this.normalizeUnitRecord(rec);
-        if (byId.has(rec.id)) Object.assign(byId.get(rec.id), clean);
+        const prev = byId.get(rec.id) || null;
+        const clean = this.normalizeUnitRecord(rec, prev);
+        if (prev) Object.assign(prev, clean);
         else {
           this.campaign.roster.push(clean);
           byId.set(rec.id, clean);
           joined.push(rec.id);
         }
+        for (const up of this.applyRankGrowth(rec)) rankUps.push(up);
       }
       for (const id of result.fallen || []) {
         const idx = this.campaign.roster.findIndex(r => r.id === id);
@@ -517,6 +520,9 @@ const Game = {
       if (itemNames.length) list += '<div>战利品：<b>' + itemNames.map(n => UI.escape(n)).join('、') + '</b></div>';
       if (side) list += '<div>支线「' + UI.escape(side.text) + '」' + (sideOk ? '已达成。' : '未达成。') + '</div>';
       if (joinNames.length) list += '<div>新同伴：<b>' + joinNames.map(n => UI.escape(n)).join('、') + '</b></div>';
+      if (rankUps.length) list += '<div>熟练精进：<b>' + rankUps.map(u =>
+        UI.escape(CHARS[u.id].name) + '·' + UI.escape((WEAPON_TYPES[u.wt] && WEAPON_TYPES[u.wt].name) || u.wt) +
+        ' ' + u.from + '→' + u.to).join('、') + '</b></div>';
       if (fallenNames.length) list += '<div style="color:#8b3b2d;">阵亡：' + fallenNames.map(n => UI.escape(n)).join('、') + '。他们将留在行录里。</div>';
       if (nextCh) list += '<div>下一程：<b>' + UI.escape(UI.chapterLabel(nextCh.no) + ' ' + nextCh.name) +
         (nextCh.route ? '（' + UI.escape(Route.label(this.campaign.route)) + '）' : '') + '</b></div>';
@@ -596,10 +602,28 @@ const Game = {
     return { all, open, resolved: all.filter(id => knots[id].resolved), cleared: all.length > 0 && open.length === 0 };
   },
 
-  normalizeUnitRecord(rec) {
+  /* 熟练度成长（P2.2）：本章各武器类型的出手次数累加到 rec.rankPts，
+   * 满 RANK_UP_USES 升一阶（D→C→B→A→S），升阶后扣掉阈值、余数留到下章。
+   * 规则本体在 Battle.rankGrowth（纯函数，可单测），此处只负责定位存档行。
+   * 返回本章升阶记录供结算面板展示。 */
+  applyRankGrowth(rec) {
+    const row = this.campaign && this.campaign.roster.find(r => r.id === rec.id);
+    if (!row || !rec || !rec.weaponUses) return [];
+    if (!row.rankPts || typeof row.rankPts !== 'object') row.rankPts = {};
+    if (!row.ranks || typeof row.ranks !== 'object') row.ranks = {};
+    return Battle.rankGrowth(row.ranks, row.rankPts, rec.weaponUses)
+      .map(u => Object.assign({ id: rec.id }, u));
+  },
+
+  normalizeUnitRecord(rec, prev) {
     const base = this.makeRec(rec.id);
     let items = Array.isArray(rec.items) ? rec.items.filter(it => it && (WEAPONS[it.key] || ITEMS[it.key])) : base.items;
     if (!items.length) items = base.items;
+    /* 技能继承（P2.2）：战报带了就覆盖，没带就沿用旧档里的，避免普通章节把继承技洗掉 */
+    let inherited = [];
+    if (Array.isArray(rec.inherited)) inherited = rec.inherited.filter(s => s && s.name).slice(-INHERIT_CAP);
+    else if (prev && Array.isArray(prev.inherited)) inherited = prev.inherited.slice(-INHERIT_CAP);
+    const rankPts = Object.assign({}, (prev && prev.rankPts) || {}, rec.rankPts || {});
     return {
       id: rec.id,
       cls: CLASSES[rec.cls] ? rec.cls : base.cls,
@@ -608,7 +632,9 @@ const Game = {
       stats: Object.assign({}, base.stats, rec.stats || {}),
       ranks: Object.assign({}, base.ranks, rec.ranks || {}),
       items,
-      weaponIndex: Math.max(0, Math.min(items.length - 1, rec.weaponIndex || 0))
+      weaponIndex: Math.max(0, Math.min(items.length - 1, rec.weaponIndex || 0)),
+      inherited,
+      rankPts
     };
   },
 

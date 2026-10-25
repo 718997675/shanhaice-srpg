@@ -527,6 +527,17 @@ img { display: block; }
 .unit-bio { font-size: 11px; line-height: 1.8; color: #6f6854; margin-top: 7px; }
 .unit-skillline { font-size: 11px; color: #5e6754; margin-top: 2px; }
 .unit-skillline b { color: #7a4a35; font-weight: 600; }
+/* 继承技：与自身成长无关，用青色区分（P2.2） */
+.unit-skillline.inherited b { color: #3f6b6b; }
+.unit-skillline.inherited::after { content: ' · 承自前职'; font-size: 9px; color: #8a9a92; letter-spacing: .04em; }
+/* 熟练度进度（P2.2） */
+.prof-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.prof-chip { display: inline-flex; align-items: baseline; gap: 4px; background: rgba(64, 58, 40, .07);
+  border: 1px solid rgba(74, 62, 40, .13); border-radius: 2px; padding: 3px 7px;
+  font-family: var(--sans); font-size: 10px; color: #6d6450; }
+.prof-chip .prof-name { color: #8b8168; }
+.prof-chip b { font-size: 11px; color: #7a4a35; }
+.prof-chip small { font-size: 9px; color: #958a6e; }
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .stat-cell { background: rgba(64, 58, 40, .07); border: 1px solid rgba(74, 62, 40, .13); padding: 5px 7px; border-radius: 2px; }
 .stat-cell .lab { font-size: 9px; color: #8b8168; letter-spacing: .08em; }
