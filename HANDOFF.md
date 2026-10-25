@@ -1,11 +1,11 @@
 # 交接快照 · 山海策 · 灵脉
 
 > **给接手的人 / 另一个账号看的唯一入口。** 读完这份就能直接开工，不必翻聊天记录。
-> 最后更新：2026-10-25 23:15 · git HEAD `34ae114` · **二期进行中**
+> 最后更新：2026-10-26 00:40 · git HEAD `41e9364` · **二期进行中**
 
 ---
 
-## 0. 当前节点速览（2026-10-25 20:30）
+## 0. 当前节点速览（2026-10-26 00:40）
 
 **P6 已搁置**（用户决定，`dev/regress.js` 停在 75 通过 / 2 失败未提交）。**二期已启动**，主文档：`docs/山海策-灵脉-二期计划.md`（四根主轴：尺度/传承/宿命/呈现）。执行顺序按计划 §3：**P1 = A 战略层 + D 宿命脚本 + G 打击感 + H-P1 图标**，其中 **G 与 H-P1 投入产出比最高，最先做**。
 
@@ -80,6 +80,16 @@
 - `audio-bgm.js`：`TRACKS` 加 `title: 'bgm_title'`（`game.js:314 BGM.play('title')` 即刻生效，调用方零改动）；source 列表 **m4a 优先**、mp3/ogg 兜底（afconvert 是当前无 ffmpeg 环境下的转码通道）。
 - 混音经验：**按 RMS 贡献配器**——Karplus-Strong 拨弦的 RMS 效率约为正弦 1/3，同 gain 下古筝比箫小声得多；A 段 RMS 0.143 / B 段 0.145、尾部衰减到 0.047 供 loop 呼吸。**坑**：Python 循环解包变量名写反（`for ch, mix in ((mixL,'L'),…)` 把字符串解给 mix）会让 fftconvolve 收到 0 维数组报 dimensionality 错。
 - 后续 BGM（营地/战斗/Boss/剧情）按 `dev/gen-bgm-title.py` 同套路各写一个生成器即可，命名 `bgm_{camp,battle,boss,story}.m4a` 落盘即挂上。
+
+### ✅ SFX 全面采样化（提交 `41e9364`，四连全绿：3626 / 1716 / 冒烟双变体）
+
+用户反馈「打斗/走路/人物音效全换、必杀要有必杀音效、技能释放与召唤都要音效」。SFX 池 30 个战斗音效全部落 wav 采样，WebAudio 合成退居兜底（文件优先机制不变）。
+
+- **`dev/gen-sfx.py`**（新）：① 用户 6 个 demo wav 按频谱特征映射复制——`sfx_weapon_hit`(9.3kHz 亮)→`hit_metal`、`sfx_weapon_crit`→`hit_crit`、`sfx_weapon_slash`(81% 高频)→`swing_sharp`、`sfx_magic_cast`→`cast_water`、`sfx_skill_charge`(789Hz)→`cast_earth`、`sfx_skill_release`(5180Hz)→`burst_metal`；② 其余 23 个程序化合成（numpy 原语与 audio.js 的 WebAudio 版同构：clang 三层/growl/thump/扫频噪声/琶音，尾部敢加 10% 短混响——采样无实时开销）；③ `crit.wav` = `hit_crit.wav` 别名（audio.js 两 case 共用同合成）。产物 1.6MB/30 个 mono 44.1k 16bit，落 `assets/audio/sfx/`，**文件名必须与 audio.js case 名一一对应**。
+- **新音效 `summon`**：`battle.js` doSummon 的 `Audio.sfx('node')` 换成 `Audio.sfx('summon')`（node 占用阵/羁绊升阶，语义分开）；audio.js 补 `case 'summon'` 兜底（五音琶音 294/440/587/740/880 + 80→176Hz swell + 4000→8000Hz 高频闪 + 48Hz 次低频）。
+- **`audio_dsp.py` 增补**：`osc()` 加 triangle（奇次谐波 1/k²）+ `square`/`sawtooth`/`tri` 别名；`biquad()` 加 `bandpass`/`lowpass`/`highpass` 别名。**坑**：numpy 版叠加必须 `min(len(buf), len(out)-i0)` 截断再相加（arp/马蹄双蹄都栽过 broadcast 错）。
+- 测试：test-logic 新增「SFX 采样池」节——30 个战斗音效名 ↔ `assets/audio/sfx/*.wav` 一一对应 + summon 接线；smoke 同步（case 清单 + wav 存在性 + `Audio.sfx("summon")` 回退不炸）。
+- **后续同类工作流**：用户再生成了素材就丢进 `assets/audio/sfx/`（按 case 名）或 `assets/audio/bgm/`（按 `TRACKS` 名 + m4a），零代码接管；要改音色就改 `dev/gen-sfx.py` 重跑。
 
 ### 🔄 接下来：技能演出（任务 #8）
 
