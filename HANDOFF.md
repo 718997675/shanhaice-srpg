@@ -1,11 +1,11 @@
 # 交接快照 · 山海策 · 灵脉
 
 > **给接手的人 / 另一个账号看的唯一入口。** 读完这份就能直接开工，不必翻聊天记录。
-> 最后更新：2026-10-25 17:05 · git HEAD `3403d11` · **二期进行中（工作区有未提交改动，见 §0）**
+> 最后更新：2026-10-25 18:20 · git HEAD `017c77f` · **二期进行中**
 
 ---
 
-## 0. 当前节点速览（2026-10-25 17:05）
+## 0. 当前节点速览（2026-10-25 18:20）
 
 **P6 已搁置**（用户决定，`dev/regress.js` 停在 75 通过 / 2 失败未提交）。**二期已启动**，主文档：`docs/山海策-灵脉-二期计划.md`（四根主轴：尺度/传承/宿命/呈现）。执行顺序按计划 §3：**P1 = A 战略层 + D 宿命脚本 + G 打击感 + H-P1 图标**，其中 **G 与 H-P1 投入产出比最高，最先做**。
 
@@ -19,13 +19,16 @@
 
 - `Juice.deathCardFor(unit, speed)`：handleDeath 挂卡（名字 + EPITAPHS 遗言，与英魂碑同源）+ `freeze(dur)` 世界冻结；卡片真实时钟演淡入淡出（`setTransform` 重置避震屏偏移）；1200ms，倍速缩钳 500~1500；`clearAll`/到点撤卡。battle.js 我方阵亡分支 await 等量 wait。
 
-### 🔄 进行中：H-P1 物品图标化（微改动 4）
+### ✅ H-P1 物品图标化（提交 `017c77f`，四连全绿：3547 / 1661 / 冒烟双变体）
 
-计划：10 类武器剪影（剑/重刃/枪/弓/匕首/符/杖/兽爪/骨笛/潮声）+ 五行灵术符号（金刃芒/木藤蔓/水水滴/火焰舌/土岩块 × 单/范围）+ 药水 3 瓶型（圆瓶回复/方瓶增益/皮袋杂项）+ 材料 4 枚（铁髓/钢核/银晶/脉印），全部 **SVG 程序图**（`assets/icons/` 下武器图标是 PNG，新的别再进 PNG）；统一入口 `itemIcon(id)`（manifest 取图 → 缺图回退**类别占位**，不回退文字）；接商店/行囊/战斗预测/灵术选择/强化/单位卡。当前 HEAD `0a200c3`，四连全绿（3178/1661/冒烟双变体）。
+- `js/item-icons.js`（约 250 行）：80 枚全覆盖（WEAPONS 53 + ITEMS 7 + SPELLS 15，冒烟断言 0 缺图）。SVG data URI 程序图，无外部请求；10 类武器底形 × 铁/钢/银三档材质色（`RANK_TIER`：D/C 铁、B 钢、A/S 银）；五行符号按 `SPELLS.element` 取色，`aoe` 法术加虚线范围十字；药水 3 瓶型（flask/herb/elixir 按 heal 值分流）；材料 4 枚。稀有度走底框描边（武器用 tier 的 frame：墨/青/金；传说赤 `#a02c2c` + 外发光；脉印金；药水青）。**铁/钢/银同形只换色**（测试断言去色后骨架一致）。
+- 入口：`ItemIcons.iconHTML(id, cls, size)` → `<img class="ii ...">`（未知 id 返回 `''`，调用方落文字）；`uriFor` 给 camp 传说 PNG 的 onerror 回退链用。
+- 接入面：`camp.js` 商店/打造坊/行囊行/兵装行（`weaponIconHTML` 传说仍 PNG 优先 + SVG 兜底）、强化与进化弹窗（`UI.modal` 的 `item.icon`，弹窗按钮有图标时加 `has-icon` 隐圆点）；`ui.js` 战斗预测 `fc-hp` 武器名、单位卡兵装行；`battle.js` 五行法术菜单。`css/style.css` 补 `.ml-icon/.ii-16/20/22/24/.ii-row/.fc-wicon/.uc-weapon img.ii`。
+- 测试：test-logic 新增 H-P1 节（files 加 `data-systems.js`+`item-icons.js`）；smoke 新增图标区块（渲染接入 + 全表覆盖 + 静态接线 + `Combat.` 纯洁）。**坑**：smoke 的 `src()` 是 Juice 区块内局部函数，新区块要自己定义；smoke FILES 忘了加 `js/item-icons.js` 会 ReferenceError。
 
 ### ⬜ 之后再排
 
-战前军议卡（微改动 3）/ 章节结算摘要（微改动 5）→ A 战略层 / D 宿命脚本 → B 薪火 / E 军令声望 / F 机动 → C 圣脉。
+战前军议卡（微改动 3）/ 章节结算摘要（微改动 5）→ A 战略层 / D 宿命脚本 → B 薪火 / E 军令声望 / F 机动 → C 圣脉 → H-P2/P3 图标。
 
 ---
 
@@ -38,8 +41,8 @@ cd /Users/niekai/Documents/ai-game/shanhaice
 git log --oneline -5 && git status
 
 # 2) 跑全部验证（约 10 秒，必须全绿再动代码）
-node dev/test-logic.js          # 期望：3178 通过，0 失败
-node tests/formulas.test.js     # 期望：1432 通过 / 0 失败
+node dev/test-logic.js          # 期望：3547 通过，0 失败
+node tests/formulas.test.js     # 期望：1661 通过 / 0 失败
 node dev/smoke-boot.js          # 期望：冒烟通过：无引用错误
 node dev/smoke-boot.js sandbox  # 期望：同上（沙盒变体）
 
