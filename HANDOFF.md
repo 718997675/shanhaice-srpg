@@ -1,7 +1,7 @@
 # 交接快照 · 山海策 · 灵脉
 
 > **给接手的人 / 另一个账号看的唯一入口。** 读完这份就能直接开工，不必翻聊天记录。
-> 最后更新：2026-10-25 22:20 · git HEAD `0e52f08` · **二期进行中**
+> 最后更新：2026-10-26 · git HEAD `bce66e9` · **二期进行中**
 
 ---
 
@@ -71,13 +71,36 @@
 - **分流**（`battle.js` 三个 helper）：`hitSfxFor`（妖物嘶吼 / 对披甲金铁 / 杖与木腔 / 肉身）、`deathSfxFor`（我军 / Boss / 妖物 / 人类敌军）、`stepSfxFor`（按 `moveType`：flying/beast·plant·amphibious/horse/armor tag/foot）。移动接线点由 UI 味的 `move` 音换成行进脚步（路程 ≥5 格半程补第二拍）。
 - 测试：test-logic 打击感静态断言 15 条；smoke WebAudio 桩行为测试（clang = 4 osc + 1 瞬态 buffer、growl = 1 osc + 1 buffer、三路分流全枚举）。**桩坑**：vm 缺 `setInterval`（此前 ctx=null 从未走到合成音乐路径）；`Audio.failed` 是终身标记，注入桩前必须复位；fake ctx 测完要撤掉并恢复无声态，否则后文 `Battle.start` 的 BGM 回退会真起 timer 挂住进程。
 
+### ✅ A 战略层 · 分兵收尾（提交 `e60c0ed`，四连全绿）
+
+`1f344a5` 留下的三处缺口补完：
+
+- **样式**：`.split-panel / .split-cols / .split-col / .split-card / .sc-name / .sc-sub / .split-hint`（分兵弹层）与 `.deploy-strategy / .deploy-absent / .deploy-card.rear`（出征页留守卡片）。`UI.modal` 新增 `wide` 选项（760px），分兵两栏铺得开；≤900px 改上下堆叠。
+- **兜底**：`battle.js deployPlayerUnits` 再走一次 `Strategy.canDeploy`。营地已过滤，这里防的是旧存档 / 续战存档带进「已留守」的过期名单——宁可少一人，也不让「留守」变成一句空话。
+- **测试**：`test-logic` 战略层行为测试（默认分兵随行数 = CAP、云策必随行、5A~7B 生效 / 第 8 章汇合解锁、`normalize` 清洗名单外成员、每章一次调整、援军豁免、摘要文案）+ 接线断言（camp 筛人 / battle 兜底 / CSS 存在）。
+- **坑**：`Strategy.lock` 会把 `adjustAt` 写成 `campaign.chapter`，所以「刚分完兵那一章」本身算已调整——测 `canAdjust` 要在第 4 章 lock、再把 chapter 挪到 6A 才成立。
+
+### ✅ 大地图（舆图）（提交 `bce66e9`，四连全绿 + 舆图体检）
+
+`js/systems/worldmap.js`（约 300 行）。十六个章节节点铺在一张 1000×600 的宣纸舆图上，走一遍就是整条主线：
+
+> 青岚山门 → 雾隐竹海 → 断桥古渡 → **赤砂关隘（分兵）** → A 焚脉北上玄冰原 / B 守脉东行云梦泽 → 天柱废墟汇合 → 沿东海绕行（浮槎渡海 → 沉城旧都 → 万脉渊 → 无字碑）→ 浊潮之眼
+
+- **数据表**：`WM_NODES`（16 个手摆坐标）/ `WM_EDGES`（16 条连线）/ `WM_REGIONS`（6 处淡墨地名）/ `WM_COAST`（海岸线，同时是海面填色的左边界）/ `WM_HILLS`·`WM_WAVES`（山群与水纹点景）。改坐标只动这几张表，改完跑 `node dev/check-map.js`。
+- **状态机**：`WorldMap.stateOf(campaign, id)` → `current` / `cleared` / `locked` / `abandoned`。**路线定了以后，没选的那三章转「未走之路」**（灰、虚线、名字下加「未走」小字）。`pickDefault` 落在当前章，通关后落在最后一个已过章。
+- **画法**：节点圆芯按章节 `theme` 取 `Render.PALETTES[...].tint`（借战场调色板，零新增数据）；已过填朱砂、当前填鎏金 + 脉冲圈 + 插旗、未至留白虚线；道路走微微弯的山道（控制点垂直偏移按序号交替），已走过的转朱砂实线、没走的转淡点线。**脉冲动画用 `transform: scale` 而不是 `r`**（Safari 对 SVG `r` 的 CSS 动画支持不稳）。
+- **交互**：营地新增「舆图」页签。点节点换右侧宣纸侧栏（目标 / 支线 / 出击上限 / 提示 / 已过章的行迹），当前章给「出征此章」（转出征页并锁定该章），未至与未走之路各给一句说明；顶部「已过 N / M」（按所选路线计）+ 分兵摘要。
+- **顺手修的**：`UI.chapterLabel` 原来只到「九」，10 以上退化成「第10章」——扩成十 / 十一 / 十二 / 十三；`.camp-tabs` 加横向滚动（页签变 11 个，窄屏不挤爆）。
+- **新增工具**：`dev/check-map.js`——章节 ↔ 节点一一对应、连线合法、节点含文字空间不出界、最小间距（阈值 62px，实测 98.1）、**连线零交叉**、五种进度下的渲染完整性（16 节点 / 16 道路 / 当前章唯一 / 未走之路恰 3 章）、状态机判定；`--dump` 导出 `dev/out-map.html` 供浏览器目检。
+- **坑**：① 一开始只渲染「所选路线的 13 章」，结果未走之路根本不在图上——改成**十六个节点一次画全**，靠状态区分；② 首版给节点群垫了四块大地形色椭圆，渲染出来像纸上的脏斑，已删，改成山群 + 水纹点景；③ 海岸线原本和填色多边形的左边界是两条不同的路径，边缘对不上，现共用同一条 `WM_COAST`。
+
 ### 🔄 接下来：技能演出（任务 #8）
 
-15 条法术各一套释放演出（代码粒子 + 音效 + 立绘切入），挂在 `battle.js chooseSpellTarget` 咏唱确认后的施法编排上。之后：军议卡/结算摘要 → A 战略层 / D 宿命脚本 → B 薪火 / E 军令声望 / F 机动 → C 圣脉 → H-P2/P3 图标。
+15 条法术各一套释放演出（代码粒子 + 音效 + 立绘切入），挂在 `battle.js chooseSpellTarget` 咏唱确认后的施法编排上。之后：军议卡/结算摘要 → D 宿命脚本 → B 薪火 / E 军令声望 / F 机动 → C 圣脉 → H-P2/P3 图标。
 
 ### ⬜ 之后再排
 
-军议卡/结算摘要 → A 战略层 / D 宿命脚本 → B 薪火 / E 军令声望 / F 机动 → C 圣脉 → H-P2/P3 图标。
+军议卡/结算摘要 → D 宿命脚本 → B 薪火 / E 军令声望 / F 机动 → C 圣脉 → H-P2/P3 图标。
 ---
 
 ## 1. 一分钟上手
@@ -88,11 +111,13 @@ cd /Users/niekai/Documents/ai-game/shanhaice
 # 1) 看现状
 git log --oneline -5 && git status
 
-# 2) 跑全部验证（约 10 秒，必须全绿再动代码）
-node dev/test-logic.js          # 期望：3626 通过，0 失败
-node tests/formulas.test.js     # 期望：1716 通过 / 0 失败
+# 2) 跑全部验证（约 12 秒，必须全绿再动代码）
+node dev/test-logic.js          # 期望：4933 通过，0 失败
+node tests/formulas.test.js     # 期望：1820 通过 / 0 失败
 node dev/smoke-boot.js          # 期望：冒烟通过：无引用错误
 node dev/smoke-boot.js sandbox  # 期望：同上（沙盒变体）
+node dev/check-map.js           # 期望：舆图体检通过（改了 WM_NODES/WM_EDGES 必跑）
+node dev/check-rel.js           # 期望：零交叉（改了 relations.js 的 SEED 必跑）
 
 # 3) 起服务试玩
 node dev/serve.js               # http://127.0.0.1:4173/
