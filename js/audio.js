@@ -239,9 +239,9 @@ const Audio = {
       case 'select': this.tone(520, 0.1, { type: 'triangle', vol: 0.06 }); this.tone(780, 0.12, { type: 'sine', vol: 0.04, delay: 0.04 }); break;
       case 'cancel': this.tone(380, 0.1, { type: 'sine', vol: 0.05, slide: 0.8 }); break;
       case 'move': this.noise(0.09, 0.06, 1200); this.tone(240, 0.12, { type: 'triangle', vol: 0.04 }); break;
-      /* 命中：肉身——短噪声 crunch + 低频 body + 900Hz 闷响（打在实处的分量） */
-      case 'hit': this.clang(160, 0.11); this.sweep(0.07, 0.1, 900, 300, 0, 'bandpass', 1.4); break;
-      case 'hit_flesh': this.clang(150, 0.1); this.sweep(0.07, 0.11, 850, 260, 0, 'bandpass', 1.4); this.tone(110, 0.1, { type: 'triangle', vol: 0.07, slide: 0.6 }); break;
+      /* 命中：肉身——金属 clang 主打（冷兵器刀刀见金）+ crunch + 身体闷响 */
+      case 'hit': this.clang(1700, 0.1); this.sweep(0.08, 0.12, 1000, 350, 0, 'bandpass', 1.4); this.tone(95, 0.12, { type: 'triangle', vol: 0.08, slide: 0.55 }); break;
+      case 'hit_flesh': this.clang(1650, 0.1); this.clang(2400, 0.05, 0.008); this.sweep(0.08, 0.12, 950, 300, 0, 'bandpass', 1.4); this.tone(100, 0.12, { type: 'triangle', vol: 0.08, slide: 0.55 }); break;
       /* 命中：金属（披甲/对金铁）——非谐共振峰 clang 主打，钝且脆 */
       case 'hit_metal': case 'hit_armor': this.clang(2100, 0.13); this.clang(3100, 0.06, 0.012); this.noise(0.05, 0.08, 2600, 0); break;
       /* 命中：木器——方波 click + 木腔共鸣 */
