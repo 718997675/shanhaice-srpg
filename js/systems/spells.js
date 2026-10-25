@@ -115,8 +115,11 @@ const Spells = {
     this.consume(caster, spell.key);
     const el = ELEMENTS[spell.element];
     host.log(caster.name + '咏唱《' + spell.name + '》。', caster.side === 'player' ? 'good' : 'bad');
-    host.sfx('node');
     host.float(spell.name, caster.x, caster.y, el ? el.color : '#dfe6d7', 15);
+    /* 演出：法阵起手 → 弹道 → 停一拍，然后才逐目标结算。
+     * play 自己管起手音；Juice 关闭时它只响一声就返回，不占时间。 */
+    if (typeof SpellFx !== 'undefined') await SpellFx.play(host, caster, target, spell);
+    else host.sfx('node');
     const targets = [target].concat(this.aoeTargets(B, target, spell, caster.side).filter(u => u !== target));
     let total = 0;
     /* 歌增强（潮音娘子）：效果数值 +N，治疗量 +2N */
@@ -140,6 +143,7 @@ const Spells = {
         await host.wait(150);
         host.float('+' + gained, t.x, t.y, '#9fd39a', 15);
         host.sfx('heal');
+        if (typeof SpellFx !== 'undefined') SpellFx.impact(host, t, spell);
         host.log(spell.name + '拂过' + t.name + '，回复 ' + gained + ' 生命。', caster.side === 'player' ? 'good' : 'bad');
         if (spell.effect) {
           const eff = boost(spell.effect);
@@ -161,17 +165,22 @@ const Spells = {
       }
       const crit = (rng.next() * 100) < f.crit;
       const dmg = spell.song ? 0 : f.dmg * (crit ? 3 : 1);
+      /* 命中音：暴击走 crit（要压过一切），否则按元素取 burst_* 一族 */
+      const hitSfx = crit ? 'crit'
+        : (typeof SpellFx !== 'undefined' ? SpellFx.sfxOf(spell.element).hit : 'hit');
       if (dmg > 0) {
         t.hp = Math.max(0, t.hp - dmg);
         total += dmg;
         host.float((crit ? '必杀 ' : '') + '-' + dmg, t.x, t.y, crit ? '#f1cd7a' : '#b8cfe0', crit ? 19 : 15);
-        host.sfx(crit ? 'crit' : 'hit');
+        host.sfx(hitSfx);
         host.log(spell.name + '命中' + t.name + '，造成 ' + dmg + ' 伤害。', caster.side === 'player' ? 'good' : 'bad');
       } else {
         host.float(spell.name, t.x, t.y, '#cbb7e0', 15);
-        host.sfx('hit');
+        host.sfx(hitSfx);
         host.log(spell.name + '笼罩' + t.name + '。', caster.side === 'player' ? 'good' : 'bad');
       }
+      /* 命中演出：爆点 + 环，与上面的音效同一拍 */
+      if (typeof SpellFx !== 'undefined') SpellFx.impact(host, t, spell);
       if (f.element.text) host.log(f.element.text + '，伤害加深。', 'gold');
       if (spell.effect) {
         const eff = boost(spell.effect);

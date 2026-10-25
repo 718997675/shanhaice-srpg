@@ -307,7 +307,9 @@ const Battle = {
       phase: 1,
       talkKey: null,
       /* 精英词缀：Boss 直接带 ENEMY_TYPES.affixes；浊甲卫由本章池轮流佩戴（assignAffixes） */
-      affixes: (type.affixes || []).slice()
+      affixes: (type.affixes || []).slice(),
+      /* 击杀掉落（ENEMY_TYPES.drop → unit.drop）：handleDeath 按 chance 概率 push 到 B.loot */
+      drop: type.drop ? { key: type.drop.key, chance: type.drop.chance } : null
     };
     return u;
   },
@@ -1218,6 +1220,7 @@ const Battle = {
     unit.movedDist = 0;
     unit.moveUsed = 0;
     unit.attacked = false;
+    unit.swapped = null;
     this.computeVisibility(false);
     UI.updateBattle(this.B);
   },
@@ -1574,6 +1577,14 @@ const Battle = {
     });
     if (healItems.length) {
       buttons.push({ label: '道具', sub: healItems.length + ' 种', disabled: !!u.attacked, onClick: () => this.useItem() });
+    }
+    /* 换装（经典策略层）：列出背包里的武器，自由切换，不消耗移动力。
+     * 规则：换装不结束行动，但换过的武器本回合不能再换回来（u.swapped 记录已换过的索引）。
+     * 已攻击后不能再换装（避免换远程武器刷射程）。 */
+    const swapWeapons = (u.items || []).map((it, idx) => ({ it, idx, def: WEAPONS[it.key] }))
+      .filter(x => x.def && x.def.type !== 'staff' && x.it.uses > 0 && Combat.canEquipKey(u, x.it.key));
+    if (swapWeapons.length > 1) {
+      buttons.push({ label: '换装', sub: u.attacked ? '已攻击' : swapWeapons.length + ' 件', disabled: !!u.attacked, onClick: () => this.openSwapMenu() });
     }
     const talkTarget = this.talkTarget(u);
     if (talkTarget) {
@@ -2245,6 +2256,48 @@ const Battle = {
     await this.finishUnitAction(u);
   },
 
+  /* 换装（经典策略层）：打开背包武器列表，选装改 unit.weaponIndex。
+   * 不结束行动、不消耗移动力；换过后本回合不能再换回来（防刷射程）。 */
+  async openSwapMenu() {
+    const B = this.B;
+    const u = B.selectedUnit;
+    if (!u || B.busy) return;
+    const list = (u.items || []).map((it, idx) => ({ it, idx, def: WEAPONS[it.key] }))
+      .filter(x => x.def && x.it.uses > 0 && Combat.canEquipKey(u, x.it.key));
+    if (list.length <= 1) { UI.toast('没有可换的武器'); return; }
+    if (!u.swapped) u.swapped = {};
+    const entries = list.map(x => {
+      const w = x.def;
+      const isCurrent = x.idx === (typeof u.weaponIndex === 'number' ? u.weaponIndex : 0);
+      const already = u.swapped[x.idx];
+      const meta = '威力 ' + (w.mt + (x.it.plus || 0)) + ' / 命中 ' + w.hit +
+                   ' / 射程 ' + w.rng[0] + (w.rng[1] > w.rng[0] ? '~' + w.rng[1] : '') +
+                   ' / 耐久 ' + x.it.uses +
+                   (isCurrent ? ' · 当前' : (already ? ' · 本回合已换过' : ''));
+      return {
+        label: w.name + (x.it.plus ? ' +' + x.it.plus : ''),
+        meta,
+        value: x.idx,
+        disabled: isCurrent || already
+      };
+    });
+    const choice = await UI.modal({
+      title: '换装',
+      sub: u.name + ' · 当前 ' + (Combat.weaponOf(u) ? Combat.weaponOf(u).w.name : '无武器'),
+      list: entries,
+      buttons: [{ label: '取消', value: null }]
+    });
+    if (choice === null || choice === undefined) { this.openActionMenu(); return; }
+    const oldIdx = typeof u.weaponIndex === 'number' ? u.weaponIndex : 0;
+    u.weaponIndex = choice;
+    u.swapped[oldIdx] = true;  /* 本回合不能再换回来 */
+    const newW = WEAPONS[u.items[choice].key];
+    Audio.sfx('heal');
+    UI.log(u.name + '换装为【' + newW.name + '】。', '');
+    Render.floatText('换', u.x, u.y, '#a9d3a2', 14);
+    this.openActionMenu();
+  },
+
   async talkTo(target) {
     const B = this.B;
     const u = B.selectedUnit;
@@ -2479,6 +2532,7 @@ const Battle = {
     unit.movedDist = 0;
     unit.moveUsed = 0;
     unit.attacked = false;
+    unit.swapped = null;
     if (!opts || !opts.noCapture) this.captureNode(unit);
     // 随行召唤：护卫召唤者移动落位
     Summon.followCaster(B, unit,
@@ -2760,6 +2814,24 @@ const Battle = {
           UI.log('【' + lg.name + '】已持有，转化为 ' + lg.gold + ' 金 + ' + lg.seals + ' 印。', 'good');
           UI.toast('重复掉落转化：+' + lg.gold + '金 +' + lg.seals + '印');
           Render.floatText('+' + lg.gold + '金', unit.x, unit.y, '#f0c25a', 18);
+        }
+      }
+      /* 普通敌军击杀掉落（ENEMY_TYPES.drop → unit.drop）：按 chance 概率掉武器/道具。
+       * 掉落的武器给正常耐久（WEAPONS[key].uses），道具给 def.uses。 */
+      if (unit.drop && Math.random() < unit.drop.chance) {
+        const dkey = unit.drop.key;
+        const wdef = typeof WEAPONS !== 'undefined' ? WEAPONS[dkey] : null;
+        const idef = typeof ITEMS !== 'undefined' ? ITEMS[dkey] : null;
+        if (wdef) {
+          this.B.loot.items.push({ key: dkey, uses: wdef.uses || 1 });
+          UI.log('击杀' + unit.name + '，获得【' + wdef.name + '】。', 'good');
+          Render.floatText(wdef.name, unit.x, unit.y, '#f0c25a', 14);
+          Audio.sfx('heal');
+        } else if (idef) {
+          this.B.loot.items.push({ key: dkey, uses: idef.uses || 1 });
+          UI.log('击杀' + unit.name + '，获得【' + idef.name + '】×' + (idef.uses || 1) + '。', 'good');
+          Render.floatText(idef.name, unit.x, unit.y, '#a9d3a2', 14);
+          Audio.sfx('heal');
         }
       }
       if (killer && killer.side === 'player' && killer.hp > 0 && !killer.summoned) {

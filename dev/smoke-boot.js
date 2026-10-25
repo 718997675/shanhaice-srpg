@@ -54,7 +54,7 @@ sandboxWindow.console = console;
 
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
               'js/audio.js', 'js/audio-bgm.js', 'js/juice.js', 'js/item-icons.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/ui-icons.js', 'js/battle.js',
-              'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
+              'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/spell-fx.js', 'js/systems/summon.js',
               'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js', 'js/systems/strategy.js', 'js/systems/worldmap.js',
               'js/camp.js', 'js/relations.js', 'js/game.js'];
 

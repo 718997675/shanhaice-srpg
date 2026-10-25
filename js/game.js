@@ -506,7 +506,10 @@ const Game = {
       let gold = (result.loot && result.loot.gold ? result.loot.gold : 0) + ((ch.rewards && ch.rewards.gold) || 0);
       let seals = (result.loot && result.loot.seals ? result.loot.seals : 0);
       const addLoot = keys => {
-        for (const key of keys || []) {
+        for (const entry of keys || []) {
+          /* 支持两种格式：字符串 key（如 'iron_sword'）或对象 {key, uses}（击杀掉落保留耐久） */
+          const key = typeof entry === 'string' ? entry : entry.key;
+          const uses = typeof entry === 'string' ? undefined : entry.uses;
           if (key === 'seal') { seals++; continue; }
           const def = WEAPONS[key] || ITEMS[key];
           if (!def) continue;
@@ -514,9 +517,9 @@ const Game = {
           if (this.campaign.convoy.length < 60) {
             if (def.stack) {   // 材料堆叠
               const st = this.campaign.convoy.find(i => i.key === key);
-              if (st) { st.uses = (st.uses || 0) + (def.uses || 1); continue; }
+              if (st) { st.uses = (st.uses || 0) + (uses != null ? uses : (def.uses || 1)); continue; }
             }
-            this.campaign.convoy.push({ key, uses: def.uses || 1 });
+            this.campaign.convoy.push({ key, uses: uses != null ? uses : (def.uses || 1) });
           }
         }
       };

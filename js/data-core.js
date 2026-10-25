@@ -738,6 +738,7 @@ const INITIAL_ROSTER = ['yunce', 'yankui', 'luming'];
 const ENEMY_TYPES = {
   bandit: {
     name: '山贼', ai: 'aggressive', moveType: 'foot', move: 5, weapons: ['bandit_axe'], tags: ['human'],
+    drop: { key: 'iron_sword', chance: 0.15 },
     base: { hp: 21, str: 7, mag: 0, skl: 4, spd: 4, lck: 2, def: 5, res: 1 },
     growth: { hp: 1.5, str: 0.55, mag: 0, skl: 0.35, spd: 0.3, lck: 0.15, def: 0.35, res: 0.1 }
   },
@@ -748,6 +749,7 @@ const ENEMY_TYPES = {
   },
   armor: {
     name: '岩魈', ai: 'guard', moveType: 'armor', move: 4, weapons: ['heavy_axe'], tags: ['armor', 'beast'],
+    drop: { key: 'iron_blade', chance: 0.12 },
     base: { hp: 29, str: 9, mag: 0, skl: 3, spd: 2, lck: 2, def: 12, res: 2 },
     growth: { hp: 2, str: 0.6, mag: 0, skl: 0.3, spd: 0.15, lck: 0.1, def: 0.6, res: 0.15 }
   },
@@ -758,21 +760,25 @@ const ENEMY_TYPES = {
   },
   shaman: {
     name: '浊咒徒', ai: 'aggressive', moveType: 'foot', move: 5, weapons: ['dark_tome'], tags: ['human'],
+    drop: { key: 'ice_tome', chance: 0.15 },
     base: { hp: 18, str: 1, mag: 7, skl: 6, spd: 5, lck: 3, def: 3, res: 6 },
     growth: { hp: 1.2, str: 0.1, mag: 0.65, skl: 0.45, spd: 0.35, lck: 0.2, def: 0.2, res: 0.5 }
   },
   priest: {
     name: '巫祝', ai: 'healer', moveType: 'foot', move: 5, weapons: ['heal_staff'], tags: ['human'],
+    drop: { key: 'potion', chance: 0.20 },
     base: { hp: 17, str: 1, mag: 6, skl: 5, spd: 5, lck: 4, def: 2, res: 7 },
     growth: { hp: 1.1, str: 0.1, mag: 0.5, skl: 0.35, spd: 0.3, lck: 0.3, def: 0.15, res: 0.5 }
   },
   rogue: {
     name: '影盗', ai: 'aggressive', moveType: 'foot', move: 6, weapons: ['poison_dagger'], tags: ['human'],
+    drop: { key: 'dagger', chance: 0.15 },
     base: { hp: 19, str: 6, mag: 0, skl: 9, spd: 10, lck: 6, def: 4, res: 3 },
     growth: { hp: 1.2, str: 0.45, mag: 0, skl: 0.55, spd: 0.6, lck: 0.35, def: 0.2, res: 0.2 }
   },
   elite: {
     name: '浊甲卫', ai: 'guard', moveType: 'armor', move: 4, weapons: ['turbid_lance'], tags: ['armor', 'human'],
+    drop: { key: 'steel_lance', chance: 0.10 },
     base: { hp: 30, str: 10, mag: 0, skl: 5, spd: 3, lck: 2, def: 14, res: 4 },
     growth: { hp: 2.1, str: 0.65, mag: 0, skl: 0.4, spd: 0.2, lck: 0.1, def: 0.65, res: 0.3 }
   },

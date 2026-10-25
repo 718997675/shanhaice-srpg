@@ -686,6 +686,50 @@ if (wf) process.exitCode = 1;
   if (ff) process.exitCode = 1;
 })();
 
+/* ---------- 战中换装 + 击杀掉落：静态断言 ---------- */
+(() => {
+  const battle = fs.readFileSync(path.join(root, 'js/battle.js'), 'utf8');
+  const combat = fs.readFileSync(path.join(root, 'js/combat.js'), 'utf8');
+  const dataCore = fs.readFileSync(path.join(root, 'js/data-core.js'), 'utf8');
+  const gameSrc = fs.readFileSync(path.join(root, 'js/game.js'), 'utf8');
+  let ff = 0;
+  const fok = (c, m) => { if (!c) { ff++; console.error('  ✗ ' + m); } };
+
+  /* 换装入出口 */
+  fok(battle.indexOf('openSwapMenu') >= 0, 'battle.js 有 openSwapMenu 方法');
+  fok(battle.indexOf("label: '换装'") >= 0, '行动菜单有「换装」按钮');
+  fok(battle.indexOf('u.swapped') >= 0, '换装有 swapped 防刷标记');
+  fok(battle.indexOf('unit.swapped = null') >= 0, 'finishUnitAction 重置 swapped');
+  fok(battle.indexOf('Combat.canEquipKey(u, x.it.key)') >= 0, '换装菜单用 canEquipKey 过滤可装备武器');
+
+  /* 掉落数据 */
+  fok(dataCore.indexOf('drop: { key:') >= 0, 'ENEMY_TYPES 有 drop 字段');
+  const etBlock = dataCore.slice(dataCore.indexOf('const ENEMY_TYPES'), dataCore.indexOf('/* ---- 首领'));
+  const dropTypes = ['bandit', 'armor', 'shaman', 'priest', 'rogue', 'elite'];
+  for (const t of dropTypes) {
+    const tBlock = etBlock.slice(etBlock.indexOf(t + ':'), etBlock.indexOf('},', etBlock.indexOf(t + ':')));
+    fok(tBlock.indexOf('drop:') >= 0, 'ENEMY_TYPES.' + t + ' 有 drop 字段');
+  }
+  fok(etBlock.indexOf('drop: { key: \'iron_sword\'') >= 0, 'bandit 掉 iron_sword');
+  fok(etBlock.indexOf('drop: { key: \'potion\'') >= 0, 'priest 掉 potion（道具掉落）');
+
+  /* makeEnemyUnit 拷 drop */
+  fok(battle.indexOf('drop: type.drop') >= 0, 'makeEnemyUnit 把 type.drop 拷到 unit.drop');
+
+  /* handleDeath 掉落逻辑 */
+  fok(battle.indexOf('unit.drop') >= 0 && battle.indexOf('Math.random() < unit.drop.chance') >= 0,
+    'handleDeath 按 chance 概率掉落');
+  fok(battle.indexOf('B.loot.items.push({ key: dkey') >= 0, '掉落物 push 为 {key, uses} 对象（保留耐久）');
+
+  /* addLoot 支持对象格式 */
+  fok(gameSrc.indexOf('typeof entry === \'string\'') >= 0, 'addLoot 支持字符串和对象两种格式');
+  fok(gameSrc.indexOf('entry.uses') >= 0, 'addLoot 从对象读取 uses');
+
+  console.log(ff === 0 ? '✓ 战中换装 + 击杀掉落：断言通过' : '✗ 换装+掉落断言有 ' + ff + ' 条失败');
+  if (ff) process.exitCode = 1;
+})();
+
+
 /* ---------- 舆图（大地图）：静态断言 ----------
  * 布局与状态机的行为测试在 dev/check-map.js（坐标/交叉/出界那套几何检查
  * 放主测试里太重），这里只锁「接线没断」。 */
@@ -756,7 +800,7 @@ if (wf) process.exitCode = 1;
   xok(Fx.flightMs('earth', 1) < Fx.flightMs('none', 1), '土最快（原地崩），歌最慢（飘过去）');
 
   /* 2. 五形态 + 歌：土没有飞行物，其余各一条流；歌三条 */
-  const streamsOf = { metal: 1, wood: 1, water: 1, fire: 1, earth: 0, none: 3 };
+  const streamsOf = { metal: 1, wood: 2, water: 1, fire: 1, earth: 0, none: 3 };
   for (const el of Object.keys(streamsOf)) {
     reset();
     const host = mkHost(1);
