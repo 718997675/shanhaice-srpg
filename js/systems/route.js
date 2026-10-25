@@ -1,7 +1,7 @@
 /* ============================================================
  * 山海策 · 灵脉  —  战役路线（P3.1）
  * 第 4 章末分歧：A 线「焚脉」写追 / B 线「守脉」写守，各 3 章，
- * 第 8 章天柱废墟汇合，第 9 章浊潮之眼终战。
+ * 第 8 章天柱废墟汇合，第 9~12 章「下海」，第 13 章浊潮之眼终战。
  * campaign.chapter 存「下一章 id」（字符串或数字），不再存位置下标。
  * ============================================================ */
 
@@ -24,15 +24,17 @@ const ROUTES = {
   }
 };
 
-/* 共享脊线：第 1~4 章共通，第 8/9 章汇合后共通 */
+/* 共享脊线：第 1~4 章共通，第 8 章汇合，9~12 章「下海」共通，第 13 章终战 */
 const ROUTE_SPINE = [1, 2, 3, 4];
-const ROUTE_MERGE = 8;      // 天柱废墟（汇合章）
-const ROUTE_FINALE = 9;     // 浊潮之眼（终章）
+const ROUTE_MERGE = 8;              // 天柱废墟（汇合章）
+const ROUTE_POST = [9, 10, 11, 12]; // 下海四章（汇合之后、终章之前，两线共通）
+const ROUTE_FINALE = 13;            // 浊潮之眼（终章）
 
 const Route = {
   ROUTES,
   SPINE: ROUTE_SPINE,
   MERGE: ROUTE_MERGE,
+  POST: ROUTE_POST,
   FINALE: ROUTE_FINALE,
 
   /* 章节 id → 章节对象（找不到返 null） */
@@ -51,7 +53,8 @@ const Route = {
     const spine = ROUTE_SPINE.map(id => this.byId(id));
     if (routeKey === 'A' || routeKey === 'B') {
       const route = ROUTES[routeKey].chapters.map(id => this.byId(id));
-      return spine.concat(route, [this.byId(ROUTE_MERGE), this.byId(ROUTE_FINALE)]);
+      const post = ROUTE_POST.map(id => this.byId(id));
+      return spine.concat(route, [this.byId(ROUTE_MERGE)], post, [this.byId(ROUTE_FINALE)]);
     }
     return spine;
   },
@@ -107,9 +110,17 @@ const Route = {
     if (n === 5) return { chapter: '5A', route: 'A' };
     if (n === 6) return { chapter: '6B', route: 'B' };
     if (n === 7) return { chapter: 8, route: 'A' };
-    if (n === 8) return { chapter: 9, route: 'A' };
-    if (n >= 9) return { chapter: 9, route: 'A', cleared: true };
+    if (n === 8) return { chapter: ROUTE_FINALE, route: 'A' };
+    if (n >= 9) return { chapter: ROUTE_FINALE, route: 'A', cleared: true };
     return { chapter: Math.max(1, Math.min(4, n)), route: null };
+  },
+
+  /* v4 → v5：下海四章插在汇合章之后，原第 9 章（终章）后移为第 13 章。
+   * 旧档若停在 9 且没通关，就是刚打完天柱废墟——直接进新第 9 章浮槎渡海；
+   * 已通关的则落到 13（终章），保持「已通关」语义。 */
+  migrateV4Chapter(chapter, cleared) {
+    if (String(chapter) === '9') return cleared ? ROUTE_FINALE : 9;
+    return chapter;
   }
 };
 

@@ -14,7 +14,14 @@ const HEROES = {
   moya: { seal: '鸦', role: '影刃', tone: '#7b5a5c', robe: '#2d2a2c', robe2: '#211f21', hair: 'hood', hairColor: '#1a1a1c', skin: '#d9c3aa', eyes: 'sharp', weapon: 'dagger', accent: '#a9453a', belt: '#3d3033', mask: true },
   chisang: { seal: '桑', role: '雷符真人', tone: '#b45b43', robe: '#5c2f26', robe2: '#44231d', hair: 'wild', hairColor: '#2b1c19', skin: '#dfc0a0', eyes: 'fierce', weapon: 'talisman', accent: '#d98c4a', belt: '#7b3c2b', lightning: true },
   aman: { seal: '蛮', role: '山灵御兽', tone: '#7e7a4c', robe: '#46452c', robe2: '#35341f', hair: 'fur', hairColor: '#2a2519', skin: '#cfb087', eyes: 'wild', weapon: 'claw', accent: '#b7a25c', belt: '#5a5230', beast: true },
-  yunling: { seal: '翎', role: '天羽游侠', tone: '#7fa8ad', robe: '#3b5458', robe2: '#2c4145', hair: 'braid', hairColor: '#263034', skin: '#ecdbc2', eyes: 'bright', weapon: 'wings', accent: '#b8d5d2', belt: '#547177', feather: true }
+  yunling: { seal: '翎', role: '天羽游侠', tone: '#7fa8ad', robe: '#3b5458', robe2: '#2c4145', hair: 'braid', hairColor: '#263034', skin: '#ecdbc2', eyes: 'bright', weapon: 'wings', accent: '#b8d5d2', belt: '#547177', feather: true },
+  /* ---- 二期「下海」六人（暂无美术原图，先由本脚本出 SVG 兜底） ---- */
+  axi: { seal: '汐', role: '潮汐使', tone: '#5f8fa0', robe: '#2f4a52', robe2: '#233a42', hair: 'long', hairColor: '#1d2b30', skin: '#ecd9bd', eyes: 'gentle', weapon: 'staff', accent: '#8fc3d4', belt: '#3f6270', water: true },
+  aoxiao: { seal: '绡', role: '潮刃客', tone: '#4f7f93', robe: '#2b4350', robe2: '#20333d', hair: 'wild', hairColor: '#1b2a33', skin: '#dcc6ad', eyes: 'sharp', weapon: 'sword', accent: '#7fb6c9', belt: '#35545f', water: true },
+  gongshumao: { seal: '卯', role: '机关师', tone: '#8a7a4c', robe: '#4a4430', robe2: '#37321f', hair: 'bun', hairColor: '#262219', skin: '#e2cba8', eyes: 'bright', weapon: 'bow', accent: '#c9b062', belt: '#5f5433' },
+  taowujiu: { seal: '咎', role: '守墓人', tone: '#7a7a72', robe: '#3c3c36', robe2: '#2c2c27', hair: 'hood', hairColor: '#22221d', skin: '#d6c4a8', eyes: 'cold', weapon: 'talisman', accent: '#a8a08c', belt: '#4a4740', mask: true },
+  shenyan: { seal: '砚', role: '锁链卫', tone: '#6b7a86', robe: '#333e46', robe2: '#262f36', hair: 'topknot', hairColor: '#1e262b', skin: '#dfc9ae', eyes: 'stern', weapon: 'chain', accent: '#93a7b4', belt: '#3d4a53' },
+  shuangxu: { seal: '霜', role: '霜羽斥候', tone: '#7f9aa8', robe: '#384d57', robe2: '#2a3b43', hair: 'braid', hairColor: '#243035', skin: '#e9dcc6', eyes: 'bright', weapon: 'bow', accent: '#b0ccd8', belt: '#4c6a76', feather: true, snow: true }
 };
 
 const FOES = {
@@ -197,6 +204,17 @@ function weapon(cfg) {
       return `<g transform="rotate(8 300 290)"><rect x="296" y="150" width="8" height="250" rx="3" fill="#3f5b5e"/><path d="M300 96 L306 140 L300 158 L294 140 Z" fill="#bfd4d2"/><path d="M272 112 L278 150 L286 150 L282 112 Z" fill="#bfd4d2"/><path d="M328 112 L322 150 L314 150 L318 112 Z" fill="#bfd4d2"/><rect x="274" y="148" width="52" height="6" fill="${a}"/></g>`;
     case 'saber':
       return `<g transform="rotate(24 300 300)"><path d="M288 362 C316 300 338 236 344 168" stroke="#c9d3cd" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M286 350 L270 366 L282 372 Z" fill="${a}"/><rect x="280" y="356" width="8" height="42" rx="4" fill="${cfg.robe2}"/></g>`;
+    case 'chain':
+      /* 链：一串铁环沿脊线垂下，末端挂尖坠 */
+      return `<path d="M292 372 C276 330 300 300 288 268 C278 240 300 216 289 196" fill="none" stroke="${cfg.robe2}" stroke-width="2.4" opacity=".55"/>` +
+        `<g fill="none" stroke="${a}" stroke-width="3.2" opacity=".9">` +
+        `<ellipse cx="290" cy="352" rx="13" ry="7.5" transform="rotate(-38 290 352)"/>` +
+        `<ellipse cx="294" cy="316" rx="13" ry="7.5" transform="rotate(-38 294 316)"/>` +
+        `<ellipse cx="288" cy="280" rx="13" ry="7.5" transform="rotate(-38 288 280)"/>` +
+        `<ellipse cx="295" cy="244" rx="13" ry="7.5" transform="rotate(-38 295 244)"/>` +
+        `<ellipse cx="289" cy="208" rx="13" ry="7.5" transform="rotate(-38 289 208)"/>` +
+        `</g>` +
+        `<path d="M286 196 L264 166 L306 178 Z" fill="#c9d3cd" stroke="${ink}" stroke-width="1.4"/>`;
     default:
       return '';
   }

@@ -415,7 +415,12 @@ img { display: block; }
   border-bottom: 1px solid rgba(211, 171, 94, .16);
   position: relative;
   z-index: 2;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
 }
+.camp-tabs::-webkit-scrollbar { display: none; }
+.camp-tabs button { flex: none; }
 .camp-tabs button {
   padding: 0 22px;
   color: #a3a693;
@@ -607,8 +612,358 @@ img { display: block; }
 .deploy-counter { position: sticky; bottom: 0; align-self: end; background: rgba(12, 17, 14, .9); padding: 8px; font-size: 12px; color: var(--gold-2); display: flex; align-items: center; gap: 10px; }
 .deploy-go { margin-left: auto; min-height: 38px; padding: 0 20px; background: linear-gradient(100deg, #b04638, #8a332a); color: #f7ecd2; letter-spacing: .12em; border: 1px solid #d2806a; border-radius: 2px; box-shadow: 0 0 14px rgba(176, 68, 54, .25); }
 .deploy-go:hover:not(:disabled) { background: linear-gradient(100deg, #c45446, #9e3b31); box-shadow: 0 0 22px rgba(216, 112, 90, .4); }
+/* 分兵生效时：留守的人压暗、不可选（二期 A） */
+.deploy-card.rear { opacity: .62; filter: saturate(.45); border-style: dashed; border-color: rgba(138, 106, 63, .45); }
+.deploy-card.rear:hover { transform: none; border-color: rgba(138, 106, 63, .6); box-shadow: none; }
+.deploy-strategy {
+  display: flex; align-items: center; gap: 8px;
+  margin: 10px 0 6px; padding: 7px 10px;
+  background: rgba(80, 68, 45, .08);
+  border-left: 2px solid var(--gold-3);
+  font-size: 11px; line-height: 1.5; color: #5f5a45;
+}
+.deploy-strategy .ds-line { flex: 1; min-width: 0; }
+.deploy-strategy .mini-btn { flex: none; }
+.deploy-absent { font-size: 10px; line-height: 1.7; color: #8a6a3f; margin-bottom: 6px; }
 
-/* 商店 */
+/* 分兵弹层（二期 A）：左右两栏，点名字换边 */
+.modal.wide { width: min(760px, 94vw); }
+.split-panel { display: flex; flex-direction: column; gap: 9px; }
+.split-head { display: flex; align-items: baseline; gap: 10px; }
+.split-head b { font-size: 14px; letter-spacing: .08em; color: #3a3a2c; }
+.split-count { font-family: var(--sans); font-size: 11px; color: #7c725b; margin-left: auto; }
+.split-count.over { color: #8b3b2d; font-weight: 700; }
+.split-cols { display: flex; gap: 10px; }
+.split-col {
+  flex: 1; min-width: 0;
+  padding: 8px 9px 10px;
+  background: rgba(255, 252, 240, .34);
+  border: 1px solid rgba(90, 75, 50, .26);
+  border-radius: 3px;
+}
+.split-col.rear { background: rgba(120, 104, 74, .1); border-style: dashed; }
+.split-col h4 {
+  margin: 0 0 7px; font-size: 11px; letter-spacing: .22em;
+  color: #5f5a45; font-weight: 600;
+  border-bottom: 1px solid rgba(80, 68, 45, .16); padding-bottom: 5px;
+}
+.split-cards { display: flex; flex-direction: column; gap: 5px; min-height: 46px; }
+.split-card {
+  display: flex; align-items: baseline; gap: 7px;
+  padding: 6px 9px; text-align: left;
+  background: rgba(255, 253, 246, .62);
+  border: 1px solid rgba(90, 75, 50, .22);
+  border-radius: 2px;
+  transition: background .14s, border-color .14s, transform .14s;
+}
+.split-card:hover { background: rgba(211, 171, 94, .2); border-color: rgba(158, 59, 50, .35); transform: translateX(2px); }
+.split-card .sc-name { font-size: 12px; color: #33352a; flex: 1; min-width: 0; }
+.split-card .sc-name small {
+  margin-left: 5px; font-size: 9px; letter-spacing: .1em;
+  color: var(--gold-3); border: 1px solid rgba(138, 106, 52, .38);
+  padding: 0 4px; border-radius: 2px;
+}
+.split-card .sc-sub { font-family: var(--sans); font-size: 10px; color: #7c725b; flex: none; }
+.split-card.lord { background: rgba(211, 171, 94, .16); border-color: rgba(138, 106, 52, .45); cursor: default; }
+.split-card.lord:hover { transform: none; background: rgba(211, 171, 94, .16); }
+.split-hint { font-size: 10px; line-height: 1.75; color: #7c725b; }
+.split-hint .mini-btn { margin-left: 6px; }
+
+/* ═══════════════════ 舆图（大地图） ═══════════════════
+ * 玄墨底 + 鎏金线 + 朱砂印：一张摊在暗室里的绢本图。
+ * 右侧是宣纸卷宗（章节详情），一暗一明，反差本身就在说「图在案上」。 */
+.map-wrap { display: flex; gap: 14px; width: 100%; height: 100%; overflow: hidden; }
+.map-sheet {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border-radius: 3px;
+  padding: 8px 10px 6px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 60% at 40% 36%, #1e251e 0%, #141a15 52%, #090d0a 100%);
+  border: 1px solid rgba(211, 171, 94, .34);
+  box-shadow:
+    var(--shadow),
+    inset 0 0 60px rgba(0, 0, 0, .7),
+    0 0 0 1px rgba(0, 0, 0, .5);
+}
+/* 绢纹：平铺一张 180×180 的噪点小图。不用 SVG 全幅 feTurbulence——
+ * 那玩意儿压在动画层下面，移动端每帧都要重算一次，白烧电。 */
+.map-sheet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: .07;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+/* 外层再套一圈细金线，像装裱的绫边 */
+.map-sheet::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(211, 171, 94, .16);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 3;
+}
+.map-head {
+  display: flex; align-items: baseline; gap: 12px;
+  position: relative; z-index: 4;
+  padding: 2px 4px 7px;
+}
+.map-title {
+  font-size: 15px; letter-spacing: .34em; font-weight: 600;
+  color: var(--gold-2);
+  text-shadow: 0 0 14px rgba(240, 209, 137, .35), 0 1px 0 rgba(0, 0, 0, .8);
+}
+.map-progress {
+  font-family: var(--sans); font-size: 11px; letter-spacing: .06em;
+  color: rgba(211, 171, 94, .62);
+}
+.map-front { font-size: 10px; color: rgba(211, 171, 94, .5); margin-left: auto; letter-spacing: .06em; }
+
+.wm-svg { flex: 1; width: 100%; min-height: 0; display: block; position: relative; z-index: 1; }
+
+/* 海 */
+.wm-coast {
+  fill: none;
+  stroke: rgba(126, 186, 176, .38);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+.wm-coast.foam {
+  stroke: rgba(180, 226, 214, .12);
+  stroke-width: 4;
+  stroke-dasharray: 1 13;
+  stroke-linecap: round;
+}
+.wm-ring { fill: none; stroke: rgba(126, 186, 176, .5); stroke-width: .9; }
+.wm-wave { fill: none; stroke: rgba(126, 186, 176, .34); stroke-width: 1.2; stroke-linecap: round; }
+
+/* 山：剪影 + 受光面 + 峰线 */
+.wm-range-body { fill: url(#wmRidgeG); stroke: rgba(211, 171, 94, .16); stroke-width: .8; }
+.wm-range.far .wm-range-body { fill: url(#wmFarG); stroke: none; }
+.wm-range-shade { fill: #0b100d; opacity: .55; }
+.wm-range-ridge { fill: none; stroke: rgba(211, 171, 94, .28); stroke-width: 1; stroke-linejoin: round; }
+
+/* 地名：淡金大字 */
+.wm-region {
+  font-family: var(--serif);
+  font-size: 16px;
+  letter-spacing: .3em;
+  fill: #d3ab5e;
+  fill-opacity: .26;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* 灵脉：极细的灵青丝，越靠海眼越亮 */
+.wm-vein {
+  fill: none;
+  stroke: #7fb59a;
+  stroke-opacity: .18;
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-dasharray: 1 5;
+}
+
+/* 道路：深色描边垫底，金线压在上面 */
+.wm-road-under { fill: none; stroke: #06090a; stroke-opacity: .7; stroke-width: 3.4; stroke-linecap: round; }
+.wm-road {
+  fill: none;
+  stroke: rgba(211, 171, 94, .34);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-dasharray: 5 6;
+}
+.wm-road.done {
+  stroke: #e6bf74;
+  stroke-opacity: .95;
+  stroke-width: 2;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 3px rgba(240, 209, 137, .45));
+}
+.wm-road.dead { stroke: rgba(120, 118, 100, .3); stroke-width: 1.1; stroke-dasharray: 2 8; }
+
+/* 节点印面 */
+.wm-node { cursor: pointer; outline: none; }
+.wm-hit { fill: transparent; }
+.wm-ring-out {
+  fill: none;
+  stroke: rgba(211, 171, 94, .55);
+  stroke-width: 1.4;
+  transition: stroke .16s, stroke-width .16s;
+}
+.wm-dot {
+  fill: var(--tint, #8fa18a);
+  fill-opacity: .3;
+  stroke: rgba(211, 171, 94, .3);
+  stroke-width: .8;
+  transition: fill-opacity .16s;
+}
+.wm-node:hover .wm-ring-out { stroke: #f0d189; stroke-width: 2.2; }
+.wm-node:hover .wm-dot { fill-opacity: .62; }
+.wm-no {
+  font-family: var(--sans); font-size: 10.5px; font-weight: 700;
+  fill: #cfc6a8; text-anchor: middle; pointer-events: none;
+  letter-spacing: -.02em;
+}
+.wm-name {
+  font-family: var(--serif); font-size: 11.5px; letter-spacing: .1em;
+  fill: #a99f80; text-anchor: middle; pointer-events: none;
+}
+.wm-tag {
+  font-family: var(--serif); font-size: 8.5px; letter-spacing: .2em;
+  fill: rgba(150, 145, 120, .55); text-anchor: middle; pointer-events: none;
+}
+.wm-line-badge { fill: #0d1210; stroke: rgba(211, 171, 94, .5); stroke-width: 1; }
+.wm-line-text {
+  font-family: var(--sans); font-size: 8px; font-weight: 700;
+  fill: #d3ab5e; text-anchor: middle; pointer-events: none;
+}
+
+/* 已过：朱砂印 */
+.wm-node.is-cleared .wm-ring-out { stroke: rgba(240, 209, 137, .8); stroke-width: 1.8; }
+.wm-node.is-cleared .wm-dot { fill: #9e3b32; fill-opacity: 1; stroke: #6d281f; }
+.wm-node.is-cleared .wm-no { fill: #f6ead2; }
+.wm-node.is-cleared .wm-name { fill: #d8c9a4; }
+
+/* 当前：鎏金 + 光晕 + 旗 */
+.wm-node.is-current .wm-ring-out { stroke: #f0d189; stroke-width: 2.4; }
+.wm-node.is-current .wm-dot { fill: #d3ab5e; fill-opacity: 1; stroke: #8a6a34; }
+.wm-node.is-current .wm-no { fill: #221a0d; }
+/* 不用描边压字：paint-order 一旦不被支持，11px 的描边会把字吃掉。
+ * 深底 + 亮金字本身就是高对比，加粗就够。 */
+.wm-node.is-current .wm-name { fill: #f7e9c6; font-weight: 600; letter-spacing: .12em; }
+.wm-pulse {
+  fill: none; stroke: #f0d189; stroke-width: 1.4;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wmPulse 2.4s ease-out infinite;
+}
+@keyframes wmPulse {
+  0%   { transform: scale(.7); opacity: .85; }
+  72%  { transform: scale(1.7); opacity: 0; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+.wm-flag path { fill: #b04638; stroke: #f0d189; stroke-width: .9; }
+
+/* 未至 */
+.wm-node.is-locked .wm-ring-out { stroke: rgba(211, 171, 94, .22); stroke-dasharray: 3 4; }
+.wm-node.is-locked .wm-dot { fill-opacity: .1; stroke: rgba(211, 171, 94, .14); }
+.wm-node.is-locked .wm-no { fill: #6f6b56; }
+.wm-node.is-locked .wm-name { fill: #6b6752; }
+
+/* 未走之路 */
+.wm-node.is-abandoned .wm-ring-out { stroke: rgba(120, 116, 98, .3); stroke-dasharray: 2 5; }
+.wm-node.is-abandoned .wm-dot { fill-opacity: .05; stroke: rgba(120, 116, 98, .2); }
+.wm-node.is-abandoned .wm-no { fill: #5a5646; }
+.wm-node.is-abandoned .wm-name { fill: #575343; }
+
+/* 选中：外圈加一道暗红 */
+.wm-node.is-pick .wm-ring-out { stroke: #e08a6f; }
+.wm-node.is-pick .wm-name { fill: #f0d189; letter-spacing: .12em; }
+
+/* 装裱：双线金框 + 四角回纹 + 朱印 */
+.wm-frame rect {
+  fill: none;
+  stroke: rgba(211, 171, 94, .5);
+  stroke-width: 1.4;
+}
+.wm-frame rect.thin { stroke: rgba(211, 171, 94, .2); stroke-width: .8; }
+.wm-corner { fill: none; stroke: #d3ab5e; stroke-opacity: .55; stroke-width: 1.3; stroke-linecap: square; }
+.wm-corner.thin { stroke-opacity: .3; stroke-width: .9; }
+.wm-seal rect { fill: #9e3b32; fill-opacity: .82; stroke: #d9a48c; stroke-opacity: .5; stroke-width: .9; }
+.wm-seal-text {
+  font-family: var(--serif); font-size: 12px; letter-spacing: 0;
+  fill: #f6e6cd; fill-opacity: .9; text-anchor: middle;
+}
+
+/* 图例 */
+.map-legend {
+  display: flex; gap: 14px; align-items: center;
+  position: relative; z-index: 4;
+  padding: 5px 4px 1px;
+  font-family: var(--sans); font-size: 10px; color: rgba(211, 171, 94, .5);
+}
+.map-legend .lg { display: flex; align-items: center; gap: 6px; }
+.map-legend .lg::before {
+  content: ""; width: 10px; height: 10px; border-radius: 50%;
+  border: 1.4px solid rgba(211, 171, 94, .45);
+  background: rgba(143, 161, 138, .18);
+}
+.map-legend .lg.is-cleared::before { background: #9e3b32; border-color: rgba(240, 209, 137, .8); }
+.map-legend .lg.is-current::before { background: #d3ab5e; border-color: #f0d189; box-shadow: 0 0 8px rgba(240, 209, 137, .55); }
+.map-legend .lg.is-locked::before { border-style: dashed; border-color: rgba(211, 171, 94, .28); background: transparent; }
+.map-legend .lg.is-abandoned::before { border-style: dotted; border-color: rgba(120, 116, 98, .4); background: transparent; }
+
+/* 右侧：宣纸卷宗 */
+.map-detail {
+  width: 292px; flex: none;
+  overflow-y: auto;
+  padding: 14px 16px;
+  background:
+    radial-gradient(ellipse 90% 50% at 10% 0%, rgba(255, 251, 238, .5), transparent 60%),
+    linear-gradient(150deg, rgba(238, 228, 206, .97), rgba(214, 199, 168, .96));
+  color: #26291f;
+  border: 1px solid rgba(122, 90, 44, .35);
+  border-radius: 4px;
+  box-shadow: var(--shadow), inset 0 0 40px rgba(122, 90, 44, .08);
+}
+.map-detail h3 {
+  margin: 2px 0 10px; font-size: 21px; letter-spacing: .08em; font-weight: 600;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.map-ch-no { color: #956b3e; font-size: 11px; letter-spacing: .18em; }
+.map-badge {
+  font-family: var(--sans); font-size: 9.5px; letter-spacing: .1em;
+  padding: 1px 6px; border-radius: 2px;
+  border: 1px solid rgba(138, 106, 52, .45);
+  color: #8a6a3f; background: rgba(211, 171, 94, .14);
+}
+.map-badge.is-cleared { color: #f6ead2; background: #9e3b32; border-color: #6d281f; }
+.map-badge.is-current { color: #3a2f1a; background: #d3ab5e; border-color: #8a6a34; }
+.map-badge.is-locked { color: #9a927a; background: transparent; border-style: dashed; }
+.map-badge.is-abandoned { color: #a29a84; background: transparent; border-style: dotted; }
+.map-row { font-size: 11.5px; line-height: 1.85; color: #4f4b3c; }
+.map-row b { color: #8a6a3f; font-weight: 600; letter-spacing: .1em; }
+.map-tips {
+  margin: 10px 0; padding: 8px 10px;
+  background: rgba(80, 68, 45, .08);
+  border-left: 2px solid #b0453a;
+  font-size: 11px; line-height: 1.8; color: #5f5a45;
+}
+.map-rec { margin: 12px 0 4px; }
+.map-rec h4 {
+  margin: 0 0 6px; font-size: 12px; letter-spacing: .2em; color: #5f5a45;
+  border-bottom: 1px solid rgba(80, 68, 45, .18); padding-bottom: 5px;
+}
+.map-rec-line {
+  display: flex; justify-content: space-between;
+  font-family: var(--sans); font-size: 11px; color: #6c644f;
+  padding: 2px 0;
+}
+.map-rec-line b { color: #3a3d2e; }
+.map-go {
+  display: block; width: 100%; margin-top: 12px;
+  min-height: 40px;
+  background: linear-gradient(100deg, #b04638, #8a332a);
+  color: #f7ecd2; letter-spacing: .16em; font-size: 13px;
+  border: 1px solid #d2806a; border-radius: 2px;
+  box-shadow: 0 0 14px rgba(176, 68, 54, .25);
+}
+.map-go:hover { background: linear-gradient(100deg, #c45446, #9e3b31); box-shadow: 0 0 22px rgba(216, 112, 90, .4); }
+.map-note { margin-top: 9px; font-size: 10.5px; line-height: 1.8; color: #8a6a3f; }
+.map-empty { font-size: 12px; color: #7c725b; }
+
+/* ═══════════════════ 商店 ═══════════════════ */
 .shop-wrap { display: flex; gap: 14px; width: 100%; height: 100%; overflow: hidden; }
 .shop-col { flex: 1; min-width: 0; overflow-y: auto; padding: 14px 16px; background:
     radial-gradient(ellipse 90% 50% at 10% 0%, rgba(255, 251, 238, .5), transparent 60%),
@@ -1361,6 +1716,12 @@ img.ii { display: inline-block; vertical-align: -4px; flex: none; }
   .deploy-info { width: 250px; padding: 11px 13px; }
   .deploy-roster { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
   .deploy-card { min-height: 124px; }
+  .split-cols { flex-direction: column; }
+  .split-cards { flex-direction: row; flex-wrap: wrap; }
+  .split-card { flex: 1 1 130px; }
+  .map-detail { width: 238px; padding: 11px 13px; }
+  .map-detail h3 { font-size: 18px; }
+  .map-title { font-size: 13px; letter-spacing: .2em; }
   #unitCard { width: 244px; max-width: 40vw; }
   #actionBar { left: 262px; }
   .act-btn { min-width: 56px; min-height: 36px; font-size: 12px; padding: 0 8px; }

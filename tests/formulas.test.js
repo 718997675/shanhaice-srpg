@@ -763,7 +763,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('虞素秋两条线都能入队', ['6A', '6B'].every(k => (AUTO_JOINS[k] || []).includes('yusqiu')), true);
     const missing = Object.keys(CHARS).filter(k => !obtainable.has(k));
     eq('全部角色都有入队路径', missing.join(',') || '无', '无');
-    eq('招募点共 8 处（2 村 + 6 图）', recruitSpots.length, 8);
+    eq('招募点共 11 处（2 村 + 6 图 + 3 说得）', recruitSpots.length, 11);
     for (const s of recruitSpots) {
       ok('招募点 ' + s.char + '（第' + s.ch + '章）对话存在', !!s.talk && !!DIALOGUES[s.talk], s.talk);
       ok('招募点 ' + s.char + ' 是有效角色', !!CHARS[s.char]);
@@ -983,7 +983,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
       vm.runInContext('({ CHARS, CLASSES, SUPPORTS, SUPPORT_PAIR_MAP, AUTO_JOINS, WEAPON_TYPES, ITEMS, HERO_ORDER, RANK_ORDER, Spells, Summon })', ctx);
 
     /* 17.1 人物数据完整性 */
-    eq('人物共 14 名（12 主力 + 2 替补援军）', Object.keys(CHARS).length, 14);
+    eq('人物共 20 名（14 主力 + 2 替补援军 + 4 下海）', Object.keys(CHARS).length, 20);
     for (const id of ['jiangsi', 'yusqiu']) {
       const c = CHARS[id];
       ok(id + ' 职业存在', !!CLASSES[c.cls], c.cls);
@@ -1429,7 +1429,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     const { CLASSES, RANK_ORDER } = vm.runInContext('({ CLASSES, RANK_ORDER })', ctx);
     const { Battle } = vm.runInContext('({ Battle })', ctx);
     const bases = Object.keys(CLASSES).filter(k => CLASSES[k].tier === 1);
-    eq('基础职业 12 个', bases.length, 12);
+    eq('基础职业 17 个', bases.length, 17);
     const noBranch = bases.filter(k => !(Array.isArray(CLASSES[k].promotes) && CLASSES[k].promotes.length === 2));
     eq('每个基础职业都有 2 条转职线', noBranch.join(',') || '无', '无');
     const badTarget = [];
@@ -1446,7 +1446,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     }
     eq('转职目标都是合法二阶职业', badTarget.join(',') || '无', '无');
     eq('二阶职业不重复挂两条线', dup.join(',') || '无', '无');
-    eq('二阶职业总数 24', Object.keys(CLASSES).filter(k => CLASSES[k].tier === 2).length, 24);
+    eq('二阶职业总数 34', Object.keys(CLASSES).filter(k => CLASSES[k].tier === 2).length, 34);
 
     /* 新分支的职业技必须真进 modsFor */
     const fake = Object.create(Battle);
@@ -1564,7 +1564,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     const { SUPPORTS, CHARS, HEART_KNOTS, KNOT_HIT_PENALTY, KNOT_FINAL_BONUS, KNOT_FINAL_NO } =
       vm.runInContext('({ SUPPORTS, CHARS, HEART_KNOTS, KNOT_HIT_PENALTY, KNOT_FINAL_BONUS, KNOT_FINAL_NO })', ctx);
     const { Battle } = vm.runInContext('({ Battle })', ctx);
-    eq('支援组 12 组', SUPPORTS.length, 12);
+    eq('支援组 17 组', SUPPORTS.length, 17);
     const ids = SUPPORTS.map(p => p.id);
     eq('支援 id 唯一', new Set(ids).size, ids.length);
     const bad = [];
@@ -1630,7 +1630,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
 
     /* --- 26.1 个人技② 数据完整性 --- */
     const ids = Object.keys(CHARS);
-    eq('角色 14 人（12 主力 + 2 替补援军）', ids.length, 14);
+    eq('角色 20 人（14 主力 + 2 替补援军 + 4 下海）', ids.length, 20);
     const missing = ids.filter(id => !CHARS[id].personal2 || !CHARS[id].personal2.name || !CHARS[id].personal2.desc);
     eq('每人都有第二条个人技', missing.join(',') || '无', '无');
     const names2 = ids.map(id => CHARS[id].personal2.name);
@@ -1871,8 +1871,8 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('空参数不报错 → 差', endingOf().key, 'bad');
     eq('undefined 指标不报错 → 差', endingOf({}).key, 'bad');
     /* 边界与钳制 */
-    eq('存活刚好 8 → 可判好', endingOf({ alive: 8, rankA: 3, nodesHeld: 3, nodesTotal: 3 }).key, 'good');
-    eq('A 级刚好 3 → 可判好', endingOf({ alive: 8, rankA: 3, nodesHeld: 3, nodesTotal: 3 }).key, 'good');
+    eq('存活刚好 10 → 可判好', endingOf({ alive: 10, rankA: 3, nodesHeld: 3, nodesTotal: 3 }).key, 'good');
+    eq('A 级刚好 3 → 可判好', endingOf({ alive: 10, rankA: 3, nodesHeld: 3, nodesTotal: 3 }).key, 'good');
     eq('存活 7 不判好', endingOf({ alive: 7, rankA: 3, nodesHeld: 3, nodesTotal: 3 }).key, 'mid');
     eq('负数被钳成 0', endingOf({ alive: -5, rankA: -1, nodesHeld: -2, nodesTotal: -3 }).metrics.alive, 0);
     eq('无阵眼时不满足全控', endingOf({ alive: 12, rankA: 5, nodesHeld: 0, nodesTotal: 0 }).key, 'mid');
@@ -1944,8 +1944,8 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('妖兽 8 条', count('beast'), 8);
     eq('灵兽 3 条', count('spirit'), 3);
     eq('精英词缀 4 条', count('elite'), 4);
-    eq('首领 12 条', count('boss'), 12);
-    eq('遗迹 2 条', count('ruin'), 2);
+    eq('首领 13 条', count('boss'), 13);
+    eq('遗迹 5 条', count('ruin'), 5);
 
     /* 键与真实数据对齐 */
     const beastKeys = CODEX.filter(e => e.kind === 'beast').map(e => e.key);
@@ -2161,10 +2161,14 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     const has = f => fs.existsSync(path.join(dir, f));
     const sizeOf = f => fs.statSync(path.join(dir, f)).size;
 
-    eq('14 名角色都有立绘',
+    /* 二期「下海」六人目前是 dev/gen-portrait-jpg.js 由 SVG 转出的占位图，
+     * 但文件必须真的在——正式美术到位后直接覆盖同名 jpg 即可，这条断言不用改。 */
+    eq('20 名角色都有立绘',
       Object.keys(CHARS).filter(id => !has(id + '.jpg')).join(',') || '无', '无');
     eq('角色都有 hurt 表情',
       Object.keys(CHARS).filter(id => !has(id + '_hurt.jpg')).join(',') || '无', '无');
+    eq('角色都有单位图标',
+      Object.keys(CHARS).filter(id => !fs.existsSync(path.join(ROOT, 'assets/icons/units', id + '.png'))).join(',') || '无', '无');
 
     /* 对白里会出现的 Boss（UI.charOf 的 specials 映射目标）必须有立绘，否则台词没脸 */
     const bossIds = ['xuanque', 'shanxiao', 'chisha', 'bamboo', 'waterghost', 'icexiao', 'swampdragon', 'turbidgeneral'];
@@ -2327,7 +2331,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
   console.log('\n== 36. 人物关系图（P4.7） ==');
   {
     /* ---- 1) SUPPORTS 数据完整性 ---- */
-    eq('支援组数', SUPPORTS.length, 12);
+    eq('支援组数', SUPPORTS.length, 17);
     eq('组 id 唯一', new Set(SUPPORTS.map(p => p.id)).size, SUPPORTS.length);
     ok('两端都是已定义角色', SUPPORTS.every(p => CHARS[p.a] && CHARS[p.b]));
     ok('三段对白齐全', SUPPORTS.every(p =>
@@ -2337,7 +2341,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
 
     /* ---- 2) 节点集合：进网的 + 独行的 ---- */
     const net = Relations.netIds(), lone = Relations.loneIds();
-    eq('关系网人数', net.length, 12);
+    eq('关系网人数', net.length, 18);
     ok('进网角色都已定义', net.every(id => CHARS[id]));
     eq('独行者恰为谢无衣/滕大戈', lone.slice().sort().join(','), 'tengdage,xiewuyi');
     ok('独行者也已定义', lone.every(id => CHARS[id]));
@@ -2397,10 +2401,10 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     /* ---- 5) SVG 结构 ---- */
     Relations.sel = null;
     const html = Relations.html(fake);
-    eq('节点数', (html.match(/rel-n n-/g) || []).length, 12);
-    eq('连线命中区', (html.match(/rel-hit/g) || []).length, 12);
-    eq('可见连线', (html.match(/<line class="rel-e e-/g) || []).length, 12);
-    eq('头像裁剪', (html.match(/id="relclip-/g) || []).length, 12);
+    eq('节点数', (html.match(/rel-n n-/g) || []).length, 18);
+    eq('连线命中区', (html.match(/rel-hit/g) || []).length, 17);
+    eq('可见连线', (html.match(/<line class="rel-e e-/g) || []).length, 17);
+    eq('头像裁剪', (html.match(/id="relclip-/g) || []).length, 18);
     ok('每条边可点', SUPPORTS.every(p => html.indexOf('data-act="relPair" data-pair="' + p.id + '"') >= 0));
     ok('每个节点可点', net.every(id => html.indexOf('data-act="relChar" data-id="' + id + '"') >= 0));
     ok('头像三级降级链齐全', net.every(id =>
@@ -2420,9 +2424,9 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     const h2 = Relations.html(fake);
     const deg = Relations.pairsOf('yunce').length;
     eq('选中人物点亮节点', (h2.match(/rel-n n-\w+ lit/g) || []).length, deg + 1);
-    eq('选中人物其余变暗', (h2.match(/rel-n n-\w+ dim/g) || []).length, 12 - deg - 1);
+    eq('选中人物其余变暗', (h2.match(/rel-n n-\w+ dim/g) || []).length, 18 - deg - 1);
     eq('选中人物点亮连线', (h2.match(/rel-e e-\w+ lit/g) || []).length, deg);
-    eq('选中人物其余连线变暗', (h2.match(/rel-e e-\w+ dim/g) || []).length, 12 - deg);
+    eq('选中人物其余连线变暗', (h2.match(/rel-e e-\w+ dim/g) || []).length, 17 - deg);
     ok('选中节点带光环', h2.indexOf('n-sel') >= 0);
     ok('侧栏列出全部羁绊行', (h2.match(/rel-prow/g) || []).length === deg);
     Relations.selectChar('yunce');
@@ -2445,7 +2449,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     ok('命中回避加成用常量', sideHtml.indexOf(hits) >= 0);
     ok('必杀暴避加成用常量', sideHtml.indexOf(crits) >= 0);
     ok('总览统计', sideHtml.indexOf('已缔结 <b>A 1 · B 1 · C 1</b>') >= 0 &&
-      sideHtml.indexOf('同行未达 C <b>1</b> · 未同行 <b>8</b>') >= 0);
+      sideHtml.indexOf('同行未达 C <b>1</b> · 未同行 <b>13</b>') >= 0);
     ok('图例五种线型', sideHtml.indexOf('未同行（有人未入队）') >= 0 && sideHtml.indexOf('同行 · 未达 C') >= 0);
   }
 

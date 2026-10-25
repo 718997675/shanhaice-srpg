@@ -28,8 +28,8 @@ function eq(a, b, msg) { ok(a === b, msg + ' (got ' + a + ', want ' + b + ')'); 
 function approx(a, b, t, msg) { ok(Math.abs(a - b) <= (t || 0.01), msg + ' (got ' + a + ', want ' + b + ')'); }
 
 console.log('—— 数据校验 ——');
-eq(CHAPTERS.length, 12, '章节数');
-eq(HERO_ORDER.length, 14, '角色数');
+eq(CHAPTERS.length, 16, '章节数');
+eq(HERO_ORDER.length, 20, '角色数');
 for (const id of HERO_ORDER) {
   const c = CHARS[id];
   ok(!!c, '角色存在 ' + id);
@@ -514,7 +514,7 @@ if (wf) process.exitCode = 1;
   ack(campEl.loop === true && campEl.children.length === 3, 'loop + m4a/mp3/ogg 三 source');
   ack(campEl.children[0].src.indexOf('bgm_camp.m4a') >= 0, 'm4a 优先于 mp3/ogg');
   ack(get('__pm.length') === 0, '文件模式不回退合成');
-  await wait(1000);   // 等 900ms 淡入跑完
+  await wait(1250);   // 等 900ms 淡入跑完（留足余量，别卡在 0.49 上偶发红）
   ack(Math.abs(campEl.volume - 0.55) < 0.05, '淡入到 0.55（got ' + campEl.volume.toFixed(2) + '）');
 
   /* b. duck：文件音乐瞬压再回 */
@@ -558,3 +558,130 @@ if (wf) process.exitCode = 1;
   console.log(af === 0 ? '✓ 音频架构：静态 + fake DOM 行为均通过' : '✗ 音频架构有 ' + af + ' 条失败');
   if (af) process.exitCode = 1;
 })().catch(e => { console.error('音频行为测试异常：', e); process.exit(1); });
+
+/* ---------- 战略层（分兵）：行为测试 ----------
+ * 纯逻辑模块，独立装进一个新 context：data-core 提供 CHARS/HERO_ORDER，
+ * route.js 提供 isRouteChapter/label，strategy.js 是被测对象。 */
+(() => {
+  let sf = 0;
+  const sok = (c, m) => { if (c) { /* 静默通过 */ } else { sf++; console.error('  ✗ ' + m); } };
+  const ctx = vm.createContext({ console, Math });
+  for (const f of ['js/data-core.js', 'js/systems/route.js', 'js/systems/strategy.js']) {
+    vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
+  }
+  const S = vm.runInContext('Strategy', ctx);
+  const CH = vm.runInContext('CHARS', ctx);
+
+  /* 造一个「第 4 章末刚分完兵」的战役 */
+  const mk = (chapter) => ({
+    chapter,
+    roster: vm.runInContext('HERO_ORDER', ctx).slice(0, 7).map(id => ({ id })),
+    strategy: null
+  });
+
+  /* a. 默认分兵：随行不超过上限、云策必随行、留守非空 */
+  const c1 = mk(4);
+  const d1 = S.defaultDeploy(c1, S.CAP);
+  const front1 = Object.keys(d1).filter(id => d1[id] === 'front');
+  const rear1 = Object.keys(d1).filter(id => d1[id] === 'rear');
+  sok(front1.length === S.CAP, 'defaultDeploy 随行数 = CAP（got ' + front1.length + '）');
+  sok(rear1.length > 0, 'defaultDeploy 有人留守');
+  sok(d1.yunce === 'front', 'defaultDeploy 云策必随行');
+  sok(S.CAP < 7, 'CAP 小于七人队（分兵才有意义）');
+
+  /* b. lock 之后在 5A~7B 区间生效，第 8 章汇合解锁 */
+  const c2 = mk('5A');
+  S.lock(c2, 'A', d1);
+  sok(c2.strategy.front === 'A', 'lock 写入战线');
+  sok(S.isActive(c2), '5A 分兵生效');
+  const rearId = Object.keys(d1).find(id => d1[id] === 'rear');
+  sok(S.canDeploy(c2, rearId) === false, '留守者 5A 不可出战');
+  sok(S.canDeploy(c2, 'yunce') === true, '云策始终可出战');
+  sok(S.absentIds(c2).length === rear1.length, 'absentIds 等于留守人数');
+  c2.chapter = 8;
+  sok(S.isActive(c2) === false, '第 8 章汇合后分兵失效');
+  sok(S.canDeploy(c2, rearId) === true, '汇合后留守者归队');
+  sok(S.absentIds(c2).length === 0, '汇合后缺席名单清空');
+  S.unlock(c2);
+  sok(c2.strategy.locked === false, 'unlock 解除锁定');
+
+  /* c. B 线同样生效，且不串线 */
+  const c3 = mk('6B');
+  S.lock(c3, 'B', d1);
+  sok(c3.strategy.front === 'B', 'B 线战线记录');
+  sok(S.frontLabel('B').indexOf('守脉') >= 0, 'frontLabel 走 Route.label');
+  sok(S.isActive(c3), '6B 分兵生效');
+
+  /* d. normalize：未知成员被剔除、云策强制随行、旧档无 strategy 不炸 */
+  const c4 = mk('5A');
+  c4.strategy = { front: 'A', locked: true, deploy: { yunce: 'rear', notachar: 'rear', [rearId]: 'rear' } };
+  const n4 = S.normalize(c4);
+  sok(!('notachar' in n4.deploy), 'normalize 剔除名单外成员');
+  sok(n4.deploy.yunce === 'front', 'normalize 强制云策随行');
+  const c5 = mk(3);
+  sok(S.normalize(c5).locked === false, '无 strategy 的旧档不锁');
+  sok(S.isActive(c5) === false, '第 3 章不生效');
+
+  /* e. 每章只能调整一次（lock 发生在第 4 章末，不算 6A 的调整） */
+  const c6 = mk(4);
+  S.lock(c6, 'A', d1);
+  c6.chapter = '6A';
+  sok(S.canAdjust(c6, '6A') === true, '本章尚未调整');
+  S.markAdjusted(c6, '6A');
+  sok(S.canAdjust(c6, '6A') === false, '本章已调整');
+  sok(S.canAdjust(c6, '7A') === true, '下一章可再调整');
+
+  /* f. 援军不受分兵限制 */
+  const reserveId = Object.keys(CH).find(id => CH[id].reserve);
+  if (reserveId) {
+    c6.roster.push({ id: reserveId });
+    sok(S.lineOf(c6, reserveId) === 'reserve', '援军归属 reserve');
+    sok(S.canDeploy(c6, reserveId) === true, '援军随时可出战');
+  }
+
+  /* g. 摘要文案 */
+  sok(S.summary(c2).active === false && S.summary(c2).text.indexOf('未分兵') >= 0, '解锁后摘要为未分兵');
+  sok(S.summary(c3).active === true && S.summary(c3).text.indexOf('随行') >= 0, '生效中摘要含随行数');
+
+  console.log(sf === 0 ? '✓ 战略层（分兵）：行为测试通过' : '✗ 战略层有 ' + sf + ' 条失败');
+  if (sf) process.exitCode = 1;
+
+  /* h. 接线：营地按战线筛人、战场再兜一次底、CSS 有分兵面板 */
+  const campSrc2 = fs.readFileSync(path.join(root, 'js/camp.js'), 'utf8');
+  const battleSrc2 = fs.readFileSync(path.join(root, 'js/battle.js'), 'utf8');
+  const cssSrc = fs.readFileSync(path.join(root, 'css/style.css'), 'utf8');
+  const wire = [];
+  const wok = (c, m) => { if (!c) { wire.push(m); console.error('  ✗ ' + m); } };
+  wok(campSrc2.indexOf('Strategy.canDeploy') >= 0, 'camp.js 出征按战线筛人');
+  wok(battleSrc2.indexOf('Strategy.canDeploy') >= 0, 'battle.js 出战名单兜底校验');
+  wok(cssSrc.indexOf('.split-panel') >= 0 && cssSrc.indexOf('.split-card') >= 0, 'style.css 有分兵弹层样式');
+  wok(cssSrc.indexOf('.deploy-card.rear') >= 0, 'style.css 有留守卡片样式');
+  if (wire.length) process.exitCode = 1;
+})();
+
+/* ---------- 舆图（大地图）：静态断言 ----------
+ * 布局与状态机的行为测试在 dev/check-map.js（坐标/交叉/出界那套几何检查
+ * 放主测试里太重），这里只锁「接线没断」。 */
+(() => {
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+  const mapSrc = read('js/systems/worldmap.js');
+  const campSrc3 = read('js/camp.js');
+  const htmlSrc2 = read('index.html');
+  const cssSrc2 = read('css/style.css');
+  let mf = 0;
+  const mok = (c, m) => { if (!c) { mf++; console.error('  ✗ ' + m); } };
+
+  mok(htmlSrc2.indexOf('js/systems/worldmap.js') > htmlSrc2.indexOf('js/systems/route.js'),
+    'index.html 加载顺序 route → worldmap');
+  mok(htmlSrc2.indexOf('data-tab="map"') >= 0, 'index.html 有「舆图」页签');
+  mok(campSrc3.indexOf('renderMap(body)') >= 0 && campSrc3.indexOf("this.tab === 'map'") >= 0,
+    'camp.js 接了舆图渲染');
+  mok(campSrc3.indexOf("act === 'mapPick'") >= 0 && campSrc3.indexOf("act === 'mapGo'") >= 0,
+    'camp.js 接了选章与出征两个动作');
+  mok(cssSrc2.indexOf('.map-sheet') >= 0 && cssSrc2.indexOf('.wm-node') >= 0, 'style.css 有舆图样式');
+  mok(mapSrc.indexOf('Combat.') < 0, 'worldmap.js 不碰战斗公式');
+  mok(mapSrc.indexOf('localStorage') < 0, 'worldmap.js 不直接写存档');
+  mok(mapSrc.indexOf('WM_NODES') >= 0 && mapSrc.indexOf('WM_EDGES') >= 0, 'worldmap.js 有节点与连线表');
+  if (mf) process.exitCode = 1;
+  else console.log('✓ 舆图（大地图）：接线断言通过');
+})();

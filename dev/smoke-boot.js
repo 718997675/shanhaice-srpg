@@ -55,7 +55,7 @@ sandboxWindow.console = console;
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
               'js/audio.js', 'js/audio-bgm.js', 'js/juice.js', 'js/item-icons.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/ui-icons.js', 'js/battle.js',
               'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
-              'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js',
+              'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js', 'js/systems/strategy.js', 'js/systems/worldmap.js',
               'js/camp.js', 'js/relations.js', 'js/game.js'];
 
 (async () => {
@@ -499,7 +499,7 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     const bases = Object.keys(CLASSES).filter(k => CLASSES[k].tier === 1);
     const oneLine = bases.filter(k => (CLASSES[k].promotes || []).length !== 2);
     console.log('基础职业', bases.length, '个；双线', bases.length - oneLine.length, '个');
-    if (bases.length !== 12 || oneLine.length) throw new Error('转职分支缺失：' + oneLine.join(','));
+    if (bases.length !== 17 || oneLine.length) throw new Error('转职分支缺失：' + oneLine.join(','));
     /* 云策（剑客）转职按钮应列出两条线 */
     rec.cls = 'swordsman';
     rec.level = 20;
@@ -590,7 +590,7 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (Battle.modsFor(knotUnit, knotFoe).hit !== 0) throw new Error('了断后仍扣命中');
     /* 终章全解：+5 命中 +5 必杀 */
     const savedChapter = Battle.chapter;
-    Battle.chapter = { no: 9 };
+    Battle.chapter = { no: vm.runInContext('KNOT_FINAL_NO', ctx) };
     const finalMods = Battle.modsFor(knotUnit, knotFoe);
     console.log('终章全解：命中 +' + finalMods.hit + ' · 必杀 +' + finalMods.crit);
     if (finalMods.hit !== 5 || finalMods.crit !== 5) throw new Error('终章全解加成异常');
@@ -790,7 +790,7 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
       camp.roster = rosterIds.map(id => Gv.makeRec(id));
       camp.supports = supports;
       await Gv.onChapterClear({
-        chapterId: 9, turns: 12, sideSuccess: true, units: [], fallen: [],
+        chapterId: vm.runInContext('KNOT_FINAL_NO', ctx), turns: 12, sideSuccess: true, units: [], fallen: [],
         supports, loot: {}, stats: {}, flags: {}, nodesHeld, nodesTotal
       });
       return captured;

@@ -67,7 +67,12 @@ const Relations = {
   SEED: {
     yunce: [480, 270], luming: [350, 400], bailu: [210, 470], yankui: [640, 420],
     moya: [730, 240], jiangsi: [330, 190], aman: [850, 350], xuanyi: [620, 100],
-    chisang: [790, 70], yusqiu: [450, 60], qingluo: [150, 120], yunling: [70, 60]
+    chisang: [790, 70], yusqiu: [450, 60], qingluo: [150, 120], yunling: [70, 60],
+    /* 二期「下海」：新人都挂在旧人的外侧当叶子，不动原有 12 人的摆位，
+     * 这样 12 条老线的零交叉不会被打乱。敖绡与沈砚是「旧敌」，
+     * 单独成簇摆在左下角，不与他人交叉。 */
+    axi: [350, 30], shuangxu: [60, 200], taowujiu: [250, 250],
+    gongshumao: [65, 525], aoxiao: [80, 340], shenyan: [110, 430]
   },
 
   layout() {

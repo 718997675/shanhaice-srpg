@@ -7,6 +7,7 @@ const Camp = {
   shopTab: 'weapon',
   deploySel: null,
   deployChapter: 0,
+  mapPick: null,
 
   init() {
     const tabs = document.getElementById('campTabs');
@@ -78,6 +79,7 @@ const Camp = {
     else if (this.tab === 'memorial') this.renderMemorial(body);
     else if (this.tab === 'codex') this.renderCodex(body);
     else if (this.tab === 'mechanics') this.renderMechanics(body);
+    else if (this.tab === 'map') this.renderMap(body);
     else if (this.tab === 'deploy') this.renderDeploy(body);
   },
 
@@ -653,6 +655,82 @@ const Camp = {
   },
 
   /* ============================================================
+   * 舆图（大地图）
+   * ============================================================ */
+  renderMap(body) {
+    const c = Game.campaign;
+    if (!this.mapPick || !WorldMap.at(this.mapPick)) {
+      this.mapPick = WorldMap.pickDefault(c);
+    }
+    const id = this.mapPick;
+    const ch = Route.byId(id);
+    const state = WorldMap.stateOf(c, id);
+    const rec = (c.records && c.records.chapters && c.records.chapters[id]) || null;
+
+    /* 侧栏：这一章是什么、去过没有、能不能打 */
+    let detail = '';
+    if (!ch) {
+      detail = '<div class="map-empty">此地无章可查。</div>';
+    } else {
+      const badge = '<span class="map-badge is-' + state + '">' + WorldMap.stateLabel(state) + '</span>';
+      const side = ch.side ? '<div class="map-row"><b>支线</b>　' + UI.escape(ch.side.text) + '</div>' : '';
+      const recHtml = (state === 'cleared' && rec)
+        ? '<div class="map-rec"><h4>行 迹</h4>' +
+          '<div class="map-rec-line"><span>回合</span><b>' + (rec.turns || 0) + '</b></div>' +
+          '<div class="map-rec-line"><span>击破</span><b>' + (rec.kills || 0) + '</b></div>' +
+          '<div class="map-rec-line"><span>阵亡</span><b>' + (rec.lost || 0) + '</b></div>' +
+          '<div class="map-rec-line"><span>支线</span><b>' + (rec.side ? '达成' : '未成') + '</b></div>' +
+          '</div>'
+        : '';
+      let foot = '';
+      if (state === 'current') {
+        const absent = Strategy.absentIds(c).length;
+        foot = '<button class="map-go" data-act="mapGo">出 征 此 章</button>' +
+          (absent ? '<div class="map-note">另有 ' + absent + ' 人留守另一条战线。</div>' : '');
+      } else if (state === 'abandoned') {
+        foot = '<div class="map-note">这条路没人走。选了另一条，就得认下没救的那一头。</div>';
+      } else if (state === 'locked') {
+        foot = '<div class="map-note">前路未开。走完手上这一章，路自然会接上。</div>';
+      }
+      detail = '<div class="map-ch-no">' + UI.chapterLabel(ch.no) + '</div>' +
+        '<h3>' + UI.escape(ch.name) + badge + '</h3>' +
+        '<div class="map-row"><b>目标</b>　' + UI.escape(ch.objective.text) + '</div>' +
+        side +
+        '<div class="map-row"><b>出击</b>　上限 ' + ch.deployCount + ' 人 · 云策必出战</div>' +
+        '<div class="map-tips">' + UI.escape(ch.tips || '') + '</div>' +
+        recHtml + foot;
+    }
+
+    /* 图例 */
+    const legend = '<div class="map-legend">' +
+      '<span class="lg is-cleared">已过</span>' +
+      '<span class="lg is-current">当前</span>' +
+      '<span class="lg is-locked">未至</span>' +
+      (c.route ? '<span class="lg is-abandoned">未走之路</span>' : '') +
+      '</div>';
+
+    const strat = Strategy.summary(c);
+    const head = '<div class="map-head">' +
+      '<span class="map-title">山 河 舆 图</span>' +
+      '<span class="map-progress">' + this.mapProgress(c) + '</span>' +
+      (strat.active ? '<span class="map-front">' + UI.escape(strat.text) + '</span>' : '') +
+      '</div>';
+
+    body.innerHTML = '<div class="map-wrap">' +
+      '<div class="map-sheet">' + head + WorldMap.svg(c, id) + legend + '</div>' +
+      '<div class="map-detail">' + detail + '</div>' +
+      '</div>';
+  },
+
+  /* 「已过 6 / 13」——路线章按所选线计，不含另一条线 */
+  mapProgress(c) {
+    const seq = Route.order(c.route);
+    let done = 0;
+    for (const ch of seq) if (ch && WorldMap.stateOf(c, ch.id) === 'cleared') done++;
+    return '已过 ' + done + ' / ' + seq.length;
+  },
+
+  /* ============================================================
    * 出征
    * ============================================================ */
   renderDeploy(body) {
@@ -672,11 +750,12 @@ const Camp = {
     }
     if (!this.deploySel) this.deploySel = new Set();
     const ids = c.roster.map(r => r.id);
+    const allowed = ids.filter(id => Strategy.canDeploy(c, id));
     for (const id of Array.from(this.deploySel)) {
-      if (!ids.includes(id)) this.deploySel.delete(id);
+      if (!ids.includes(id) || !allowed.includes(id)) this.deploySel.delete(id);
     }
     if (!this.deploySel.size) {
-      for (const rec of c.roster.slice(0, ch.deployCount)) this.deploySel.add(rec.id);
+      for (const id of allowed.slice(0, ch.deployCount)) this.deploySel.add(id);
     }
     if (!this.deploySel.has('yunce')) this.deploySel.add('yunce');
     while (this.deploySel.size > ch.deployCount) {
@@ -688,9 +767,18 @@ const Camp = {
       const base = CHARS[rec.id];
       const cls = CLASSES[rec.cls] || {};
       const selected = this.deploySel.has(rec.id);
+      const ok = allowed.includes(rec.id);
       const w = Combat.weaponOf(rec);
       const wname = w ? w.w.name : ((rec.items[0] && (WEAPONS[rec.items[0].key] || ITEMS[rec.items[0].key]) || {}).name || '空手');
       const lord = rec.id === 'yunce';
+      if (!ok) {
+        return '<button class="deploy-card rear" data-act="splitBlocked" data-id="' + rec.id + '" title="留守另一条战线，本章不能出战">' +
+          '<div class="dc-top">' + UI.portraitHTML(base.name) +
+          '<span><span class="dc-name">' + UI.escape(base.name) + '</span>' +
+          '<span class="dc-sub">' + UI.escape(cls.name || '') + ' Lv.' + rec.level + '</span></span></div>' +
+          '<div class="dc-hp" style="color:#8a6a3f;">留守 · ' + UI.escape(Strategy.frontLabel(c.strategy.front)) + '</div>' +
+          '<div class="dc-item">本章缺席</div></button>';
+      }
       return '<button class="deploy-card' + (selected ? ' selected' : '') + (lord ? ' lord' : '') + '" data-act="toggleDeploy" data-id="' + rec.id + '">' +
         '<div class="dc-top">' + UI.portraitHTML(base.name) +
         '<span><span class="dc-name">' + UI.escape(base.name) + (lord ? '<span class="roster-lv" style="margin-left:5px;">守脉</span>' : '') + '</span>' +
@@ -699,10 +787,21 @@ const Camp = {
         '<div class="dc-item">' + UI.escape(wname) + '</div></button>';
     }).join('');
     const side = ch.side ? '<div class="deploy-obj"><b>支线</b>　' + UI.escape(ch.side.text) + '</div>' : '';
+    const strat = Strategy.summary(c);
+    const absent = Strategy.absentIds(c);
+    const stratBar = '<div class="deploy-strategy">' +
+      '<span class="ds-line">' + (strat.active ? UI.escape(strat.text) : '未分兵 · 全员可出战') + '</span>' +
+      (strat.active
+        ? '<button class="mini-btn" data-act="split"' + (Strategy.canAdjust(c, c.chapter) ? '' : ' disabled') + '>' +
+          (Strategy.canAdjust(c, c.chapter) ? '分兵' : '本章已调整') + '</button>'
+        : '') + '</div>' +
+      (absent.length
+        ? '<div class="deploy-absent">缺席 ' + absent.length + ' 人：' + absent.map(id => UI.escape(CHARS[id] ? CHARS[id].name : id)).join('、') + '</div>'
+        : '');
     body.innerHTML = '<div class="deploy-view">' +
       '<div class="deploy-info"><div class="ch-no">' + UI.chapterLabel(ch.no) + '</div>' +
       '<h3>' + UI.escape(ch.name) + '</h3>' +
-      '<p>目标：' + UI.escape(ch.objective.text) + '</p>' + side +
+      '<p>目标：' + UI.escape(ch.objective.text) + '</p>' + side + stratBar +
       '<p>' + UI.escape(ch.tips || '') + '</p>' +
       '<p style="color:#8a6a3f;">出击上限 ' + ch.deployCount + ' 人 · 云策必须出战</p>' +
       '<div class="item-empty" style="line-height:1.8;">' + UI.escape((DIFFICULTIES[c.difficulty] || DIFFICULTIES.normal).desc) + '</div>' +
@@ -720,6 +819,20 @@ const Camp = {
     const act = btn.dataset.act;
     const c = Game.campaign;
     if (!c) return;
+    /* 舆图：点节点换详情；「出征此章」转到出征页 */
+    if (act === 'mapPick') {
+      if (btn.dataset.id === this.mapPick) return;
+      this.mapPick = btn.dataset.id;
+      this.render();
+      return;
+    }
+    if (act === 'mapGo') {
+      const id = this.mapPick;
+      if (WorldMap.stateOf(c, id) !== 'current') { UI.toast('这一章还打不了'); return; }
+      if (this.deployChapter !== id) { this.deployChapter = id; this.deploySel = null; }
+      this.show('deploy');
+      return;
+    }
     if (act === 'forge') {
       const key = btn.dataset.key;
       if (!Forge.canCraft(key)) { UI.toast('此物不可打造'); return; }
