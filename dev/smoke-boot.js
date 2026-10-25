@@ -509,6 +509,19 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     const promoHTML = Camp.unitDetail(rec);
     if (promoHTML.indexOf('剑圣 / 裂阵剑士') < 0) throw new Error('转职按钮未展示双分支');
     console.log('转职按钮含双分支 =', true);
+    /* 真的选第二条分支转职：弹窗选「裂阵剑士」→ cls 变更、脉印 -1、剑熟练度升一阶 */
+    const UIv = vm.runInContext('({ UI })', ctx).UI;
+    const origModal = UIv.modal, origConfirm = UIv.confirm;
+    UIv.modal = () => Promise.resolve('裂阵剑士');
+    UIv.confirm = () => Promise.resolve(true);
+    const sealsBefore = camp.seals, rankBefore = rec.ranks.sword;
+    await Camp.promote(rec);
+    UIv.modal = origModal; UIv.confirm = origConfirm;
+    console.log('选第二分支转职：', (CLASSES[rec.cls] || {}).name, '；脉印', sealsBefore, '→', camp.seals,
+                '；剑', rankBefore, '→', rec.ranks.sword);
+    if (rec.cls !== 'riftblade') throw new Error('转职分支选择未生效：' + rec.cls);
+    if (camp.seals !== sealsBefore - 1) throw new Error('转职未扣脉印');
+    rec.cls = 'swordsman';
     /* 武器进化：兵装行钮 → 扣费扣料 → 换 key / 刷耐久 / 留强化 */
     camp.gold = 3000;
     camp.convoy = [{ key: 'mat_iron', uses: 4 }];
