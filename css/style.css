@@ -673,6 +673,14 @@ img { display: block; }
 .codex-lore { margin-top: 4px; font-size: 11px; line-height: 1.75; color: #4b5142; }
 .codex-lore.muted { color: #9d937c; }
 .codex-tip { margin-top: 5px; font-size: 10px; color: #7a6a4e; }
+/* 机制说明库（P4.6） */
+.mech-group { margin: 14px 0 6px; font-size: 13px; color: #6b4a2a; letter-spacing: .3em; font-weight: 600; }
+.mech-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+.mech-card { padding: 9px 12px; border: 1px solid rgba(122, 90, 44, .2); border-left: 3px solid #4f6f5f;
+  border-radius: 2px; background: rgba(255, 251, 238, .38); }
+.mech-title { display: flex; align-items: center; font-size: 12.5px; color: #3f5a4a; font-weight: 600; letter-spacing: .04em; }
+.mech-title .sk-ic { color: #4f6f5f; }
+.mech-body { margin-top: 4px; font-size: 11px; line-height: 1.85; color: #4b5142; }
 /* 英魂碑（P3.3）：阵亡者卡片 */
 .mem-list { display: flex; flex-direction: column; gap: 10px; }
 .mem-card { position: relative; padding: 10px 12px 10px 14px; border: 1px solid rgba(122, 90, 44, .22);

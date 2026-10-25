@@ -2195,6 +2195,126 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('别名角色都有立绘', aliasBad.join(',') || '无', '无');
   }
 
+  /* ============================================================
+   * 35. 机制说明库与常量对齐（P4.6）
+   * 图鉴的教训：文案照设计文档写、没查常量，三条数值全错。
+   * 本节把 MECHANICS 里每个关键数字逐个绑到常量/源码上——
+   * 改文案数字或改常量，这里必须同步，否则红。
+   * ============================================================ */
+  console.log('\n== 35. 机制说明库与常量对齐（P4.6） ==');
+  {
+    const K = vm.runInContext('({ MECHANICS, MECHANICS_GROUPS, DIFFICULTIES, HEROIC, ELITE_AFFIXES, ' +
+      'AFFIX_SHIELD_MUL, AFFIX_REGEN_RATE, AFFIX_AURA_HIT, AFFIX_BERSERK_SPD, COMMAND_VOLLEY_HIT, COMMAND_HOLD_MUL, ' +
+      'CHAIN_RANGE, SUMMON_FIELD_CAP, RANK_UP_USES, INHERIT_CAP, KNOT_HIT_PENALTY, KNOT_FINAL_BONUS, ENDING_RULE, ' +
+      'SUPPORT_RANKS, SUPPORT_RANGE, SUPPORT_POINTS_ADJACENT, LEGENDARY_DROP, NODE_TIER_MAX, NODE_TIER_HOLD, ' +
+      'TERRAIN, CODEX, CODEX_KINDS, PROMO_LEVEL, SAVE_VERSION, SUMMON_TIERS, ELEMENT_MULTIPLIER, ' +
+      'nodeEffectText })', ctx);
+    const combatSrc = fs.readFileSync(path.join(ROOT, 'js/combat.js'), 'utf8');
+    const norm = s => String(s).replace(/[−–—]/g, '-');   // 正文用 U+2212，统一成半角再比对
+    const body = id => {
+      const m = K.MECHANICS.find(e => e.id === id);
+      return m ? norm(m.body) : '';
+    };
+    /* 正文必须包含某常量算出的字符串 */
+    const must = (id, s) => ok('「' + id + '」含 「' + s + '」', body(id).indexOf(norm(s)) >= 0, body(id));
+    /* 源码里必须有某字面量（combat.js 里没有常量的那几个） */
+    const srcHas = (label, s) => ok('combat.js 源码含 ' + s, combatSrc.indexOf(s) >= 0);
+
+    /* ---- 结构 ---- */
+    eq('四组齐全', Object.keys(K.MECHANICS_GROUPS).join(','), 'field,combat,growth,campaign');
+    ok('条目 ≥ 28', K.MECHANICS.length >= 28, String(K.MECHANICS.length));
+    eq('id 无重复', K.MECHANICS.length === new Set(K.MECHANICS.map(m => m.id)).size, true);
+    ok('每条都有标题和正文', K.MECHANICS.every(m => m.title && m.body && m.body.length >= 30));
+    ok('每条都归入已知组', K.MECHANICS.every(m => K.MECHANICS_GROUPS[m.group]));
+    eq('条目 id 唯一且非空', K.MECHANICS.filter(m => !m.id).length, 0);
+
+    /* ---- 战场 ---- */
+    must('terrain', '回避 +' + K.TERRAIN.f.avoid);              // 疏林 +20
+    must('terrain', '回避 +' + K.TERRAIN.f.avoid + ' / +' + K.TERRAIN.h.avoid + ' / +' + K.TERRAIN.r.avoid);  // 疏林/丘壑/残垣 +20/+15/+10
+    must('terrain', '护甲 +' + K.TERRAIN.f.def);                // +1
+    must('nodes', '命中 +15');                                   // nodeEffectText('attack',1)
+    must('nodes', '暴击 +5');
+    must('nodes', '回复 8 点生命');                              // life 8
+    must('nodes', '移动 +1');                                    // flow 1
+    must('nodes', '护甲与魔抗 +3');                              // guard 3
+    eq('阵眼效果文案与函数一致', K.nodeEffectText('attack', 1).indexOf('命中 +15') >= 0, true);
+    must('node_tier', '每满 ' + K.NODE_TIER_HOLD + ' 个己方阶段');
+    must('node_tier', '最高 ' + K.NODE_TIER_MAX + ' 阶');
+    must('ice', '二次确认');
+
+    /* ---- 战斗 ---- */
+    srcHas('追击阈值', '>= this.attackSpeed(defender) + 4');
+    srcHas('暴击倍率', '(crit ? 3 : 1)');
+    srcHas('特效倍率', 'raw *= 2');
+    srcHas('三角命中', 'hit: 15');
+    srcHas('三角威力', 'dmg: 2');
+    must('hit', '2RN');
+    must('triangle', '命中 +15、威力 +2');
+    must('double', '高 4 点以上');
+    must('crit', '暴击伤害 ×3');
+    must('effective', '伤害 ×2');
+    must('support', '+' + K.SUPPORT_POINTS_ADJACENT + ' 点');
+    must('support', '90 封顶');
+    must('support', 'C 需 ' + K.SUPPORT_RANKS[0].need + ' 点');
+    must('support', 'B 需 ' + K.SUPPORT_RANKS[1].need + ' 点');
+    must('support', 'A 需 ' + K.SUPPORT_RANKS[2].need + ' 点');
+    must('support', '+' + K.SUPPORT_RANKS[0].hit + ' / +' + K.SUPPORT_RANKS[1].hit + ' / +' + K.SUPPORT_RANKS[2].hit);
+    must('support', '+' + K.SUPPORT_RANKS[0].crit + ' / +' + K.SUPPORT_RANKS[1].crit + ' / +' + K.SUPPORT_RANKS[2].crit);
+    must('support', '相距 ' + K.SUPPORT_RANGE + ' 格内');
+    must('spells', '×' + K.ELEMENT_MULTIPLIER.strong);
+    must('spells', '×' + K.ELEMENT_MULTIPLIER.weak);
+    must('affixes', '-' + Math.round((1 - K.AFFIX_SHIELD_MUL) * 100) + '%');
+    must('affixes', Math.round(K.AFFIX_REGEN_RATE * 100) + '%');
+    must('affixes', '命中 +' + K.AFFIX_AURA_HIT);
+    must('affixes', '攻速 +' + K.AFFIX_BERSERK_SPD);
+    must('command', '命中 +' + K.COMMAND_VOLLEY_HIT);
+    must('command', '-' + Math.round((1 - K.COMMAND_HOLD_MUL) * 100) + '%');
+    must('command', K.CHAIN_RANGE + ' 格内');
+
+    /* ---- 成长 ---- */
+    must('promote', '等级 ' + K.PROMO_LEVEL);
+    must('inherit', '最多保留 ' + K.INHERIT_CAP + ' 条');
+    must('rank', '累计 ' + K.RANK_UP_USES + ' 次');
+    const plus1 = Combat.weaponPlusMods(1), plus3 = Combat.weaponPlusMods(3);
+    must('weapons', '威力 +' + plus1.mt + '、命中 +' + plus1.hit);
+    must('weapons', '必杀 +' + plus3.crit);
+    must('weapons', '基础 ' + Math.round(K.LEGENDARY_DROP.base * 100) + '%');
+    must('weapons', '+' + Math.round(K.LEGENDARY_DROP.ramp * 100) + '%');
+    must('weapons', '封顶 ' + Math.round(K.LEGENDARY_DROP.cap * 100) + '%');
+    must('weapons', K.LEGENDARY_DROP.hardPity + ' 次');
+    must('weapons', '+' + Math.round(K.LEGENDARY_DROP.ngplus * 100) + '%');
+    must('summon', '最多 ' + K.SUMMON_FIELD_CAP + ' 只');
+    const t1 = K.SUMMON_TIERS[0].orders;
+    must('summon', '伤害 +' + t1[0].effect.dmg + '、护甲 -' + Math.abs(t1[0].effect.def));
+    must('summon', '护甲 +' + t1[1].effect.def + '、回避 +' + t1[1].effect.avoid);
+    must('heroic', '×' + K.HEROIC.enemyMul);
+    must('heroic', '×' + K.HEROIC.expMul);
+    must('heroic', '×' + (K.HEROIC.enemyMul * K.DIFFICULTIES.hard.enemyMul).toFixed(2).replace(/0$/, ''));
+
+    /* ---- 战役 ---- */
+    must('difficulty', '敌军 ×' + K.DIFFICULTIES.easy.enemyMul.toFixed(2));
+    must('difficulty', '敌等级 -' + Math.abs(K.DIFFICULTIES.easy.enemyLv));
+    must('difficulty', '经验 ×' + K.DIFFICULTIES.easy.expMul.toFixed(2));
+    must('difficulty', '敌军 ×' + K.DIFFICULTIES.hard.enemyMul.toFixed(2));
+    must('difficulty', '敌等级 +' + K.DIFFICULTIES.hard.enemyLv);
+    must('difficulty', '经验 ×' + K.DIFFICULTIES.hard.expMul.toFixed(2));
+    must('difficulty', '每章悔棋 ' + K.DIFFICULTIES.normal.rewinds + ' 次');
+    must('knots', '命中 -' + K.KNOT_HIT_PENALTY);
+    must('knots', '命中 +' + K.KNOT_FINAL_BONUS.hit + '、必杀 +' + K.KNOT_FINAL_BONUS.crit);
+    must('endings', '存活 ≥' + K.ENDING_RULE.good.alive);
+    must('endings', 'A 级 ≥' + K.ENDING_RULE.good.rankA);
+    must('endings', '存活 ≥' + K.ENDING_RULE.mid.alive);
+    must('endings', 'A 级 ≥' + K.ENDING_RULE.mid.rankA);
+    must('rewind', '悔棋 ' + K.DIFFICULTIES.normal.rewinds + ' 次');
+    must('codex', K.CODEX.length + ' 条');
+    /* 五类数量（分类名去空格后比对：CODEX_KINDS 是「妖 兽」式展示名；词缀类正文写全称） */
+    for (const kind of Object.keys(K.CODEX_KINDS)) {
+      const label = kind === 'elite' ? '精英词缀' : K.CODEX_KINDS[kind].replace(/\s/g, '');
+      must('codex', label + ' ' + K.CODEX.filter(e => e.kind === kind).length);
+    }
+    must('save', 'v' + K.SAVE_VERSION);
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

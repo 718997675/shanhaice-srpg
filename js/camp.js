@@ -76,6 +76,7 @@ const Camp = {
     else if (this.tab === 'record') this.renderRecord(body);
     else if (this.tab === 'memorial') this.renderMemorial(body);
     else if (this.tab === 'codex') this.renderCodex(body);
+    else if (this.tab === 'mechanics') this.renderMechanics(body);
     else if (this.tab === 'deploy') this.renderDeploy(body);
   },
 
@@ -589,6 +590,45 @@ const Camp = {
       '<h3>山 海 图 鉴 <span class="codex-count">' + got + ' / ' + total + '</span></h3>' +
       '<div class="codex-hint">击破即录入。图鉴只记「见过什么」，不记「杀了多少」。</div>' +
       groups + '</div>';
+  },
+
+  /* ============================================================
+   * 机制说明库（P4.6）：四组约 30 条，文案与常量对齐
+   * （数值由 formulas 第 35 节绑死，改文案先过测试）
+   * ============================================================ */
+  renderMechanics(body) {
+    const groups = Object.keys(MECHANICS_GROUPS).map(key => {
+      const list = mechanicsByGroup(key);
+      if (!list.length) return '';
+      const cards = list.map(m =>
+        '<div class="mech-card" id="mech-' + m.id + '">' +
+        '<div class="mech-title">' + (typeof Icons !== 'undefined' ? Icons.svg(this.mechIcon(m.id), 'sk-ic') : '') +
+        UI.escape(m.title) + '</div>' +
+        '<div class="mech-body">' + UI.escape(m.body) + '</div></div>'
+      ).join('');
+      return '<h3 class="mech-group">' + MECHANICS_GROUPS[key] +
+        ' <span class="codex-count">' + list.length + '</span></h3>' +
+        '<div class="mech-grid">' + cards + '</div>';
+    }).join('');
+    body.innerHTML = '<div class="record-wrap">' +
+      '<h3>机 制 说 明 <span class="codex-count">' + MECHANICS.length + ' 条</span></h3>' +
+      '<div class="codex-hint">这里的每个数字都与实际结算一致。拿不准的规则，战前翻一眼。</div>' +
+      groups + '</div>';
+  },
+
+  /* 机制条目 → 图标键（与 Icons 的 ICON_TAGS/技能图标共用一套图形） */
+  mechIcon(id) {
+    const map = {
+      terrain: 'move', ice: 'feather', nodes: 'mag', node_tier: 'spark', fog: 'hit',
+      facilities: 'heal', talk: 'talk',
+      hit: 'hit', triangle: 'blade', double: 'move', crit: 'spark', effective: 'blade',
+      support: 'song', spells: 'mag', affixes: 'shield', command: 'assault',
+      promote: 'skill', inherit: 'skill', rank: 'spark', weapons: 'blade', summon: 'summon',
+      death: 'flee', heroic: 'berserk',
+      difficulty: 'wall', route: 'move', knots: 'root', endings: 'spark', rewind: 'slow',
+      codex: 'skill', save: 'wall'
+    };
+    return map[id] || 'skill';
   },
 
   /* ============================================================

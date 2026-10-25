@@ -1203,5 +1203,30 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     console.log('单位卡小签带图标 / 营地技能行带图标，均通过');
   }
 
+  /* P4.6 机制说明库：营地「机制」页签渲染四组全部条目 */
+  {
+    const { Camp: MCCamp, MECHANICS: MCM, MECHANICS_GROUPS: MCG } =
+      vm.runInContext('({ Camp, MECHANICS, MECHANICS_GROUPS })', ctx);
+    const mechBody = el();
+    MCCamp.renderMechanics(mechBody);
+    const html = mechBody.innerHTML;
+    const cards = (html.match(/mech-card/g) || []).length;
+    const groups = (html.match(/mech-group/g) || []).length;
+    const icons = (html.match(/<svg/g) || []).length;
+    console.log('机制页：条目', cards, '；分组', groups, '；图标', icons, '；总数', MCM.length);
+    if (cards !== MCM.length) throw new Error('机制条目数与数据不符');
+    if (groups !== Object.keys(MCG).length) throw new Error('机制分组数与数据不符');
+    if (icons !== MCM.length) throw new Error('机制条目未全部带图标');
+    if (html.indexOf('机 制 说 明') < 0) throw new Error('机制页标题缺失');
+    /* 每条都能按 id 锚定（页内直达用） */
+    const missAnchor = MCM.filter(m => html.indexOf('mech-' + m.id) < 0);
+    if (missAnchor.length) throw new Error('缺锚点：' + missAnchor.map(m => m.id).join(','));
+    /* 图标键全部存在于图标库 */
+    const Icons2 = vm.runInContext('Icons', ctx);
+    const badIcon = MCM.filter(m => !Icons2.has(MCCamp.mechIcon(m.id)));
+    if (badIcon.length) throw new Error('机制图标键缺失：' + badIcon.map(m => m.id).join(','));
+    console.log('机制页渲染：四组全量 + 锚点 + 图标，均通过');
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });
