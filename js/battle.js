@@ -114,6 +114,7 @@ const Battle = {
       casualties: [],
       mainHoldCount: 0,
       codexSeen: {},          // 本章击破的敌型 / 词缀（P3.4 图鉴）
+      midsPlayed: {},         // 本章已播的幕间对白 key（P3.5 三幕结构）
       sideHoldCount: 0,
       spawnedReinforcements: {},
       rewindLeft: this.diff.rewinds,
@@ -715,6 +716,29 @@ const Battle = {
   /* ============================================================
    * 阶段流程
    * ============================================================ */
+  /* 幕间对白（P3.5 三幕结构）：章数据里的 mids = [{ key, turn }]。
+   * 我方阶段开始时，若本回合有未播过的幕间就播一次；同一 key 只播一次，
+   * 悔棋回退不重播（B.midsPlayed 随快照序列化）。 */
+  async playMidDialogues() {
+    const B = this.B;
+    const list = (this.chapter && this.chapter.mids) || [];
+    if (!B || !list.length) return;
+    if (!B.midsPlayed || typeof B.midsPlayed !== 'object') B.midsPlayed = {};
+    for (const m of list) {
+      if (!m || !m.key || B.midsPlayed[m.key]) continue;
+      if ((m.turn || 1) > B.turn) continue;
+      if (typeof DIALOGUES === 'undefined' || !DIALOGUES[m.key]) { B.midsPlayed[m.key] = true; continue; }
+      B.midsPlayed[m.key] = true;
+      B.busy = true;
+      try {
+        await UI.dialogue(DIALOGUES[m.key]);
+      } finally {
+        B.busy = false;
+      }
+      if (!this.active || B.ending) return;
+    }
+  },
+
   async beginPlayerPhase(first) {
     const B = this.B;
     B.busy = true;
@@ -759,6 +783,8 @@ const Battle = {
       setTimeout(() => UI.toast(this.chapter.tips || this.chapter.objective.text, 4200), 500);
     }
     B.busy = false;
+    /* 幕间对白（P3.5）：本章三幕结构的第二幕，按回合触发一次 */
+    await this.playMidDialogues();
     const snap = this.serialize(false);
     let hist = Array.isArray(B.history) ? B.history.slice() : [];
     let cur = Number.isInteger(B.historyCursor) ? B.historyCursor : hist.length;
@@ -2981,6 +3007,7 @@ const Battle = {
       summoned: B.summoned,
       casualties: B.casualties,
       mainHoldCount: B.mainHoldCount,
+      midsPlayed: Object.assign({}, B.midsPlayed || {}),
       sideHoldCount: B.sideHoldCount,
       spawnedReinforcements: B.spawnedReinforcements,
       rewindLeft: B.rewindLeft,
@@ -3019,6 +3046,7 @@ const Battle = {
     B.summoned = data.summoned || [];
     B.casualties = data.casualties || [];
     B.mainHoldCount = data.mainHoldCount || 0;
+    B.midsPlayed = Object.assign({}, data.midsPlayed || {});
     B.sideHoldCount = data.sideHoldCount || 0;
     B.spawnedReinforcements = data.spawnedReinforcements || {};
     B.rewindLeft = data.rewindLeft === undefined ? this.diff.rewinds : data.rewindLeft;

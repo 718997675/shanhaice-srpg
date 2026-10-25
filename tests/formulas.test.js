@@ -1971,6 +1971,94 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     for (const k of ['beast', 'spirit', 'elite', 'boss', 'ruin']) ok('分类名存在 ' + k, !!CODEX_KINDS[k]);
   }
 
+  console.log('\n== 31. 三幕剧情（P3.5） ==');
+  {
+    const { CHAPTERS, DIALOGUES, CHARS, DIALOGUE_NPCS } =
+      vm.runInContext('({ CHAPTERS, DIALOGUES, CHARS, DIALOGUE_NPCS })', ctx);
+
+    /* 说话人白名单：CHARS 里的人名 + 剧情 NPC 名单 */
+    const names = new Set(Object.values(CHARS).map(c => c.name));
+    ok('剧情 NPC 名单存在', Array.isArray(DIALOGUE_NPCS) && DIALOGUE_NPCS.length > 0);
+    eq('NPC 名单不含角色人名（避免歧义）',
+      (DIALOGUE_NPCS || []).filter(n => names.has(n)).join(',') || '无', '无');
+    eq('NPC 名单无重复', new Set(DIALOGUE_NPCS || []).size, (DIALOGUE_NPCS || []).length);
+    const legal = n => names.has(n) || (DIALOGUE_NPCS || []).includes(n);
+
+    const bad = [];
+    let lines = 0, chars = 0;
+    for (const ch of CHAPTERS) {
+      const pre = 'ch' + ch.id;
+      const intro = DIALOGUES[pre + '_intro'];
+      const outro = DIALOGUES[pre + '_outro'];
+      if (!Array.isArray(intro)) bad.push(pre + ' 缺第一幕');
+      if (!Array.isArray(outro)) bad.push(pre + ' 缺第三幕');
+
+      /* 第二幕：章数据里的 mids 指向真实对白，每章恰好一段 */
+      const mids = ch.mids;
+      if (!Array.isArray(mids) || !mids.length) bad.push(pre + ' 缺 mids');
+      else {
+        if (mids.length !== 1) bad.push(pre + ' 第二幕不止一段');
+        for (const m of mids) {
+          if (!DIALOGUES[m.key]) bad.push(pre + ' 幕间键不存在 ' + m.key);
+          if (!(m.turn >= 2)) bad.push(pre + ' 幕间回合过早 ' + m.turn);
+          if (ch.turnLimit && m.turn > ch.turnLimit) bad.push(pre + ' 幕间回合超出上限');
+        }
+      }
+
+      const blocks = [intro].concat((mids || []).map(m => DIALOGUES[m.key]), [outro]);
+      const seen = new Set();
+      let sum = 0;
+      for (const b of blocks) {
+        if (!Array.isArray(b)) continue;
+        if (b.length < 6 || b.length > 12) bad.push(pre + ' 幕长 ' + b.length + ' 句');
+        for (const l of b) {
+          if (!l || typeof l.text !== 'string' || !l.text.trim()) { bad.push(pre + ' 空台词'); continue; }
+          if (seen.has(l.text)) bad.push(pre + ' 章内重复台词');
+          seen.add(l.text);
+          sum += l.text.length; lines++; chars += l.text.length;
+          if (!legal(l.who)) bad.push(pre + ' 说话人非法 ' + l.who);
+          if (l.text.length > 60) bad.push(pre + ' 台词过长 ' + l.text.length);
+        }
+        /* 每一幕都要有戏，不能全是旁白 */
+        if (b.every(l => l.who === '旁白')) bad.push(pre + ' 有一幕全是旁白');
+      }
+      if (sum < 500) bad.push(pre + ' 三幕正文偏少 ' + sum + ' 字');
+    }
+    eq('三幕结构完整', bad.join(' | ') || '无', '无');
+    ok('三幕总句数 ≥ 300', lines >= 300, String(lines));
+    ok('三幕总字数 ≥ 7000', chars >= 7000, String(chars));
+
+    /* 幕间键唯一，且不与首尾幕撞名 */
+    const midKeys = CHAPTERS.flatMap(c => (c.mids || []).map(m => m.key));
+    eq('12 章各有幕间', midKeys.length, CHAPTERS.length);
+    eq('幕间键唯一', new Set(midKeys).size, midKeys.length);
+    eq('幕间键不与首尾幕撞名',
+      midKeys.filter(k => /_(intro|outro)$/.test(k)).join(',') || '无', '无');
+    eq('幕间键全部有对白', midKeys.filter(k => !DIALOGUES[k]).join(',') || '无', '无');
+
+    /* 章节 intro/outro 字段与 DIALOGUES 键对得上（engine 读的是章节字段） */
+    const mapBad = [];
+    for (const ch of CHAPTERS) {
+      if (!DIALOGUES[ch.intro]) mapBad.push('ch' + ch.id + ' intro 键无效');
+      if (!DIALOGUES[ch.outro]) mapBad.push('ch' + ch.id + ' outro 键无效');
+    }
+    eq('章节首尾幕键有效', mapBad.join(',') || '无', '无');
+
+    /* 分歧点与终局特殊对白仍在 */
+    for (const k of ['ch4_route', 'talk_moya', 'boss_phase2', 'weakened']) {
+      ok('特殊对白存在 ' + k, Array.isArray(DIALOGUES[k]) && DIALOGUES[k].length >= 1);
+    }
+
+    /* 三幕之外的所有对白条目也要说话人合法（防止改稿时漏改） */
+    const strayBad = [];
+    for (const k of Object.keys(DIALOGUES)) {
+      for (const l of DIALOGUES[k] || []) {
+        if (!l || !legal(l.who)) strayBad.push(k + ':' + (l && l.who));
+      }
+    }
+    eq('全部对白说话人合法', strayBad.join(',') || '无', '无');
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

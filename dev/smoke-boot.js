@@ -906,5 +906,57 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     camp.chapter = savedChapter; camp.cleared = savedCleared; camp.codex = savedCodex;
   }
 
+  /* P3.5 三幕剧情：幕间对白按回合播一次，悔棋不重播 */
+  {
+    const { UI: UIv6, DIALOGUES: DLG } = vm.runInContext('({ UI, DIALOGUES })', ctx);
+    const origDlg = UIv6.dialogue;
+    const played = [];
+    UIv6.dialogue = lines => { played.push(lines); return Promise.resolve(); };
+
+    const fake = Object.create(Battle);
+    fake.B = { turn: 2, busy: false };
+    fake.chapter = { mids: [{ key: 'ch1_mid', turn: 3 }] };
+    fake.active = true;
+
+    await Battle.playMidDialogues.call(fake);
+    console.log('第 2 回合幕间播放次数 =', played.length);
+    if (played.length !== 0) throw new Error('回合未到不该播幕间');
+
+    fake.B.turn = 3;
+    await Battle.playMidDialogues.call(fake);
+    await Battle.playMidDialogues.call(fake);
+    console.log('第 3 回合幕间播放次数 =', played.length,
+      '；已播标记 =', Object.keys(fake.B.midsPlayed).join(','));
+    if (played.length !== 1) throw new Error('幕间应只播一次');
+    if (!fake.B.midsPlayed.ch1_mid) throw new Error('幕间未标记已播');
+    if (played[0] !== DLG.ch1_mid) throw new Error('播的不是本章第二幕');
+
+    /* 键不存在时只标记、不报错、不弹窗 */
+    const ghost = Object.create(Battle);
+    ghost.B = { turn: 5, busy: false };
+    ghost.chapter = { mids: [{ key: 'no_such_mid', turn: 1 }] };
+    ghost.active = true;
+    await Battle.playMidDialogues.call(ghost);
+    console.log('缺对白的幕间：标记 =', Object.keys(ghost.B.midsPlayed).join(','));
+    if (!ghost.B.midsPlayed.no_such_mid) throw new Error('缺对白的幕间也该标记');
+    if (played.length !== 1) throw new Error('缺对白时不该弹窗');
+
+    UIv6.dialogue = origDlg;
+
+    /* 真实章节数据挂上了 mids，且引擎读得到 */
+    await Battle.start({ chapterId: 1, campaign: camp, deployedIds: ['yunce', 'luming'] });
+    console.log('第 1 章 mids =', JSON.stringify(Battle.chapter.mids));
+    if (!Battle.chapter.mids || !Battle.chapter.mids[0] ||
+        Battle.chapter.mids[0].key !== 'ch1_mid') throw new Error('章节未挂 mids');
+
+    /* 快照往返保留已播记录（悔棋不重播） */
+    Battle.B.midsPlayed = { ch1_mid: true };
+    const snapM = Battle.serialize(false);
+    Battle.B.midsPlayed = {};
+    Battle.applyState(snapM);
+    console.log('快照往返后 midsPlayed =', JSON.stringify(Battle.B.midsPlayed));
+    if (!Battle.B.midsPlayed.ch1_mid) throw new Error('快照未保留幕间记录');
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });
