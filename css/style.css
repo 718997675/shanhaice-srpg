@@ -681,6 +681,92 @@ img { display: block; }
 .mech-title { display: flex; align-items: center; font-size: 12.5px; color: #3f5a4a; font-weight: 600; letter-spacing: .04em; }
 .mech-title .sk-ic { color: #4f6f5f; }
 .mech-body { margin-top: 4px; font-size: 11px; line-height: 1.85; color: #4b5142; }
+/* 人物关系图（P4.7） */
+.rel-page { padding: 14px 16px; }
+.rel-head h3 { margin: 0 0 6px; font-size: 18px; letter-spacing: .12em; }
+.rel-wrap { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.rel-stage { flex: 1 1 520px; min-width: 0; }
+.rel-svg { display: block; width: 100%; height: auto; border: 1px solid rgba(122, 90, 44, .18);
+  border-radius: 3px; background: rgba(255, 251, 238, .34); }
+.rel-bg { fill: transparent; }
+.rel-hit { stroke: transparent; stroke-width: 16; pointer-events: all; cursor: pointer; }
+.rel-e { fill: none; stroke-linecap: round; transition: opacity .15s; }
+.rel-e.e-lock { stroke: #b3a687; stroke-width: 1; stroke-dasharray: 4 5; opacity: .6; }
+.rel-e.e-none { stroke: #a89a78; stroke-width: 1.4; }
+.rel-e.e-C { stroke: #4f7d6f; stroke-width: 2.4; }
+.rel-e.e-B { stroke: #3f8f6f; stroke-width: 3.4; }
+.rel-e.e-A { stroke: #b8862f; stroke-width: 4.4; }
+.rel-e.e-lock.lit { stroke-width: 2; }
+.rel-e.e-none.lit { stroke-width: 2.4; }
+.rel-e.e-C.lit { stroke-width: 3.4; }
+.rel-e.e-B.lit { stroke-width: 4.4; }
+.rel-e.e-A.lit { stroke-width: 5.4; }
+.rel-e.lit { stroke: #9e3b32; }
+.rel-e.dim { opacity: .12; }
+.rel-lab { font-family: var(--sans); font-size: 9.5px; fill: #7a6f57; letter-spacing: .04em;
+  paint-order: stroke; stroke: #f2ead6; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.rel-lab.lit { fill: #9e3b32; font-weight: 700; }
+.rel-lab.dim { opacity: .12; }
+.rel-n { cursor: pointer; }
+.rel-n.dim { opacity: .16; }
+.n-halo { fill: none; stroke: rgba(158, 59, 50, .4); stroke-width: 1.4; stroke-dasharray: 2 4; opacity: 0; }
+.rel-n.n-sel .n-halo { opacity: 1; }
+.n-disk { fill: #1f2a20; stroke: #d3ab5e; stroke-width: 1.6; }
+.rel-n:hover .n-disk { stroke: #f0d189; }
+.rel-n.n-sel .n-disk { stroke: #9e3b32; stroke-width: 2.6; }
+.rel-n.n-away .n-disk { stroke: #9a917c; stroke-dasharray: 3 3; }
+.rel-n.n-fallen .n-disk { stroke: #8b3b2d; }
+.n-img { pointer-events: none; }
+.n-letter { fill: #d9c9a6; font-family: var(--serif); font-size: 15px; text-anchor: middle; pointer-events: none; }
+.n-name { fill: #3a3325; font-size: 11px; text-anchor: middle; letter-spacing: .06em; pointer-events: none; }
+.rel-n.n-away .n-name { fill: #8c826b; }
+.rel-n.n-fallen .n-name { fill: #8b3b2d; }
+.n-tag { fill: #8c826b; font-family: var(--sans); font-size: 8px; text-anchor: middle; pointer-events: none; }
+.n-tag.n-dead { fill: #8b3b2d; }
+.n-badge circle { stroke: rgba(16, 22, 15, .35); stroke-width: 1; }
+.n-badge text { fill: #10160f; font-family: var(--sans); font-size: 8.5px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.n-badge.b-C circle { fill: #7fb59a; }
+.n-badge.b-B circle { fill: #a9c98f; }
+.n-badge.b-A circle { fill: #f0d189; }
+.rel-foot { margin-top: 10px; font-size: 10.5px; color: #8c826b; letter-spacing: .04em; }
+.rel-side { flex: 0 0 292px; width: 292px; padding: 12px 14px; border: 1px solid rgba(122, 90, 44, .2);
+  border-radius: 3px; background: rgba(255, 251, 238, .4); }
+.rel-side-title { font-size: 14px; color: #5d3527; letter-spacing: .18em; margin-bottom: 8px; }
+.rel-stat { font-size: 11.5px; color: #4b5142; line-height: 1.9; }
+.rel-stat b { color: #6b4a2a; }
+.rel-legend { margin: 10px 0; padding: 8px 0; border-top: 1px dashed rgba(80, 68, 45, .18); border-bottom: 1px dashed rgba(80, 68, 45, .18); }
+.rel-lg-row { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: #6d6450; line-height: 1.7; }
+.rel-lg-svg { flex: none; }
+.rel-lg-svg .rel-e { pointer-events: none; }
+.rel-rules { margin-top: 4px; }
+.rel-rule { font-size: 10.5px; color: #5a5344; line-height: 1.85; }
+.rel-rule b { color: #6b4a2a; }
+.rel-tip { margin-top: 10px; font-size: 10px; color: #8c826b; line-height: 1.7; }
+.rel-who { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.rel-who .amp { color: #9e3b32; font-size: 12px; }
+.rel-who-meta { font-size: 11px; color: #5a5344; line-height: 1.7; }
+.rel-who-state.s-roster { color: #4f6f5f; }
+.rel-who-state.s-away { color: #8c826b; }
+.rel-who-state.s-fallen { color: #8b3b2d; }
+.rel-pfp { position: relative; width: 34px; height: 34px; border-radius: 50%; overflow: hidden;
+  background: #1f2a20; border: 1px solid rgba(211, 171, 94, .5); flex: none; }
+.rel-pfp-l { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #d9c9a6; font-size: 14px; }
+.rel-pfp img { position: relative; width: 100%; height: 100%; object-fit: cover; }
+.rel-prow { display: flex; align-items: center; gap: 7px; width: 100%; padding: 6px 8px; margin-bottom: 4px;
+  border: 1px solid rgba(122, 90, 44, .16); border-radius: 2px; background: rgba(255, 251, 238, .35);
+  font-size: 11px; color: #4b5142; text-align: left; }
+.rel-prow:hover { border-color: rgba(158, 59, 50, .4); background: rgba(255, 251, 238, .7); }
+.rel-pname { color: #5d3527; font-weight: 600; }
+.rel-pair { flex: 1; color: #8c826b; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rel-ppts { font-family: var(--sans); font-size: 9.5px; color: #9a8a6a; }
+.rk { font-family: var(--sans); font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 2px; letter-spacing: .04em; }
+.rk-A { background: #f0d189; color: #5d3f12; }
+.rk-B { background: #a9c98f; color: #2c4423; }
+.rk-C { background: #7fb59a; color: #17332a; }
+.rk-z { background: rgba(122, 90, 44, .14); color: #8c826b; }
+.rel-empty { font-size: 11px; color: #8c826b; padding: 8px 0; }
+.rel-goto { margin-top: 10px; }
 /* 英魂碑（P3.3）：阵亡者卡片 */
 .mem-list { display: flex; flex-direction: column; gap: 10px; }
 .mem-card { position: relative; padding: 10px 12px 10px 14px; border: 1px solid rgba(122, 90, 44, .22);

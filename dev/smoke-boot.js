@@ -56,7 +56,7 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
                'js/audio.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/ui-icons.js', 'js/battle.js',
                'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
                'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js',
-               'js/camp.js', 'js/game.js'];
+               'js/camp.js', 'js/relations.js', 'js/game.js'];
 
 (async () => {
   for (const f of FILES) {
@@ -1226,6 +1226,97 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     const badIcon = MCM.filter(m => !Icons2.has(MCCamp.mechIcon(m.id)));
     if (badIcon.length) throw new Error('机制图标键缺失：' + badIcon.map(m => m.id).join(','));
     console.log('机制页渲染：四组全量 + 锚点 + 图标，均通过');
+  }
+
+  /* P4.7 人物关系图：关系网渲染 / 选中高亮 / 动作分发 / 常量文案 */
+  {
+    const { Camp: RC, Relations: RR, Game: RG, CHARS: RCCHARS, SUPPORTS: RSUP } =
+      vm.runInContext('({ Camp, Relations, Game, CHARS, SUPPORTS })', ctx);
+    const CombatR = vm.runInContext('Combat', ctx);
+
+    /* 1) 假档：4 人在队、1 人殁、若干羁绊点 */
+    const fake = {
+      roster: ['yunce', 'luming', 'yankui', 'bailu'].map(id => ({ id: id })),
+      fallen: ['moya'],
+      supports: { yunce_luming: 25, yunce_yankui: 60, bailu_luming: 95 }
+    };
+    RR.sel = null;
+    const html = RR.html(fake);
+    const nodes = (html.match(/rel-n n-/g) || []).length;
+    const hits = (html.match(/rel-hit/g) || []).length;
+    const edges = (html.match(/rel-e e-/g) || []).length;
+    const clips = (html.match(/id="relclip-/g) || []).length;
+    console.log('关系图：节点', nodes, '；边', hits, '；可见边', edges, '；裁剪', clips);
+    if (nodes !== RR.netIds().length) throw new Error('关系网节点数不对');
+    if (hits !== RSUP.length || edges !== RSUP.length) throw new Error('关系网边数不对');
+    if (clips !== nodes) throw new Error('头像裁剪路径缺失');
+    for (const p of RSUP) {
+      if (html.indexOf('data-pair="' + p.id + '"') < 0) throw new Error('缺边：' + p.id);
+    }
+    /* 每个节点：头像 jpg → svg 兜底 → 姓名首字 */
+    for (const id of RR.netIds()) {
+      if (html.indexOf('data-id="' + id + '"') < 0) throw new Error('缺节点：' + id);
+      if (html.indexOf('assets/portraits/' + id + '.jpg') < 0) throw new Error('缺头像：' + id);
+      if (html.indexOf(RCCHARS[id].name.charAt(0)) < 0) throw new Error('缺首字兜底：' + id);
+    }
+    if (html.indexOf('n-fallen') < 0 || html.indexOf('已殁') < 0) throw new Error('殁者标记缺失');
+    if (html.indexOf('未入队') < 0) throw new Error('未入队标记缺失');
+    if (html.indexOf('独行：') < 0 || html.indexOf(RCCHARS.xiewuyi.name) < 0) throw new Error('独行者缺失');
+    /* 边等级样式与 Combat.supportRank 一致 */
+    const e1 = RR.edgeInfo(fake, RSUP.find(p => p.id === 'yunce_luming'));
+    if (e1.key !== 'C' || e1.rank !== CombatR.supportRank(25)) throw new Error('边等级样式不对');
+    if (RR.edgeInfo(fake, RSUP.find(p => p.id === 'xuanyi_chisang')).key !== 'lock') throw new Error('未同行应为虚线');
+
+    /* 2) 选中人物：点亮本人与全部关联，其余变暗 */
+    RR.selectChar('yunce');
+    const html2 = RR.html(fake);
+    const litN = (html2.match(/rel-n n-\w+ lit/g) || []).length;
+    const dimN = (html2.match(/rel-n n-\w+ dim/g) || []).length;
+    const litE = (html2.match(/rel-e e-\w+ lit/g) || []).length;
+    const dimE = (html2.match(/rel-e e-\w+ dim/g) || []).length;
+    const deg = RR.pairsOf('yunce').length;
+    console.log('选中云策：关联', litN, '人 /', litE, '组；变暗', dimN, '人 /', dimE, '组');
+    if (litN !== deg + 1 || dimN !== nodes - deg - 1) throw new Error('人物选中高亮不对');
+    if (litE !== deg || dimE !== RSUP.length - deg) throw new Error('人物选中连线高亮不对');
+    if (html2.indexOf('n-sel') < 0) throw new Error('选中节点缺光环');
+    if (html2.indexOf('rel-prow') < 0) throw new Error('侧栏缺羁绊行');
+    /* 再点一次取消 */
+    RR.selectChar('yunce');
+    if (RR.sel !== null) throw new Error('再次点击应取消选中');
+
+    /* 3) 选中连线 */
+    RR.selectPair('bailu_luming');
+    const html3 = RR.html(fake);
+    if ((html3.match(/rel-e e-\w+ lit/g) || []).length !== 1) throw new Error('连线选中应只点亮一条');
+    if ((html3.match(/rel-n n-\w+ lit/g) || []).length !== 2) throw new Error('连线选中应只点亮两端');
+    if (html3.indexOf('已达最高羁绊') < 0) throw new Error('满级文案缺失');
+    RR.clear();
+    if (RR.sel !== null) throw new Error('clear 未清空选中');
+
+    /* 4) 动作分发走 Camp.handleAction（SVG 元素带 data-act） */
+    const savedTab = RC.tab;
+    RC.tab = 'relations';
+    await RC.handleAction({ dataset: { act: 'relChar', id: 'luming' } });
+    if (!RR.sel || RR.sel.type !== 'char' || RR.sel.id !== 'luming') throw new Error('relChar 动作未生效');
+    await RC.handleAction({ dataset: { act: 'relPair', pair: 'yunce_luming' } });
+    if (!RR.sel || RR.sel.type !== 'pair') throw new Error('relPair 动作未生效');
+    await RC.handleAction({ dataset: { act: 'relClear' } });
+    if (RR.sel !== null) throw new Error('relClear 动作未生效');
+    await RC.handleAction({ dataset: { act: 'relGoto' } });
+    if (RC.tab !== 'support') throw new Error('relGoto 未跳到羁绊页');
+    RC.tab = savedTab;
+
+    /* 5) 整页渲染进 DOM 桩 + Camp.render 全链路 */
+    const relBody = el();
+    RC.renderRelations(relBody);
+    if (relBody.innerHTML.indexOf('人 物 关 系') < 0) throw new Error('关系页标题缺失');
+    if (relBody.innerHTML.indexOf('rel-svg') < 0) throw new Error('关系页 SVG 缺失');
+    RG.campaign = fake;
+    RC.tab = 'relations';
+    RC.render();
+    RC.tab = savedTab;
+    RG.campaign = null;
+    console.log('关系图：选中高亮 / 动作分发 / 整页渲染，均通过');
   }
 
   console.log('\n冒烟通过：无引用错误');

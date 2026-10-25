@@ -9,7 +9,7 @@ const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
 const ctx = vm.createContext({ console });
-for (const f of ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/combat.js', 'js/systems/legendary.js', 'js/systems/smith.js']) {
+for (const f of ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/combat.js', 'js/relations.js', 'js/systems/legendary.js', 'js/systems/smith.js']) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
 }
 // 注意：脚本顶层 const 不挂到 context 对象，需用表达式从全局词法作用域取回
@@ -18,6 +18,9 @@ const { Combat, TERRAIN, WEAPONS, SUPPORT_RANKS, STAT_ORDER, STAT_CAPS, TRIANGLE
         SUMMON_TIERS, SUMMON_FIELD_CAP, SUMMON_WEAPONS, SUMMON_TIER_NAMES,
         Legendary, Forge } =
   vm.runInContext('({ Combat, TERRAIN, WEAPONS, SUPPORT_RANKS, STAT_ORDER, STAT_CAPS, TRIANGLE, ELEMENTS, ELEMENT_COUNTERS, ELEMENT_MULTIPLIER, SPELLS, LEGENDARY_WEAPONS, SUMMON_TIERS, SUMMON_FIELD_CAP, SUMMON_WEAPONS, SUMMON_TIER_NAMES, Legendary, Forge })', ctx);
+const { Relations, SUPPORTS, CHARS, CLASSES,
+        SUPPORT_POINTS_ADJACENT, SUPPORT_RANGE } =
+  vm.runInContext('({ Relations, SUPPORTS, CHARS, CLASSES, SUPPORT_POINTS_ADJACENT, SUPPORT_RANGE })', ctx);
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {
@@ -2313,6 +2316,137 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
       must('codex', label + ' ' + K.CODEX.filter(e => e.kind === kind).length);
     }
     must('save', 'v' + K.SAVE_VERSION);
+  }
+
+  /* ============================================================
+   * 36. 人物关系图（P4.7）
+   * 关系网是纯展示层：等级必须走 Combat.supportRank，
+   * 页面每个数字必须来自 SUPPORT_RANKS / SUPPORT_POINTS_ADJACENT /
+   * SUPPORT_RANGE，布局必须确定性可复现。
+   * ============================================================ */
+  console.log('\n== 36. 人物关系图（P4.7） ==');
+  {
+    /* ---- 1) SUPPORTS 数据完整性 ---- */
+    eq('支援组数', SUPPORTS.length, 12);
+    eq('组 id 唯一', new Set(SUPPORTS.map(p => p.id)).size, SUPPORTS.length);
+    ok('两端都是已定义角色', SUPPORTS.every(p => CHARS[p.a] && CHARS[p.b]));
+    ok('三段对白齐全', SUPPORTS.every(p =>
+      p.dialogues && ['C', 'B', 'A'].every(r => p.dialogues[r] && p.dialogues[r].length)));
+    ok('对白说话人限定在组内两人', SUPPORTS.every(p =>
+      ['C', 'B', 'A'].every(r => p.dialogues[r].every(l => l.who === p.a || l.who === p.b))));
+
+    /* ---- 2) 节点集合：进网的 + 独行的 ---- */
+    const net = Relations.netIds(), lone = Relations.loneIds();
+    eq('关系网人数', net.length, 12);
+    ok('进网角色都已定义', net.every(id => CHARS[id]));
+    eq('独行者恰为谢无衣/滕大戈', lone.slice().sort().join(','), 'tengdage,xiewuyi');
+    ok('独行者也已定义', lone.every(id => CHARS[id]));
+    eq('云策的羁绊组数', Relations.pairsOf('yunce').length, 5);
+
+    /* ---- 3) 布局确定性 + 不重叠 + 不出界 ---- */
+    const lay1 = Relations.layout();
+    Relations._lay = null;
+    const lay2 = Relations.layout();
+    eq('两次布局坐标一致', JSON.stringify(lay1), JSON.stringify(lay2));
+    const R = Relations.R, W = Relations.W, H = Relations.H;
+    ok('全部节点在画布内', net.every(id => {
+      const p = lay1[id];
+      return p.x >= R && p.x <= W - R && p.y >= R && p.y <= H - R;
+    }));
+    let minD = Infinity;
+    for (let i = 0; i < net.length; i++) for (let j = i + 1; j < net.length; j++) {
+      const a = lay1[net[i]], b = lay1[net[j]];
+      minD = Math.min(minD, Math.hypot(a.x - b.x, a.y - b.y));
+    }
+    ok('两两不重叠（圆心距 ≥ 2R+14）', minD >= R * 2 + 14, '最小 ' + minD.toFixed(1));
+    /* 12 条支援线零交叉（共享端点的相邻组不算） */
+    const pt = id => ({ x: lay1[id].x, y: lay1[id].y });
+    const side = (o, p, q) => (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
+    const segCross = (a, b, c, d) => {
+      const d1 = side(a, b, c), d2 = side(a, b, d), d3 = side(c, d, a), d4 = side(c, d, b);
+      return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+    };
+    let crossings = 0;
+    for (let i = 0; i < SUPPORTS.length; i++) for (let j = i + 1; j < SUPPORTS.length; j++) {
+      const p = SUPPORTS[i], q = SUPPORTS[j];
+      if (p.a === q.a || p.a === q.b || p.b === q.a || p.b === q.b) continue;
+      if (segCross(pt(p.a), pt(p.b), pt(q.a), pt(q.b))) crossings++;
+    }
+    eq('支援线零交叉', crossings, 0);
+
+    /* ---- 4) 等级映射与 Combat.supportRank 同源 ---- */
+    const fake = {
+      roster: [{ id: 'yunce' }, { id: 'luming' }, { id: 'yankui' }, { id: 'bailu' }],
+      fallen: ['moya'],
+      supports: { yunce_luming: 25, yunce_yankui: 60, bailu_luming: 95 }
+    };
+    const pair = id => SUPPORTS.find(p => p.id === id);
+    for (const pts of [0, 19, 20, 49, 50, 89, 90, 300]) {
+      const c = { roster: fake.roster, fallen: [], supports: { yunce_luming: pts } };
+      const e = Relations.edgeInfo(c, pair('yunce_luming'));
+      eq(pts + ' 点等级与公式一致', e.rank, Combat.supportRank(pts));
+    }
+    eq('25 点 → C 级样式', Relations.edgeInfo(fake, pair('yunce_luming')).key, 'C');
+    eq('60 点 → B 级样式', Relations.edgeInfo(fake, pair('yunce_yankui')).key, 'B');
+    eq('95 点 → A 级样式', Relations.edgeInfo(fake, pair('bailu_luming')).key, 'A');
+    eq('0 点 → 同行未达 C', Relations.edgeInfo(fake, pair('yunce_bailu')).key, 'none');
+    eq('有人未入队 → 虚线', Relations.edgeInfo(fake, pair('xuanyi_chisang')).key, 'lock');
+    eq('云策最高羁绊 B', Relations.bestRankOf(fake, 'yunce'), 'B');
+    eq('白鹭最高羁绊 A', Relations.bestRankOf(fake, 'bailu'), 'A');
+
+    /* ---- 5) SVG 结构 ---- */
+    Relations.sel = null;
+    const html = Relations.html(fake);
+    eq('节点数', (html.match(/rel-n n-/g) || []).length, 12);
+    eq('连线命中区', (html.match(/rel-hit/g) || []).length, 12);
+    eq('可见连线', (html.match(/<line class="rel-e e-/g) || []).length, 12);
+    eq('头像裁剪', (html.match(/id="relclip-/g) || []).length, 12);
+    ok('每条边可点', SUPPORTS.every(p => html.indexOf('data-act="relPair" data-pair="' + p.id + '"') >= 0));
+    ok('每个节点可点', net.every(id => html.indexOf('data-act="relChar" data-id="' + id + '"') >= 0));
+    ok('头像三级降级链齐全', net.every(id =>
+      html.indexOf('assets/portraits/' + id + '.jpg') >= 0 &&
+      html.indexOf("this.setAttribute('href','assets/portraits/" + id + ".svg')") >= 0 &&
+      html.indexOf('>' + CHARS[id].name.charAt(0) + '</text>') >= 0));
+    ok('背景点击清空', html.indexOf('data-act="relClear"') >= 0);
+    ok('殁者有标记', html.indexOf('n-fallen') >= 0 && html.indexOf('已殁') >= 0);
+    ok('未入队有标记', html.indexOf('未入队') >= 0);
+    ok('独行者在页脚', html.indexOf('独行：') >= 0 && html.indexOf(CHARS.xiewuyi.name) >= 0);
+    /* 边标签：无等级不显示，有等级才显示 */
+    ok('未达 C 的边不显示标签', html.indexOf('逃将') < 0);
+    ok('C 级边显示标签', html.indexOf('山门药香') >= 0);
+
+    /* ---- 6) 选中态 ---- */
+    Relations.selectChar('yunce');
+    const h2 = Relations.html(fake);
+    const deg = Relations.pairsOf('yunce').length;
+    eq('选中人物点亮节点', (h2.match(/rel-n n-\w+ lit/g) || []).length, deg + 1);
+    eq('选中人物其余变暗', (h2.match(/rel-n n-\w+ dim/g) || []).length, 12 - deg - 1);
+    eq('选中人物点亮连线', (h2.match(/rel-e e-\w+ lit/g) || []).length, deg);
+    eq('选中人物其余连线变暗', (h2.match(/rel-e e-\w+ dim/g) || []).length, 12 - deg);
+    ok('选中节点带光环', h2.indexOf('n-sel') >= 0);
+    ok('侧栏列出全部羁绊行', (h2.match(/rel-prow/g) || []).length === deg);
+    Relations.selectChar('yunce');
+    eq('再点一次取消选中', Relations.sel, null);
+    Relations.selectPair('bailu_luming');
+    const h3 = Relations.html(fake);
+    eq('选中连线只点亮一条', (h3.match(/rel-e e-\w+ lit/g) || []).length, 1);
+    eq('选中连线只点亮两端', (h3.match(/rel-n n-\w+ lit/g) || []).length, 2);
+    ok('满级文案', h3.indexOf('已达最高羁绊') >= 0);
+    Relations.clear();
+    eq('clear 清空选中', Relations.sel, null);
+
+    /* ---- 7) 页面数字全部来自常量 ---- */
+    const sideHtml = Relations.overviewPanel(fake);
+    const needs = SUPPORT_RANKS.map(r => r.rank + ' ' + r.need).join(' · ');
+    const hits = SUPPORT_RANKS.map(r => r.rank + ' +' + r.hit + ' 命中/回避').join(' · ');
+    const crits = SUPPORT_RANKS.map(r => r.rank + ' +' + r.crit).join(' / ');
+    ok('页面积攒规则用常量', sideHtml.indexOf('+' + SUPPORT_POINTS_ADJACENT + '</b> 点（' + SUPPORT_RANGE + ' 格内有效）') >= 0);
+    ok('等级门槛用常量', sideHtml.indexOf(needs) >= 0);
+    ok('命中回避加成用常量', sideHtml.indexOf(hits) >= 0);
+    ok('必杀暴避加成用常量', sideHtml.indexOf(crits) >= 0);
+    ok('总览统计', sideHtml.indexOf('已缔结 <b>A 1 · B 1 · C 1</b>') >= 0 &&
+      sideHtml.indexOf('同行未达 C <b>1</b> · 未同行 <b>8</b>') >= 0);
+    ok('图例五种线型', sideHtml.indexOf('未同行（有人未入队）') >= 0 && sideHtml.indexOf('同行 · 未达 C') >= 0);
   }
 
   console.log('\n----------------------------------------');

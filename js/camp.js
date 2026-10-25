@@ -73,6 +73,7 @@ const Camp = {
     else if (this.tab === 'shop') this.renderShop(body);
     else if (this.tab === 'forge') this.renderForge(body);
     else if (this.tab === 'support') this.renderSupport(body);
+    else if (this.tab === 'relations') this.renderRelations(body);
     else if (this.tab === 'record') this.renderRecord(body);
     else if (this.tab === 'memorial') this.renderMemorial(body);
     else if (this.tab === 'codex') this.renderCodex(body);
@@ -429,6 +430,17 @@ const Camp = {
         '</div>';
     }).join('');
     body.innerHTML = knotHTML + '<div class="support-wrap">' + cards + '</div>';
+  },
+
+  /* ============================================================
+   * 人物关系图（P4.7）：SUPPORTS 12 组支援画成关系网
+   * 全部逻辑在 js/relations.js（纯字符串，等级走 Combat.supportRank）
+   * ============================================================ */
+  renderRelations(body) {
+    body.innerHTML = '<div class="record-wrap rel-page">' +
+      (typeof Relations !== 'undefined'
+        ? Relations.html(Game.campaign)
+        : '<div class="record-line">关系图不可用。</div>') + '</div>';
   },
 
   /* 了断心结（P3.2）：需对应支援 A 级，播完对白即解，终章全解给全队加成 */
@@ -867,6 +879,22 @@ const Camp = {
     }
     if (act === 'supportTalk') {
       await this.supportTalk(btn.dataset.pair, btn.dataset.rank);
+      return;
+    }
+    if (act === 'relChar') {
+      if (typeof Relations !== 'undefined') Relations.selectChar(btn.dataset.id);
+      return;
+    }
+    if (act === 'relPair') {
+      if (typeof Relations !== 'undefined') Relations.selectPair(btn.dataset.pair);
+      return;
+    }
+    if (act === 'relClear') {
+      if (typeof Relations !== 'undefined') Relations.clear();
+      return;
+    }
+    if (act === 'relGoto') {
+      this.show('support');
       return;
     }
     if (act === 'knotResolve') {
