@@ -106,6 +106,22 @@ const Audio = {
     } catch (e) { /* 静默 */ }
   },
 
+  /* 必杀「静默一拍」（二期 G）：音乐瞬压 0 再回，落差即爽感 */
+  duck(sec) {
+    if (!this.ctx || !this.musicGain) return;
+    const t = this.ctx.currentTime;
+    try {
+      this.musicGain.gain.cancelScheduledValues(t);
+      this.musicGain.gain.setTargetAtTime(0, t, 0.02);
+    } catch (e) { /* 静默 */ }
+    setTimeout(() => {
+      if (!this.ctx || !this.musicGain) return;
+      try {
+        this.musicGain.gain.setTargetAtTime(this.musicOn ? 0.18 : 0, this.ctx.currentTime, 0.06);
+      } catch (e) { /* 静默 */ }
+    }, Math.max(60, (sec || 0.15) * 1000));
+  },
+
   sfx(name) {
     if (!this.sfxOn || !this.ensure()) return;
     switch (name) {
@@ -113,8 +129,10 @@ const Audio = {
       case 'select': this.tone(520, 0.1, { type: 'triangle', vol: 0.06 }); this.tone(780, 0.12, { type: 'sine', vol: 0.04, delay: 0.04 }); break;
       case 'cancel': this.tone(380, 0.1, { type: 'sine', vol: 0.05, slide: 0.8 }); break;
       case 'move': this.noise(0.09, 0.06, 1200); this.tone(240, 0.12, { type: 'triangle', vol: 0.04 }); break;
-      case 'hit': this.noise(0.12, 0.15, 520); this.tone(150, 0.15, { type: 'sawtooth', vol: 0.06, slide: 0.6 }); break;
-      case 'crit': this.noise(0.2, 0.22, 380); this.tone(100, 0.28, { type: 'sawtooth', vol: 0.1, slide: 0.5 }); break;
+      /* 命中：低频 sine thump（90→30Hz 下滑）+ 噪声 crunch */
+      case 'hit': this.tone(90, 0.16, { type: 'sine', vol: 0.14, slide: 0.33 }); this.noise(0.12, 0.15, 520); this.tone(150, 0.15, { type: 'sawtooth', vol: 0.06, slide: 0.6 }); break;
+      /* 必杀：先静音 0.1s 再 thump + crunch，靠落差制造爽感 */
+      case 'crit': this.duck(0.18); this.tone(70, 0.3, { type: 'sine', vol: 0.18, slide: 0.43, delay: 0.1 }); this.noise(0.2, 0.22, 380, 0.1); this.tone(100, 0.28, { type: 'sawtooth', vol: 0.1, slide: 0.5, delay: 0.1 }); break;
       case 'miss': this.noise(0.1, 0.05, 2400); this.tone(880, 0.08, { type: 'sine', vol: 0.03, slide: 1.3 }); break;
       case 'heal': [523, 659, 784].forEach((f, i) => this.tone(f, 0.35, { type: 'sine', vol: 0.045, delay: i * 0.06 })); break;
       case 'death': this.tone(220, 0.5, { type: 'triangle', vol: 0.08, slide: 0.5 }); this.noise(0.3, 0.07, 300); break;

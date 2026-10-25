@@ -85,6 +85,7 @@ const Render = {
     this.slashes = [];
     this.flashes = [];
     if (typeof BattleView !== 'undefined') BattleView.reset();
+    if (typeof Juice !== 'undefined') Juice.clearAll();
     this.resize();
     this.buildTerrain();
   },
@@ -99,9 +100,14 @@ const Render = {
     this.flashes = [];
     /* 横版演出（P4.4）：战斗切场时无条件清场，防止淡出跨到营地 */
     if (typeof BattleView !== 'undefined') BattleView.reset();
+    if (typeof Juice !== 'undefined') Juice.clearAll();
   },
 
   palette() { return this.PALETTES[this.theme] || this.PALETTES.mountain; },
+
+  /* 演出时钟（二期 G）：顿帧期读 Juice 虚拟时钟（停走 → 世界冻结），
+   * 否则真实时钟。渲染层所有计时统一走这里，逻辑定时器不受影响。 */
+  _now() { return (typeof Juice !== 'undefined') ? Juice.now() : performance.now(); },
 
   hash(x, y, salt) {
     const v = Math.sin(x * 127.1 + y * 311.7 + (salt || 0) * 74.7) * 43758.5453;
@@ -481,7 +487,7 @@ const Render = {
     let px = unit.x, py = unit.y;
     if (this.moving && this.moving.unitId === unit.id) {
       const m = this.moving;
-      const now = performance.now();
+      const now = this._now();
       const p = Math.max(0, Math.min(1, (now - m.start) / m.duration));
       const path = m.path;
       const seg = Math.min(path.length - 1, Math.floor(p * (path.length - 1)));
@@ -492,11 +498,18 @@ const Render = {
     }
     if (this.lungeFx && this.lungeFx.unitId === unit.id) {
       const m = this.lungeFx;
-      const now = performance.now();
+      const now = this._now();
       const p = Math.max(0, Math.min(1, (now - m.start) / m.duration));
       const k = Math.sin(p * Math.PI);
       px = m.fromX + (m.toX - m.fromX) * k;
       py = m.fromY + (m.toY - m.fromY) * k;
+    }
+    /* 打击感（二期 G）：击退位移 + 倒地沉降（像素） */
+    if (typeof Juice !== 'undefined') {
+      const kb = Juice.knock[unit.id];
+      if (kb) px += kb.x / this.tile;
+      const fp = Juice.fallP(unit.id);
+      if (fp > 0) py += fp * 0.42;
     }
     return { x: px, y: py };
   },
@@ -512,7 +525,7 @@ const Render = {
       this.moving = {
         unitId: unit.id,
         path: path.map(p => ({ x: p.x, y: p.y })),
-        start: performance.now(),
+        start: this._now(),
         duration: Math.max(120, (path.length - 1) * per),
         resolve
       };
@@ -532,30 +545,30 @@ const Render = {
       unitId: unit.id, fromX: from.x, fromY: from.y,
       toX: from.x + (targetX - from.x) * 0.42,
       toY: from.y + (targetY - from.y) * 0.42,
-      start: performance.now(), duration
+      start: this._now(), duration
     };
     await new Promise(r => setTimeout(r, duration + 20));
     if (this.lungeFx && this.lungeFx.unitId === unit.id) this.lungeFx = null;
   },
 
   /* ---------------- 特效 ---------------- */
-  floatText(text, x, y, color, size) {
+  floatText(text, x, y, color, size, pop) {
     this.floats.push({
       text, x, y, color: color || '#f4e8cd',
-      size: size || 16, start: performance.now(), life: 820
+      size: size || 16, pop: !!pop, start: this._now(), life: 820
     });
   },
 
   slash(x, y, kind) {
-    this.slashes.push({ x, y, kind: kind || 'slash', start: performance.now(), life: 380 });
+    this.slashes.push({ x, y, kind: kind || 'slash', start: this._now(), life: 380 });
   },
 
   flash(color, alpha) {
-    this.flashes.push({ color: color || '#fff', alpha: alpha || 0.25, start: performance.now(), life: 220 });
+    this.flashes.push({ color: color || '#fff', alpha: alpha || 0.25, start: this._now(), life: 220 });
   },
 
   shake(power) {
-    this.shakeT = performance.now();
+    this.shakeT = this._now();
     this.shakePower = power || 5;
   },
 
@@ -566,6 +579,7 @@ const Render = {
     this.moving = null;
     this.lungeFx = null;
     this.hpView = null;
+    if (typeof Juice !== 'undefined') Juice.clearAll();
   },
 
   /* ---------------- 主绘制 ---------------- */
@@ -573,7 +587,7 @@ const Render = {
     if (!this.canvas || !this.ctx) return;
     const ctx = this.ctx;
     const pal = this.palette();
-    this.time = performance.now();
+    this.time = this._now();
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.W, this.H);
     const bg = ctx.createLinearGradient(0, 0, this.W, this.H);
@@ -591,8 +605,21 @@ const Render = {
       shx = (Math.random() - 0.5) * k * 2;
       shy = (Math.random() - 0.5) * k * 2;
     }
+    /* 打击感（二期 G）：trauma² 震屏叠加在原有震屏之上 */
+    if (typeof Juice !== 'undefined') {
+      const t = Juice.shakeOffset(12);
+      shx += t.x;
+      shy += t.y;
+    }
     ctx.save();
     ctx.translate(shx, shy);
+    /* 必杀预兆推镜（绕棋盘中心） */
+    if (typeof Juice !== 'undefined' && Juice.zoom !== 1) {
+      const zcx = this.ox + this.boardW / 2, zcy = this.oy + this.boardH / 2;
+      ctx.translate(zcx, zcy);
+      ctx.scale(Juice.zoom, Juice.zoom);
+      ctx.translate(-zcx, -zcy);
+    }
 
     const b = this.battle;
     // 桌面外的留白
@@ -938,6 +965,17 @@ const Render = {
     const maxHp = u.stats.hp || 1;
 
     ctx.save();
+    /* 打击感（二期 G）：挤压回弹（绕自身中心）+ 倒地淡出 */
+    let fallA = 1;
+    if (typeof Juice !== 'undefined') {
+      const kb = Juice.knock[u.id];
+      if (kb && kb.squash > 0.02) {
+        ctx.translate(cx, cy);
+        ctx.scale(1 + kb.squash * 0.35, 1 - kb.squash * 0.28);
+        ctx.translate(-cx, -cy);
+      }
+      fallA = 1 - Juice.fallP(u.id);
+    }
     // 脚下灵环：我方青、敌军绛、可招募金，呼吸明灭
     const aura = isPlayer ? '127,181,154' : (u.recruitable ? '211,171,94' : '196,96,74');
     const auraA = 0.16 + 0.08 * Math.sin(now / 520 + u.x * 0.8 + u.y * 0.6);
@@ -968,7 +1006,7 @@ const Render = {
       ctx.stroke();
     }
 
-    ctx.globalAlpha = u.acted && isPlayer ? 0.56 : 1;
+    ctx.globalAlpha = (u.acted && isPlayer ? 0.56 : 1) * fallA;
     const body = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.4, r * 0.15, cx, cy, r);
     body.addColorStop(0, isPlayer ? '#6e9487' : '#ab6658');
     body.addColorStop(1, color);
@@ -986,7 +1024,7 @@ const Render = {
     ctx.arc(cx, cy, r - 2.5, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.globalAlpha = u.acted && isPlayer ? 0.68 : 1;
+    ctx.globalAlpha = (u.acted && isPlayer ? 0.68 : 1) * fallA;
     /* 单位图标（P4.5）：有美术就把图标裁进圆里，没有才落姓名首字。
      * 解析链与横版演出共用 BattleView.iconOf（杂兵变体/Boss/召唤一张表）。 */
     const iconPath = (typeof BattleView !== 'undefined') ? BattleView.iconOf(u) : null;
@@ -1164,6 +1202,13 @@ const Render = {
       const cy = this.oy + f.y * t + t / 2 - p * t * 0.7;
       ctx.save();
       ctx.globalAlpha = p < 0.8 ? 1 : 1 - (p - 0.8) / 0.2;
+      /* 会心大字：easeOutBack 式快速回落 */
+      if (f.pop) {
+        const sc = 1 + 0.55 * Math.pow(1 - p, 2.2);
+        ctx.translate(cx, cy);
+        ctx.scale(sc, sc);
+        ctx.translate(-cx, -cy);
+      }
       ctx.font = `700 ${f.size}px "Noto Serif SC", "Songti SC", serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -1183,6 +1228,13 @@ const Render = {
       ctx.fillStyle = f.color;
       ctx.fillRect(this.ox, this.oy, this.boardW, this.boardH);
       ctx.restore();
+    }
+    /* 打击感（二期 G）：粒子 / 冲击帧 / 闪白 / 暗角 / 必杀立绘切入 */
+    if (typeof Juice !== 'undefined') {
+      Juice.drawFx(ctx, {
+        ox: this.ox, oy: this.oy, tile: t, W: this.W, H: this.H,
+        boardW: this.boardW, boardH: this.boardH
+      });
     }
   }
 };

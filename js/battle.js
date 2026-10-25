@@ -2398,15 +2398,25 @@ const Battle = {
         const foe = this.unitById(ev.defender);
         if (!striker || !foe) continue;
         if (striker.hp <= 0) continue;
+        /* 打击感（二期 G）：顿帧/闪白/震屏/粒子/击退由 Juice 出；
+         * 关设置时回退旧行为（shake+flash），公式一概不碰。 */
+        const juiceOn = typeof Juice !== 'undefined' && Juice._cfg().on;
+        /* 必杀四段式之「静→蓄」：冲斩前推镜 + 立绘切入 + 慢放 */
+        if (ev.hit && ev.crit && !useView && typeof Juice !== 'undefined') {
+          await Juice.critWindUp(striker, B.speed);
+        }
         if (useView) await BattleView.strike(ev, B.speed);
         else await Render.lunge(striker, foe.x, foe.y, B.speed);
         if (ev.hit) {
           Render.hpView[foe.id] = ev.hpAfter;
           if (!useView) {
             Render.slash(foe.x, foe.y, ev.crit ? 'crit' : 'hit');
-            Render.shake(ev.crit ? 8 : 3);
-            Render.floatText((ev.crit ? '必杀 ' : '') + '-' + ev.dmg, foe.x, foe.y, ev.crit ? '#f1cd7a' : '#f0b8a7', ev.crit ? 19 : 15);
-            Render.flash(ev.crit ? '#f4d79a' : '#f0e8d4', ev.crit ? 0.3 : 0.12);
+            Render.floatText((ev.crit ? '必杀 ' : '') + '-' + ev.dmg, foe.x, foe.y, ev.crit ? '#f1cd7a' : '#f0b8a7', ev.crit ? 19 : 15, juiceOn && !!ev.crit);
+            if (juiceOn) Juice.hitFromEv(ev, B.speed);
+            else {
+              Render.shake(ev.crit ? 8 : 3);
+              Render.flash(ev.crit ? '#f4d79a' : '#f0e8d4', ev.crit ? 0.3 : 0.12);
+            }
           }
           Audio.sfx(ev.crit ? 'crit' : 'hit');
           UI.log(ev.attackerName + '命中' + ev.defenderName + (ev.crit ? '，必杀' : '') + '，造成 ' + ev.dmg + ' 伤害。', striker.side === 'player' ? 'good' : 'bad');
@@ -2458,7 +2468,11 @@ const Battle = {
           UI.log(ev.attackerName + '的攻击被' + ev.defenderName + '避开。', striker.side === 'player' ? 'bad' : 'good');
         }
         if (ev.hit && ev.lethal && Render.hpView) Render.hpView[foe.id] = 0;
-        await this.wait(ev.crit ? 360 : 260);
+        /* 必杀四段式之「余」：推镜回正 + 立绘滑出；致命多停 200ms 看倒地 */
+        if (ev.hit && ev.crit && !useView && typeof Juice !== 'undefined') {
+          await Juice.critWindDown(B.speed);
+        }
+        await this.wait(ev.lethal ? 560 : (ev.crit ? 400 : 260));
       } else if (ev.type === 'break') {
         UI.log(ev.unitName + '的' + ev.weapon + '损毁了。', 'bad');
         Audio.sfx('cancel');

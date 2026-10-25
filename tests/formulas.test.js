@@ -9,7 +9,7 @@ const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
 const ctx = vm.createContext({ console });
-for (const f of ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/combat.js', 'js/relations.js', 'js/systems/legendary.js', 'js/systems/smith.js']) {
+for (const f of ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/combat.js', 'js/juice.js', 'js/relations.js', 'js/systems/legendary.js', 'js/systems/smith.js']) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
 }
 // 注意：脚本顶层 const 不挂到 context 对象，需用表达式从全局词法作用域取回
@@ -2545,6 +2545,156 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
       give(a, 'iron_sword'); give(b, 'iron_sword');
       return Combat.doubles(a, b) === true && Combat.doubles(b, a) === false;
     })());
+  }
+
+  console.log('\n== 38. 打击感 Juice（二期 G：纯呈现，不碰公式） ==');
+  {
+    const J = vm.runInContext('Juice', ctx);
+    ok('Juice 已加载', !!J && typeof J.update === 'function' && typeof J.hit === 'function');
+    const juiceSrc = fs.readFileSync(path.join(ROOT, 'js/juice.js'), 'utf8');
+    ok('Juice 源码不出现 Combat.（不碰公式）', juiceSrc.indexOf('Combat.') < 0);
+
+    /* 运行时桩：设置 / 触酸 / 飘字 / 战场。
+     * 注意：第 11 节已载入 battle.js——Battle 是 const 词法声明，不能
+     * var 重声明，只能改它的 .B；Render 是第 11 节打桩对象，直接扩充。 */
+    vm.runInContext(`
+      globalThis.Game = { settings: { juice: true, reducedMotion: false, haptics: true }, __vib: [] };
+      globalThis.navigator = { vibrate: function (p) { Game.__vib.push(p); } };
+    `, ctx);
+    const G = vm.runInContext('Game', ctx);
+    const R = vm.runInContext('Render', ctx);
+    R.ox = 0; R.oy = 0; R.tile = 50; R.floats = [];
+    R.floatText = function (t) { this.floats.push({ t: t }); };
+    vm.runInContext('Battle', ctx).B = { units: [{ id: 'a1', x: 0, y: 0 }, { id: 'd1', x: 2, y: 0 }] };
+    ctx.setTimeout = setTimeout;
+    ctx.clearTimeout = clearTimeout;
+
+    /* ---- 冻结语义：顿帧期时钟停走、update 返回 0，帧数到点恢复 ---- */
+    J.clearAll();
+    J.update(16);
+    const c0 = J.now();
+    J.freeze(4 / 60);
+    eq('顿帧期 update 返回 0', J.update(16), 0);
+    eq('顿帧期时钟停走', J.now(), c0);
+    eq('顿帧第 2 帧仍冻结', J.update(16), 0);
+    for (let i = 0; i < 5; i++) J.update(16);
+    ok('帧数到点时钟恢复', J.now() > c0);
+
+    /* ---- 倍速：顿帧减半 ---- */
+    J.clearAll();
+    J.freeze(4 / 60 / 2);
+    ok('倍速顿帧减半', J.hitstop > 0 && J.hitstop <= 4 / 60 / 2 + 1e-9);
+
+    /* ---- 轻击三件套 ---- */
+    J.clearAll();
+    J.hit({ x: 1, y: 1, dir: 1, speed: 1, unitId: 'd1' });
+    eq('轻击顿帧 4 帧', Math.round(J.hitstop * 60), 4);
+    ok('轻击闪白 ≈.18', Math.abs(J.flash - 0.18) < 1e-9);
+    ok('轻击震屏 ≈.12', Math.abs(J.trauma - 0.12) < 1e-9);
+    eq('轻击粒子 12', J.particles.length, 12);
+    ok('轻击击退已上单位', !!J.knock['d1']);
+    eq('轻击触觉 [10]', JSON.stringify(G.__vib[G.__vib.length - 1]), '[10]');
+
+    /* ---- 必杀档 ---- */
+    J.clearAll();
+    vm.runInContext('Render.floats.length = 0', ctx);
+    J.hit({ crit: true, x: 1, y: 1, dir: 1, speed: 1, unitId: 'd1' });
+    eq('必杀顿帧 8 帧', Math.round(J.hitstop * 60), 8);
+    ok('必杀闪白 .70', Math.abs(J.flash - 0.7) < 1e-9);
+    eq('必杀粒子 26', J.particles.length, 26);
+    eq('必杀慢放 0.35', J.timeScale, 0.35);
+    eq('会心大字进飘字队', vm.runInContext('Render.floats.length', ctx), 1);
+
+    /* ---- 击杀档 ---- */
+    J.clearAll();
+    J.hit({ kill: true, x: 1, y: 1, dir: 1, speed: 1, unitId: 'd1' });
+    eq('击杀顿帧 12 帧', Math.round(J.hitstop * 60), 12);
+    ok('击杀暗角脉冲', J.vignette > 0.5);
+    ok('击杀倒地已登记', !!J.falls['d1']);
+    eq('击杀慢放 0.25', J.timeScale, 0.25);
+
+    /* ---- ×2 倍速下必杀顿帧 4 帧 ---- */
+    J.clearAll();
+    J.hit({ crit: true, x: 1, y: 1, dir: 1, speed: 2, unitId: 'd1' });
+    eq('×2 必杀顿帧 4 帧', Math.round(J.hitstop * 60), 4);
+
+    /* ---- hitFromEv：从战场取坐标/方向，miss 不触发 ---- */
+    J.clearAll();
+    J.hitFromEv({ hit: true, crit: false, lethal: false, attacker: 'a1', defender: 'd1' }, 1);
+    ok('hitFromEv 上击退 + 出粒子', !!J.knock['d1'] && J.particles.length === 12);
+    ok('攻击在左 → 受击方负向击退', J.knock['d1'].x < 0);
+    J.clearAll();
+    J.hitFromEv({ hit: false, attacker: 'a1', defender: 'd1' }, 1);
+    eq('miss 不触发打击感', J.particles.length, 0);
+
+    /* ---- reduced：只留 2 帧顿帧 ---- */
+    J.clearAll();
+    G.settings.reducedMotion = true;
+    J.hit({ crit: true, kill: true, x: 1, y: 1, dir: 1, speed: 1, unitId: 'd1' });
+    eq('reduced 顿帧 2 帧', Math.round(J.hitstop * 60), 2);
+    eq('reduced 无粒子', J.particles.length, 0);
+    eq('reduced 无闪白', J.flash, 0);
+    eq('reduced 无震屏', J.trauma, 0);
+    eq('reduced 无击退', Object.keys(J.knock).length, 0);
+    G.settings.reducedMotion = false;
+
+    /* ---- 总开关：关设置后完全静默 ---- */
+    J.clearAll();
+    G.settings.juice = false;
+    J.hit({ x: 1, y: 1, dir: 1, speed: 1, unitId: 'd1' });
+    eq('关设置后 hit 静默', J.hitstop + J.flash + J.trauma + J.particles.length, 0);
+    G.settings.juice = true;
+
+    /* ---- 粒子积分与消亡 ---- */
+    J.clearAll();
+    J.sparksPX(100, 100, 1, 8, 'hit');
+    const life0 = J.particles[0].life, px0 = J.particles[0].x;
+    J.update(16);
+    ok('粒子随时间积分', J.particles[0].life < life0 && J.particles[0].x !== px0);
+    J.clearAll();
+    J.sparksPX(100, 100, 1, 4, 'hit');
+    for (let i = 0; i < 60; i++) J.update(50);
+    eq('粒子寿命耗尽被回收', J.particles.length, 0);
+
+    /* ---- 击退回弹 / 倒地进度 ---- */
+    J.clearAll();
+    J.knockBack('d1', 20, 1);
+    const kx0 = J.knock['d1'].x;
+    for (let i = 0; i < 40; i++) J.update(16);
+    ok('击退弹簧回弹', !J.knock['d1'] || J.knock['d1'].x < kx0);
+    J.clearAll();
+    J.fall('d1');
+    eq('倒地初始进度 0', J.fallP('d1'), 0);
+    for (let i = 0; i < 5; i++) J.update(50);   // update 单帧钳 50ms，5 帧 = 250ms
+    ok('倒地进度过半', J.fallP('d1') > 0.4 && J.fallP('d1') < 0.6);
+    for (let i = 0; i < 4; i++) J.update(50);   // 累计 450ms > 420ms 时长
+    eq('倒地进度封顶 1', J.fallP('d1'), 1);
+
+    /* ---- clearAll：点击跳过的安全保障 ---- */
+    J.clearAll();
+    J.hit({ crit: true, kill: true, x: 1, y: 1, dir: 1, speed: 1, unitId: 'd1' });
+    J.clearAll();
+    eq('clearAll 清顿帧', J.hitstop, 0);
+    eq('clearAll 清慢放', J.timeScale, 1);
+    eq('clearAll 清闪白', J.flash, 0);
+    eq('clearAll 清粒子', J.particles.length, 0);
+    eq('clearAll 清击退与倒地', Object.keys(J.knock).length + Object.keys(J.falls).length, 0);
+
+    /* ---- 必杀四段式（静→蓄→余；真实 setTimeout） ---- */
+    J.clearAll();
+    await J.critWindUp(mkUnit({ id: 'u1' }), 1);
+    ok('预兆推镜已挂', J._zoomTo > 1);
+    ok('立绘切入已挂（缺图静默不炸）', !!J.cutIn && J.cutIn.side === 'R');
+    eq('蓄力慢放 0.35', J.timeScale, 0.35);
+    await J.critWindDown(1);
+    eq('收势后立绘撤下', J.cutIn, null);
+    eq('收势后推镜回正', J._zoomTo, 1);
+    G.settings.reducedMotion = true;
+    J.clearAll();
+    await J.critWindUp(mkUnit({ id: 'u1' }), 1);
+    ok('reduced 必杀只留顿帧', J.hitstop > 0 && J.cutIn === null);
+    G.settings.reducedMotion = false;
+    J.clearAll();
   }
 
   console.log('\n----------------------------------------');

@@ -21,7 +21,12 @@
     bindKeyboard();
     bindLifecycle();
 
-    const loop = () => {
+    let last = 0;
+    const loop = (now) => {
+      const dt = last ? now - last : 16;
+      last = now;
+      /* 打击感（二期 G）：顿帧期 update 返回 0，渲染层时钟停走 */
+      if (typeof Juice !== 'undefined') Juice.update(dt);
       Render.draw();
       requestAnimationFrame(loop);
     };
@@ -80,6 +85,8 @@
     if (!canvas) return;
     canvas.addEventListener('pointerdown', e => {
       if (!Battle.active || !Battle.B || UI.isBlocking()) return;
+      /* 点击跳过演出（二期 G）：必须清零 hitstop/timeScale/flash，否则卡半帧 */
+      if (Battle.B.busy && typeof Juice !== 'undefined') Juice.clearAll();
       const tile = Render.toTile(e.clientX, e.clientY);
       if (!tile) return;
       state.cursor = tile;

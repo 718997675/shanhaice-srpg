@@ -6,7 +6,7 @@ const Game = {
   SUSPEND_KEY: 'shanhaice.suspend.v4',
   SETTINGS_KEY: 'shanhaice.settings.v4',
   campaign: null,
-  settings: { music: true, sfx: true, speed: 1, battleShow: true },
+  settings: { music: true, sfx: true, speed: 1, battleShow: true, juice: true, reducedMotion: false, haptics: true },
   lastDeploy: null,
   currentChapter: 0,
   busy: false,
@@ -45,7 +45,10 @@ const Game = {
       music: !s || s.music !== false,
       sfx: !s || s.sfx !== false,
       speed: s && s.speed === 2 ? 2 : 1,
-      battleShow: !s || s.battleShow !== false
+      battleShow: !s || s.battleShow !== false,
+      juice: !s || s.juice !== false,
+      reducedMotion: !!(s && s.reducedMotion),
+      haptics: !s || s.haptics !== false
     };
   },
 
@@ -101,7 +104,7 @@ const Game = {
       cleared: false,
       startedAt: Date.now(),
       savedAt: Date.now(),
-      settings: { music: this.settings.music, sfx: this.settings.sfx, speed: this.settings.speed, battleShow: this.settings.battleShow !== false },
+      settings: { music: this.settings.music, sfx: this.settings.sfx, speed: this.settings.speed, battleShow: this.settings.battleShow !== false, juice: this.settings.juice !== false, reducedMotion: !!this.settings.reducedMotion, haptics: this.settings.haptics !== false },
       records: { chapters: {}, kills: 0, lost: 0, recruits: 0, turns: 0, levels: 0 }
     };
   },
@@ -219,7 +222,7 @@ const Game = {
     if (!this.campaign) return;
     this.campaign.version = SAVE_VERSION;
     this.campaign.savedAt = Date.now();
-    this.campaign.settings = { music: this.settings.music, sfx: this.settings.sfx, speed: this.settings.speed, battleShow: this.settings.battleShow !== false };
+    this.campaign.settings = { music: this.settings.music, sfx: this.settings.sfx, speed: this.settings.speed, battleShow: this.settings.battleShow !== false, juice: this.settings.juice !== false, reducedMotion: !!this.settings.reducedMotion, haptics: this.settings.haptics !== false };
     this.writeJSON(this.SAVE_KEY, this.campaign);
   },
 
@@ -845,6 +848,9 @@ const Game = {
       this.settingRow('sfx', '音效', '刀兵、脚步、界面与升级') +
       this.settingRow('speed', '战斗速度', '地图移动与交战的演出节奏') +
       this.settingRow('battleShow', '横版演出', '攻击时切换全身立绘对峙画面，底部显示克制与弱点') +
+      this.settingRow('juice', '打击演出', '顿帧、震屏、闪白、粒子与必杀四段式；数值不受影响') +
+      this.settingRow('reducedMotion', '减少动态效果', '关抖动/闪白/慢动作与立绘切入，只留两帧顿帧（无障碍）') +
+      this.settingRow('haptics', '触感反馈', '命中与必杀时震动；需设备支持（iOS 网页无效）') +
       '</div>' +
       '<div style="margin-top:12px;font-size:10px;color:#8a806a;line-height:1.7;">设置会立即生效，并存入行旅存档。音频需一次点击后才会启动。</div>';
     return UI.modal({
@@ -869,6 +875,7 @@ const Game = {
             if (key === 'music') this.settings.music = !this.settings.music;
             else if (key === 'sfx') this.settings.sfx = !this.settings.sfx;
             else if (key === 'battleShow') this.settings.battleShow = this.settings.battleShow === false;
+            else if (key === 'juice' || key === 'reducedMotion' || key === 'haptics') this.settings[key] = !this.settings[key];
             else this.settings.speed = this.settings.speed === 2 ? 1 : 2;
             this.applySettings();
             Audio.setMusic(this.settings.music);

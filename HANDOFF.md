@@ -1,7 +1,29 @@
 # 交接快照 · 山海策 · 灵脉
 
 > **给接手的人 / 另一个账号看的唯一入口。** 读完这份就能直接开工，不必翻聊天记录。
-> 最后更新：2026-10-25 12:20 · git HEAD `5397043` · 全部测试绿
+> 最后更新：2026-10-25 17:05 · git HEAD `3403d11` · **二期进行中（工作区有未提交改动，见 §0）**
+
+---
+
+## 0. 当前节点速览（2026-10-25 17:05）
+
+**P6 已搁置**（用户决定，`dev/regress.js` 停在 75 通过 / 2 失败未提交）。**二期已启动**，主文档：`docs/山海策-灵脉-二期计划.md`（四根主轴：尺度/传承/宿命/呈现）。执行顺序按计划 §3：**P1 = A 战略层 + D 宿命脚本 + G 打击感 + H-P1 图标**，其中 **G 与 H-P1 投入产出比最高，最先做**。
+
+### 进行中：G 打击感（二期计划主轴四）
+
+- ✅ `docs/山海策-灵脉-二期计划.md` 已落库（284 行，唯一主文档）
+- ✅ `js/juice.js` 已写完（368 行，语法校验通过）：顿帧/闪白/trauma 抖动/击退/挤压/粒子/冲击帧/暗角/必杀四段式（静→蓄→爆→余）/击杀慢动作+倒地；虚拟时钟模型（`Juice.update(rawDt)` 顿帧期返回 0 且时钟停走；`Juice.now()` 供渲染层读）；调参表 `TUNING`；设置懒读 `Game.settings.juice/reducedMotion/haptics`；倍速按比例缩短；`clearAll()` 供点击跳过。
+- ⬜ **未接线、未测试、未提交**。下一步（按序）：
+  1. `index.html` 在 `js/audio.js` 后、`js/render.js` 前加 `<script src="js/juice.js">`
+  2. `js/render.js`：`draw()` 的 `this.time` 改读 `Juice.now()`；`animateMove`/`lunge`/`slash`/`flash`/`floatText`/`shake` 的 `performance.now()` 全改 `Juice.now()`；`getUnitPos` 加 knock 击退与 fall 倒地偏移；`drawUnit` 加 squash 挤压与倒地淡出；`draw()` 加 trauma 震屏与 zoom 推镜；`drawFx` 末尾调 `Juice.drawFx(ctx, geo)`；`floatText` 加第 6 参 `pop`（会心大字弹出）；`clearFx` 调 `Juice.clearAll()`
+  3. `js/battle.js` `performCombat`（约 2395-2465 行）：必杀冲斩前 `await Juice.critWindUp(striker, B.speed)`；命中块把 `Render.shake/Render.flash` 换成 `Juice.hitFromEv(ev, B.speed)`（Juice 关时回退旧行为，判 `Juice._cfg().on`）；必杀收势 `await Juice.critWindDown(B.speed)`；致命时 `wait` 加长到 560ms；横版路由由 `BattleView.strike` 在命中时刻定时调 `Juice.hitFromEv`
+  4. `js/render-battleview.js`：`now()` 改读 `Juice.now()`；`strike()` 在冲刺段后定时触发 `Juice.hitFromEv`
+  5. `js/main.js`：主循环传 rAF 时间戳给 `Juice.update`；canvas `pointerdown` 在 `B.busy` 时 `Juice.clearAll()`（点击跳过必须清零）
+  6. `js/audio.js`：新增 `duck(sec)`（必杀前静音一拍）；`hit` 加 90→30Hz sine thump；`crit` 改静音 0.1s 后 thump+crunch
+  7. `js/game.js`：settings 加 `juice/reducedMotion/haptics` 三键（默认 开/关/开）；`loadSettings` 与 campaign 快照两处（约 104/222 行）补键；`openSettings` 加三行
+  8. 测试：`tests/formulas.test.js` 加第 34 节（顿帧冻结/倍速缩短/reduced 只留 2 帧/clearAll/粒子积分/不碰公式静态断言）；`dev/smoke-boot.js` 加 Juice 存在性与接线断言
+  9. 验证四连全绿 → 提交（中文信息）→ 更新本文档与 memory 日志
+- 之后：死亡定格（微改动 2）→ H-P1 类别占位图标（微改动 4，SVG 程序图 + `itemIcon()` 统一入口）→ 军议卡/结算摘要 → A 战略层 / D 宿命脚本。
 
 ---
 

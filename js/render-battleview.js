@@ -69,6 +69,8 @@ const BattleView = {
   fading() { return !!this.scene && !!this.scene.closing; },
 
   now() {
+    /* 打击感（二期 G）：顿帧期横版演出一起冻结 */
+    if (typeof Juice !== 'undefined' && Juice.now) return Juice.now();
     return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   },
 
@@ -187,8 +189,18 @@ const BattleView = {
       struck.hp = ev.hpAfter;
       struck.down = ev.hpAfter <= 0;
     }
+    /* 打击感（二期 G）：命中时刻（冲刺段稍入 hold）触发顿帧三件套。
+     * 横版路由不走 battle.js 的命中块，这里补上；先捕获 fx 再清场，
+     * 被 end() 打断（fx 已被换走）则不触发。 */
+    const fxRef = s.fx;
     await new Promise(r => setTimeout(r, dur + 30));
     if (s.fx && s.fx.ev === ev) s.fx = null;
+    if (ev.hit && typeof Juice !== 'undefined' && fxRef && fxRef.ev === ev) {
+      const at = Math.round(dur * (BV_DASH + BV_HOLD * 0.12));
+      setTimeout(() => {
+        if (fxRef.ev === ev) Juice.hitFromEv(ev, speed);
+      }, at);
+    }
   },
 
   /* 收幕：淡出 200ms 后清场；期间新 begin 会整体换场（不被旧定时器清掉） */

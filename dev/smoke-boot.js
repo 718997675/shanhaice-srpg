@@ -53,10 +53,10 @@ sandboxWindow.globalThis = sandboxWindow;
 sandboxWindow.console = console;
 
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
-               'js/audio.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/ui-icons.js', 'js/battle.js',
-               'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
-               'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js',
-               'js/camp.js', 'js/relations.js', 'js/game.js'];
+              'js/audio.js', 'js/juice.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/ui-icons.js', 'js/battle.js',
+              'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
+              'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js',
+              'js/camp.js', 'js/relations.js', 'js/game.js'];
 
 (async () => {
   for (const f of FILES) {
@@ -1317,6 +1317,70 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     RC.tab = savedTab;
     RG.campaign = null;
     console.log('关系图：选中高亮 / 动作分发 / 整页渲染，均通过');
+  }
+
+  /* 二期 G：打击感 Juice（存在性 / 冻结语义 / reduced / 实战接入 / 跳过清零） */
+  {
+    const J = vm.runInContext('Juice', ctx);
+    if (!J || typeof J.update !== 'function') throw new Error('Juice 未加载');
+    const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+    /* 静态接线断言（防回归） */
+    const bs = src('js/battle.js'), rs = src('js/render.js'), ms = src('js/main.js'), bvs = src('js/render-battleview.js');
+    if (bs.indexOf('Juice.critWindUp') < 0 || bs.indexOf('Juice.hitFromEv') < 0) throw new Error('battle.js 缺 Juice 接线');
+    if (rs.indexOf('Juice.now()') < 0 || rs.indexOf('Juice.drawFx') < 0) throw new Error('render.js 缺 Juice 接线');
+    if (ms.indexOf('Juice.update') < 0) throw new Error('main.js 缺 Juice.update');
+    if (bvs.indexOf('Juice.now()') < 0) throw new Error('render-battleview.js 缺冻结时钟接线');
+    if (src('js/juice.js').indexOf('Combat.') >= 0) throw new Error('Juice 不许碰公式');
+    /* 冻结语义：顿帧期时钟停走、update 返回 0，帧数到点恢复 */
+    J.clearAll();
+    J.update(16);
+    const c0 = J.now();
+    J.freeze(4 / 60);
+    let dt = J.update(16);
+    if (dt !== 0 || J.now() !== c0) throw new Error('顿帧期时钟未停走');
+    if (J.update(16) !== 0) throw new Error('顿帧未按帧数解除');
+    for (let i = 0; i < 5; i++) J.update(16);   // 4/60s ≈ 4.2 帧，5 帧必恢复
+    if (J.now() <= c0) throw new Error('顿帧后时钟未恢复');
+    /* 倍速：顿帧按比例缩短 */
+    J.clearAll();
+    J.freeze(4 / 60 / 2);
+    if (J.hitstop > 4 / 60) throw new Error('倍速顿帧未缩短');
+    /* reduced：只留 2 帧顿帧，不产粒子/闪白/震屏 */
+    J.clearAll();
+    Game.settings.reducedMotion = true;
+    J.hit({ crit: true, kill: false, x: 1, y: 1, dir: 1, speed: 1, unitId: 'u1' });
+    if (J.particles.length !== 0 || J.flash !== 0 || J.trauma !== 0) throw new Error('reduced 模式应只留顿帧');
+    if (J.hitstop <= 0 || J.hitstop > 4 / 60) throw new Error('reduced 模式顿帧应为 2 帧');
+    Game.settings.reducedMotion = false;
+    /* 实战接入：一次命中后 Juice 有状态（顿帧/粒子/击退）。
+     * 注意：前面的区块重开过战斗，B 是旧对象——必须重新取 Battle.B；
+     * 摆位保证命中 100（铁剑 90 + 技×2 对 速0/运0 的Plain 木桩）。 */
+    J.clearAll();
+    const BB = Battle.B;
+    const p = BB.units.find(x => x.side === 'player' && x.charId && x.hp > 0);
+    p.items = [{ key: 'iron_sword', uses: 20 }];
+    p.weaponIndex = 0;
+    const rows = BB.chapter.map;
+    let spot = null;
+    for (let y = 0; y < rows.length && !spot; y++) {
+      for (let x = 0; x + 1 < rows[y].length; x++) {
+        if (rows[y][x] === '.' && rows[y][x + 1] === '.') { spot = { x, y }; break; }
+      }
+    }
+    if (!spot) throw new Error('找不到相邻平地摆位');
+    p.x = spot.x; p.y = spot.y;
+    const dummy2 = { id: 'du2', name: '木桩二', side: 'enemy', charId: null, hp: 999, x: spot.x + 1, y: spot.y,
+      stats: { hp: 999, str: 1, mag: 0, skl: 0, spd: 0, lck: 0, def: 1, res: 1 },
+      items: [], weaponIndex: -1, ranks: {}, statuses: {}, tags: ['human'] };
+    BB.units.push(dummy2);
+    await Battle.performCombat(p, dummy2, false);
+    const engaged = J.hitstop > 0 || J.particles.length > 0 || !!J.knock['du2'] || !!J.falls['du2'];
+    console.log('Juice：命中接入', engaged ? '生效' : '未生效', '；粒子', J.particles.length, '；击退', !!J.knock['du2'], '；倒地', !!J.falls['du2']);
+    if (!engaged) throw new Error('命中未触发打击感');
+    J.clearAll();
+    if (J.hitstop !== 0 || J.particles.length !== 0) throw new Error('clearAll 未清零');
+    BB.units = BB.units.filter(u => u.id !== 'du2');
+    console.log('打击感：冻结语义 / 倍速缩短 / reduced / 实战接入 / 跳过清零，均通过');
   }
 
   console.log('\n冒烟通过：无引用错误');
