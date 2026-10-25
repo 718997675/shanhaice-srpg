@@ -495,7 +495,7 @@ for (const f of ['js/main.js', 'js/game.js', 'js/battle.js', 'js/camp.js']) {
   ack(campEl.played === 1 && campEl.paused === false, 'camp 元素已播放');
   ack(campEl.loop === true && campEl.children.length === 2, 'loop + ogg/mp3 双 source');
   ack(get('__pm.length') === 0, '文件模式不回退合成');
-  await wait(1000);   // 等 900ms 淡入跑完
+  await wait(1250);   // 等 900ms 淡入跑完（留足余量，别卡在 0.49 上偶发红）
   ack(Math.abs(campEl.volume - 0.55) < 0.05, '淡入到 0.55（got ' + campEl.volume.toFixed(2) + '）');
 
   /* b. duck：文件音乐瞬压再回 */
@@ -638,4 +638,31 @@ for (const f of ['js/main.js', 'js/game.js', 'js/battle.js', 'js/camp.js']) {
   wok(cssSrc.indexOf('.split-panel') >= 0 && cssSrc.indexOf('.split-card') >= 0, 'style.css 有分兵弹层样式');
   wok(cssSrc.indexOf('.deploy-card.rear') >= 0, 'style.css 有留守卡片样式');
   if (wire.length) process.exitCode = 1;
+})();
+
+/* ---------- 舆图（大地图）：静态断言 ----------
+ * 布局与状态机的行为测试在 dev/check-map.js（坐标/交叉/出界那套几何检查
+ * 放主测试里太重），这里只锁「接线没断」。 */
+(() => {
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+  const mapSrc = read('js/systems/worldmap.js');
+  const campSrc3 = read('js/camp.js');
+  const htmlSrc2 = read('index.html');
+  const cssSrc2 = read('css/style.css');
+  let mf = 0;
+  const mok = (c, m) => { if (!c) { mf++; console.error('  ✗ ' + m); } };
+
+  mok(htmlSrc2.indexOf('js/systems/worldmap.js') > htmlSrc2.indexOf('js/systems/route.js'),
+    'index.html 加载顺序 route → worldmap');
+  mok(htmlSrc2.indexOf('data-tab="map"') >= 0, 'index.html 有「舆图」页签');
+  mok(campSrc3.indexOf('renderMap(body)') >= 0 && campSrc3.indexOf("this.tab === 'map'") >= 0,
+    'camp.js 接了舆图渲染');
+  mok(campSrc3.indexOf("act === 'mapPick'") >= 0 && campSrc3.indexOf("act === 'mapGo'") >= 0,
+    'camp.js 接了选章与出征两个动作');
+  mok(cssSrc2.indexOf('.map-sheet') >= 0 && cssSrc2.indexOf('.wm-node') >= 0, 'style.css 有舆图样式');
+  mok(mapSrc.indexOf('Combat.') < 0, 'worldmap.js 不碰战斗公式');
+  mok(mapSrc.indexOf('localStorage') < 0, 'worldmap.js 不直接写存档');
+  mok(mapSrc.indexOf('WM_NODES') >= 0 && mapSrc.indexOf('WM_EDGES') >= 0, 'worldmap.js 有节点与连线表');
+  if (mf) process.exitCode = 1;
+  else console.log('✓ 舆图（大地图）：接线断言通过');
 })();

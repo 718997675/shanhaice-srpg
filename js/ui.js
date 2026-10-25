@@ -81,7 +81,13 @@ const UI = {
 
   chapterLabel(index) {
     const nums = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
-    return '第' + (nums[index] || index) + '章';
+    const n = Math.floor(Number(index));
+    if (!(n > 0)) return '第' + index + '章';
+    if (n <= 9) return '第' + nums[n] + '章';
+    /* 二期扩到 13 章：十 / 十一 / 十二 / 十三 */
+    if (n === 10) return '第十章';
+    if (n < 20) return '第十' + nums[n - 10] + '章';
+    return '第' + n + '章';
   },
 
   updateBattle(B) {
