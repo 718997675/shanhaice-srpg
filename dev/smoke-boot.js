@@ -1513,9 +1513,18 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
       'burst_metal', 'burst_wood', 'burst_water', 'burst_fire', 'burst_earth',
       'death_hero', 'death', 'foe_hit', 'foe_death', 'boss_death',
       'step_foot', 'step_armor', 'step_beast', 'step_fly', 'step_horse',
-      'node_capture', 'ui_confirm']) {
+      'node_capture', 'ui_confirm', 'summon']) {
       if (src('js/audio.js').indexOf("case '" + n + "'") < 0) throw new Error('audio.js 缺音效 ' + n);
     }
+    /* SFX 采样池（二期全面采样化）：战斗音效名 ↔ assets/audio/sfx wav 一一对应 */
+    for (const n of ['swing_light', 'swing_heavy', 'swing_sharp', 'hit_flesh', 'hit_metal', 'hit_wood',
+      'hit_crit', 'crit', 'foe_hit', 'miss', 'death', 'death_hero', 'foe_death', 'boss_death',
+      'step_foot', 'step_armor', 'step_beast', 'step_fly', 'step_horse',
+      'cast_metal', 'cast_wood', 'cast_water', 'cast_fire', 'cast_earth',
+      'burst_metal', 'burst_wood', 'burst_water', 'burst_fire', 'burst_earth', 'summon']) {
+      if (!fs.existsSync(path.join(ROOT, 'assets/audio/sfx', n + '.wav'))) throw new Error('缺音效素材 sfx/' + n + '.wav');
+    }
+    if (src('js/battle.js').indexOf("Audio.sfx('summon')") < 0) throw new Error('battle.js 召唤未走 summon 音');
     /* 打击感接线（二期加厚）：金属原语 clang / 嘶吼原语 growl 存在 */
     if (src('js/audio.js').indexOf('clang(') < 0) throw new Error('audio.js 缺金属撞击原语 clang');
     if (src('js/audio.js').indexOf('growl(') < 0) throw new Error('audio.js 缺嘶吼原语 growl');
@@ -1531,9 +1540,9 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (src('js/game.js').indexOf('BGM.setMusicOn') < 0) throw new Error('game.js 缺音乐开关接线');
     /* 沙盒 DOM 桩没有真 audio 能力：SFX 关闭、Audio.sfx 走合成不炸 */
     if (SFX.play('hit_flesh') !== false) throw new Error('沙盒桩下 SFX 应关闭');
-    vm.runInContext('Audio.sfx("swing_light"); Audio.sfx("hit_metal"); Audio.sfx("hit_crit"); Audio.sfx("foe_death"); Audio.sfx("step_armor"); Audio.sfx("cast_fire");', ctx);
+    vm.runInContext('Audio.sfx("swing_light"); Audio.sfx("hit_metal"); Audio.sfx("hit_crit"); Audio.sfx("foe_death"); Audio.sfx("step_armor"); Audio.sfx("cast_fire"); Audio.sfx("summon");', ctx);
     BGM.play('camp');   // 无文件 → 回退程序音乐，不应抛错
-    console.log('音频架构：文件层加载 / 29 音效 / clang+growl / 分流接线 / 回退不炸，均通过');
+    console.log('音频架构：文件层加载 / 30 音效 / clang+growl / 分流接线 / 回退不炸，均通过');
 
     /* 打击感行为：WebAudio 桩验证 clang/growl 节点构成 + 命中/阵亡/脚步分流 */
     const nodes = { osc: 0, gain: 0, filter: 0, buf: 0, started: 0 };

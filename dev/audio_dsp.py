@@ -26,11 +26,23 @@ def env(dur, points):
 
 def osc(kind, f, t, nharm=None):
     """抗锯齿振荡器。f 可为标量或与 t 等长的频率数组(Hz)，支持滑音/颤音。"""
+    if kind == "square":
+        kind = "sqr"
+    elif kind == "sawtooth":
+        kind = "saw"
+    elif kind == "tri":
+        kind = "triangle"
     f = np.broadcast_to(np.asarray(f, dtype=float), t.shape) if np.ndim(f) else np.full(t.shape, float(f))
     ph = 2.0 * np.pi * np.cumsum(f) / SR
     fmax = max(float(f.max()), 1e-6)
     if kind == "sine":
         return np.sin(ph)
+    if kind == "triangle":
+        nh = nharm or int(min(24, max(1, (SR * 0.45) / fmax)))
+        out = np.zeros_like(t)
+        for k in range(1, nh + 1):
+            out += np.sin((2 * k - 1) * ph) / (2 * k - 1) ** 2
+        return out * (8.0 / math.pi ** 2)
     if kind == "saw":
         nh = nharm or int(min(40, max(1, (SR * 0.45) / fmax)))
         out = np.zeros_like(t)
@@ -49,6 +61,12 @@ def osc(kind, f, t, nharm=None):
 
 def biquad(kind, fc, Q=0.707):
     """RBJ 双二阶系数。"""
+    if kind == "bandpass":
+        kind = "bp"
+    elif kind == "lowpass":
+        kind = "lp"
+    elif kind == "highpass":
+        kind = "hp"
     fc = float(min(max(fc, 10.0), SR * 0.49))
     w0 = 2.0 * math.pi * fc / SR
     cw, sw = math.cos(w0), math.sin(w0)

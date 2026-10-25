@@ -450,6 +450,24 @@ for (const f of ['js/main.js', 'js/game.js', 'js/battle.js', 'js/camp.js']) {
   ack(fs.readFileSync(path.join(root, f), 'utf8').indexOf('Audio.playMusic') < 0, f + ' 音乐切换走 BGM.play');
 }
 
+/* ---------- SFX 采样池（二期全面采样化）：战斗音效名 ↔ wav 一一对应 ---------- */
+const BATTLE_SFX = ['swing_light', 'swing_heavy', 'swing_sharp', 'hit_flesh', 'hit_metal', 'hit_wood',
+  'hit_crit', 'crit', 'foe_hit', 'miss',
+  'death', 'death_hero', 'foe_death', 'boss_death',
+  'step_foot', 'step_armor', 'step_beast', 'step_fly', 'step_horse',
+  'cast_metal', 'cast_wood', 'cast_water', 'cast_fire', 'cast_earth',
+  'burst_metal', 'burst_wood', 'burst_water', 'burst_fire', 'burst_earth',
+  'summon'];
+let wf = 0;
+const wok = (c, m) => { if (c) console.log('  ✓ ' + m); else { wf++; console.error('  ✗ ' + m); } };
+for (const n of BATTLE_SFX) {
+  wok(audioSrc.indexOf("case '" + n + "'") >= 0, 'audio.js 有音效 ' + n);
+  wok(fs.existsSync(path.join(root, 'assets/audio/sfx', n + '.wav')), 'sfx/' + n + '.wav 存在');
+}
+wok(battleSrc.indexOf("Audio.sfx('summon')") >= 0, 'battle.js 召唤走 summon 音');
+console.log(wf === 0 ? '✓ SFX 采样池：30 战斗音效 wav 一一对应，均通过' : '✗ SFX 采样池断言有 ' + wf + ' 条失败');
+if (wf) process.exitCode = 1;
+
 (async () => {
   /* fake DOM：验证文件优先 / 缺失回退 / duck / SFX 池 / 开关 / stop */
   const mkEl = () => {

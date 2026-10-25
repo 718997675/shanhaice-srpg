@@ -287,6 +287,7 @@ const Audio = {
       case 'heal': [523, 659, 784].forEach((f, i) => this.tone(f, 0.35, { type: 'sine', vol: 0.045, delay: i * 0.06 })); break;
       case 'levelup': [392, 523, 659, 784].forEach((f, i) => this.tone(f, 0.4, { type: 'triangle', vol: 0.05, delay: i * 0.08 })); break;
       case 'node': [392, 587, 880].forEach((f, i) => this.tone(f, 0.5, { type: 'sine', vol: 0.05, delay: i * 0.1 })); break;
+      case 'summon': [294, 440, 587, 740, 880].forEach((f, i) => this.tone(f, 0.5, { type: 'triangle', vol: 0.055, delay: i * 0.14 })); this.tone(80, 1.0, { type: 'sine', vol: 0.09, slide: 2.2, delay: 0.05 }); this.sweep(0.3, 0.05, 4000, 8000, 0, 'bandpass', 3); this.tone(48, 0.9, { type: 'sine', vol: 0.07, slide: 0.6, delay: 0.1 }); break;
       case 'gold': this.tone(880, 0.1, { type: 'triangle', vol: 0.05 }); this.tone(1320, 0.18, { type: 'triangle', vol: 0.04, delay: 0.07 }); break;
       case 'open': this.tone(300, 0.16, { type: 'triangle', vol: 0.05 }); this.tone(450, 0.2, { type: 'triangle', vol: 0.04, delay: 0.08 }); break;
       case 'victory': [262, 330, 392, 523, 659].forEach((f, i) => this.tone(f, 0.7, { type: 'triangle', vol: 0.055, delay: i * 0.12 })); break;

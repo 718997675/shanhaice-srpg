@@ -2441,7 +2441,7 @@ const Battle = {
     u.summonUsesLeft = this.summonUsesLeft(u) - 1;
     if (u.summonUsesLeft <= 0) u.summonUsed = true;
     UI.log(u.name + '召唤了' + info.name + '（本章余 ' + this.summonUsesLeft(u) + ' 次）。', 'gold');
-    Audio.sfx('node');
+    Audio.sfx('summon');
     Render.floatText(info.name, spot.x, spot.y, '#b8d6b0', 14);
     // 神御（神御师）：神兽登场时周围敌军命中 -5（一回合）
     const aura = this.skillFieldsOf(u).summonAuraHit;
