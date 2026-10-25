@@ -607,6 +607,62 @@ img { display: block; }
 .deploy-counter { position: sticky; bottom: 0; align-self: end; background: rgba(12, 17, 14, .9); padding: 8px; font-size: 12px; color: var(--gold-2); display: flex; align-items: center; gap: 10px; }
 .deploy-go { margin-left: auto; min-height: 38px; padding: 0 20px; background: linear-gradient(100deg, #b04638, #8a332a); color: #f7ecd2; letter-spacing: .12em; border: 1px solid #d2806a; border-radius: 2px; box-shadow: 0 0 14px rgba(176, 68, 54, .25); }
 .deploy-go:hover:not(:disabled) { background: linear-gradient(100deg, #c45446, #9e3b31); box-shadow: 0 0 22px rgba(216, 112, 90, .4); }
+/* 分兵生效时：留守的人压暗、不可选（二期 A） */
+.deploy-card.rear { opacity: .62; filter: saturate(.45); border-style: dashed; border-color: rgba(138, 106, 63, .45); }
+.deploy-card.rear:hover { transform: none; border-color: rgba(138, 106, 63, .6); box-shadow: none; }
+.deploy-strategy {
+  display: flex; align-items: center; gap: 8px;
+  margin: 10px 0 6px; padding: 7px 10px;
+  background: rgba(80, 68, 45, .08);
+  border-left: 2px solid var(--gold-3);
+  font-size: 11px; line-height: 1.5; color: #5f5a45;
+}
+.deploy-strategy .ds-line { flex: 1; min-width: 0; }
+.deploy-strategy .mini-btn { flex: none; }
+.deploy-absent { font-size: 10px; line-height: 1.7; color: #8a6a3f; margin-bottom: 6px; }
+
+/* 分兵弹层（二期 A）：左右两栏，点名字换边 */
+.modal.wide { width: min(760px, 94vw); }
+.split-panel { display: flex; flex-direction: column; gap: 9px; }
+.split-head { display: flex; align-items: baseline; gap: 10px; }
+.split-head b { font-size: 14px; letter-spacing: .08em; color: #3a3a2c; }
+.split-count { font-family: var(--sans); font-size: 11px; color: #7c725b; margin-left: auto; }
+.split-count.over { color: #8b3b2d; font-weight: 700; }
+.split-cols { display: flex; gap: 10px; }
+.split-col {
+  flex: 1; min-width: 0;
+  padding: 8px 9px 10px;
+  background: rgba(255, 252, 240, .34);
+  border: 1px solid rgba(90, 75, 50, .26);
+  border-radius: 3px;
+}
+.split-col.rear { background: rgba(120, 104, 74, .1); border-style: dashed; }
+.split-col h4 {
+  margin: 0 0 7px; font-size: 11px; letter-spacing: .22em;
+  color: #5f5a45; font-weight: 600;
+  border-bottom: 1px solid rgba(80, 68, 45, .16); padding-bottom: 5px;
+}
+.split-cards { display: flex; flex-direction: column; gap: 5px; min-height: 46px; }
+.split-card {
+  display: flex; align-items: baseline; gap: 7px;
+  padding: 6px 9px; text-align: left;
+  background: rgba(255, 253, 246, .62);
+  border: 1px solid rgba(90, 75, 50, .22);
+  border-radius: 2px;
+  transition: background .14s, border-color .14s, transform .14s;
+}
+.split-card:hover { background: rgba(211, 171, 94, .2); border-color: rgba(158, 59, 50, .35); transform: translateX(2px); }
+.split-card .sc-name { font-size: 12px; color: #33352a; flex: 1; min-width: 0; }
+.split-card .sc-name small {
+  margin-left: 5px; font-size: 9px; letter-spacing: .1em;
+  color: var(--gold-3); border: 1px solid rgba(138, 106, 52, .38);
+  padding: 0 4px; border-radius: 2px;
+}
+.split-card .sc-sub { font-family: var(--sans); font-size: 10px; color: #7c725b; flex: none; }
+.split-card.lord { background: rgba(211, 171, 94, .16); border-color: rgba(138, 106, 52, .45); cursor: default; }
+.split-card.lord:hover { transform: none; background: rgba(211, 171, 94, .16); }
+.split-hint { font-size: 10px; line-height: 1.75; color: #7c725b; }
+.split-hint .mini-btn { margin-left: 6px; }
 
 /* 商店 */
 .shop-wrap { display: flex; gap: 14px; width: 100%; height: 100%; overflow: hidden; }
@@ -1361,6 +1417,9 @@ img.ii { display: inline-block; vertical-align: -4px; flex: none; }
   .deploy-info { width: 250px; padding: 11px 13px; }
   .deploy-roster { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
   .deploy-card { min-height: 124px; }
+  .split-cols { flex-direction: column; }
+  .split-cards { flex-direction: row; flex-wrap: wrap; }
+  .split-card { flex: 1 1 130px; }
   #unitCard { width: 244px; max-width: 40vw; }
   #actionBar { left: 262px; }
   .act-btn { min-width: 56px; min-height: 36px; font-size: 12px; padding: 0 8px; }

@@ -144,7 +144,12 @@ const Battle = {
 
   deployPlayerUnits(ids) {
     const ch = this.chapter;
-    const chars = ids.filter(id => CHARS[id]);
+    /* 战略层兜底（二期 A）：留守另一条战线的人不能上场。
+     * 营地里已按 Strategy.canDeploy 过滤过，这里防的是旧存档 / 续战存档带进
+     * 过期名单——宁可少一人，也不让「留守」变成一句空话。 */
+    const ok = id => (typeof Strategy !== 'undefined' && Strategy.canDeploy)
+      ? Strategy.canDeploy(this.campaign, id) : true;
+    const chars = ids.filter(id => CHARS[id] && ok(id));
     const tiles = (ch.deployTiles || []).slice();
     let ti = 0;
     for (const id of chars) {

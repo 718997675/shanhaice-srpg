@@ -320,6 +320,7 @@ const UI = {
         '<button data-mb="' + i + '" class="' + (b.cls || '') + '">' + this.escape(b.label) + '</button>'
       ).join('') + '</div>';
       this.el.modalBox.innerHTML = html;
+      this.el.modalBox.classList.toggle('wide', !!opt.wide);
       this.el.modal.classList.remove('hidden');
       if (opt.onMount) {
         try { opt.onMount(this.el.modalBox, this); } catch (e) { console.warn(e); }

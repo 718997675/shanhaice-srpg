@@ -760,6 +760,7 @@ const Game = {
       body: panelHtml(),
       buttons: [{ label: '就这样出发', value: true, cls: 'primary' }],
       closable: false,
+      wide: true,
       onMount: (box) => {
         const paint = () => {
           const panel = box.querySelector('.split-panel');
