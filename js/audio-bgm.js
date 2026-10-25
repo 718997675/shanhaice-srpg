@@ -14,8 +14,8 @@
  * ============================================================ */
 const BGM = {
   DIR: 'assets/audio/bgm/',
-  /* mode → 文件名（去掉扩展名）；title 等无文件模式直接走合成 */
-  TRACKS: { camp: 'bgm_camp', battle: 'bgm_battle', boss: 'bgm_boss', story: 'bgm_story' },
+  /* mode → 文件名（去掉扩展名）；无文件模式直接走合成 */
+  TRACKS: { title: 'bgm_title', camp: 'bgm_camp', battle: 'bgm_battle', boss: 'bgm_boss', story: 'bgm_story' },
   VOL: 0.55,
   _ok: {},        /* track → true 文件可用 / false 不可用（探测一次记终身） */
   _els: {},       /* track → <audio> */
@@ -45,11 +45,11 @@ const BGM = {
       el.loop = true;
       el.preload = 'auto';
       el.volume = 0;
-      /* ogg 优先 mp3 兜底：浏览器自己挑能播的 */
-      for (const ext of ['ogg', 'mp3']) {
+      /* m4a 优先（afconvert 出品，Safari/Chrome/Firefox 通吃），mp3/ogg 兜底 */
+      for (const ext of ['m4a', 'mp3', 'ogg']) {
         const s = document.createElement('source');
         s.src = this.DIR + track + '.' + ext;
-        s.type = ext === 'ogg' ? 'audio/ogg' : 'audio/mpeg';
+        s.type = ext === 'ogg' ? 'audio/ogg' : ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4';
         el.appendChild(s);
       }
       el.addEventListener('error', () => { this._ok[track] = false; });

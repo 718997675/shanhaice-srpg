@@ -1519,6 +1519,11 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     /* 打击感接线（二期加厚）：金属原语 clang / 嘶吼原语 growl 存在 */
     if (src('js/audio.js').indexOf('clang(') < 0) throw new Error('audio.js 缺金属撞击原语 clang');
     if (src('js/audio.js').indexOf('growl(') < 0) throw new Error('audio.js 缺嘶吼原语 growl');
+    /* title 古风 BGM（二期 A 主轴配套）：文件就位 + 映射 + m4a 源 */
+    if (!BGM.TRACKS.title) throw new Error('BGM.TRACKS 缺 title 映射');
+    if (!fs.existsSync(path.join(ROOT, 'assets/audio/bgm/bgm_title.m4a'))) throw new Error('缺 bgm_title.m4a');
+    if (src('js/audio-bgm.js').indexOf("'m4a'") < 0) throw new Error('audio-bgm.js source 列表缺 m4a');
+    BGM.play('title');   // 沙盒桩无 audio 能力 → 回退合成，不应抛错
     if (src('js/battle.js').indexOf("Audio.sfx(swing)") < 0) throw new Error('battle.js 缺挥击音接线');
     if (src('js/battle.js').indexOf("this.hitSfxFor(") < 0) throw new Error('battle.js 缺命中音分流接线');
     if (src('js/battle.js').indexOf("this.deathSfxFor(") < 0) throw new Error('battle.js 缺阵亡音分流接线');

@@ -493,7 +493,8 @@ for (const f of ['js/main.js', 'js/game.js', 'js/battle.js', 'js/camp.js']) {
   ack(get('BGM._cur && BGM._cur.track') === 'bgm_camp', 'camp 进入文件模式');
   const campEl = realEls()[0];
   ack(campEl.played === 1 && campEl.paused === false, 'camp 元素已播放');
-  ack(campEl.loop === true && campEl.children.length === 2, 'loop + ogg/mp3 双 source');
+  ack(campEl.loop === true && campEl.children.length === 3, 'loop + m4a/mp3/ogg 三 source');
+  ack(campEl.children[0].src.indexOf('bgm_camp.m4a') >= 0, 'm4a 优先于 mp3/ogg');
   ack(get('__pm.length') === 0, '文件模式不回退合成');
   await wait(1000);   // 等 900ms 淡入跑完
   ack(Math.abs(campEl.volume - 0.55) < 0.05, '淡入到 0.55（got ' + campEl.volume.toFixed(2) + '）');
