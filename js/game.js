@@ -88,6 +88,7 @@ const Game = {
       fallen: [],
       memorial: {},
       relics: [],
+      codex: {},
       supports: {},
       knots: {},
       convoy: [{ key: 'potion', uses: 3 }],
@@ -183,6 +184,14 @@ const Game = {
     }
     if (!Array.isArray(c.relics)) c.relics = [];
     c.relics = c.relics.filter(it => it && (WEAPONS[it.key] || ITEMS[it.key]));
+    /* 图鉴解锁表（P3.4）：只保留当前数据表里存在的键 */
+    if (!c.codex || typeof c.codex !== 'object') c.codex = {};
+    if (typeof CODEX !== 'undefined') {
+      const known = new Set(CODEX.map(e => e.key));
+      for (const k of Object.keys(c.codex)) {
+        if (!known.has(k)) delete c.codex[k];
+      }
+    }
     /* 心结（P3.2）：旧档没有该字段；已有路线却漏挂时补挂 */
     if (!c.knots || typeof c.knots !== 'object') c.knots = {};
     if (c.route && HEART_KNOTS[c.route] && !c.knots[HEART_KNOTS[c.route].char]) {
@@ -515,6 +524,12 @@ const Game = {
       const nextId = Route.nextId(this.campaign.route, ch.id);
       this.campaign.chapter = nextId;
       if (!nextId) this.campaign.cleared = true;
+      /* 图鉴（P3.4）：并入本章击破的敌型；本章若为遗迹所在地，解锁遗迹条目 */
+      if (!this.campaign.codex || typeof this.campaign.codex !== 'object') this.campaign.codex = {};
+      for (const k of Object.keys(result.codex || {})) this.campaign.codex[k] = true;
+      for (const e of (typeof CODEX !== 'undefined' ? CODEX : [])) {
+        if (e.kind === 'ruin' && String(e.chapter) === String(ch.id)) this.campaign.codex[e.key] = true;
+      }
       /* 勇者模式通关授徽（P3.4） */
       if (!nextId && this.campaign.heroic) {
         if (!this.campaign.records) this.campaign.records = { chapters: {} };

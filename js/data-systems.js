@@ -485,3 +485,56 @@ if (typeof window !== 'undefined') {
   window.ENDINGS = ENDINGS;
   window.endingOf = endingOf;
 }
+
+/* ---------------- 山海图鉴（P3.4） ----------------
+ * 每条对应真实数据：kind 'beast' 键为 ENEMY_TYPES 键；'spirit' 为召唤兽；
+ * 'elite' 为词缀（affix_*）；'boss' 为 ENEMY_TYPES 里的 Boss；
+ * 'ruin' 绑定章节 id，通关该章解锁。
+ * 解锁状态存 campaign.codex[key] = true，未解锁时只显示「未识」。 */
+const CODEX_KINDS = { beast: '妖 兽', spirit: '灵 兽', elite: '精 英', boss: '首 领', ruin: '遗 迹' };
+
+const CODEX = [
+  /* —— 妖兽 8 —— */
+  { key: 'bandit', kind: 'beast', name: '山贼', lore: '乱世里落草的人。多数不是天生要抢，只是没别的活法。', tip: '护甲薄，弓与咒都吃得下。' },
+  { key: 'wolf', kind: 'beast', name: '妖狼', lore: '浊化最浅的妖兽，成群时才敢扑人。落单的狼会先看你有没有同伴。', tip: '单体脆弱，先杀领头的。' },
+  { key: 'armor', kind: 'beast', name: '岩魈', lore: '身上结了一层石壳，走起路来像有石头在滚。壳下其实是软的。', tip: '怕破甲兵装，火能烧裂石壳。' },
+  { key: 'bird', kind: 'beast', name: '妖鸟', lore: '翅膀上沾着浊潮的灰。飞得高，落得也快。', tip: '弓与羽人对空有加成。' },
+  { key: 'shaman', kind: 'beast', name: '浊咒徒', lore: '拿命换咒的人。他们真心相信浊潮是新的天。', tip: '魔抗低，近身即溃。' },
+  { key: 'priest', kind: 'beast', name: '巫祝', lore: '给浊潮唱赞歌的老妇。她的歌确实能让伤者站起来——这才是最难办的。', tip: '先杀她，别让她唱完第二轮。' },
+  { key: 'rogue', kind: 'beast', name: '影盗', lore: '赤砂关里谁的账都敢偷的人，与墨鸦同出一门。', tip: '孤身时回避极高，围住再打。' },
+  { key: 'elite', kind: 'beast', name: '浊甲卫', lore: '披着浊潮凝成的甲，甲上还长着词缀。像一件会走路的伤。', tip: '站在己方阵眼上攻击可以破盾。' },
+  /* —— 灵兽 3 —— */
+  { key: 'ally_wolf', kind: 'spirit', name: '山灵狼', lore: '阿蛮召来的第一只兽。它记得她的味道，不记得别人的。', tip: '猛攻：伤害 +2、护甲 -2；守御：护甲 +3、回避 +10。' },
+  { key: 'ally_leopard', kind: 'spirit', name: '云豹', lore: '云梦泽的独行客。被召来时先嗅一下空气，再决定站哪一边。', tip: '随行指令下会替相邻友军挡下第一次攻击。' },
+  { key: 'ally_baize', kind: 'spirit', name: '白泽', lore: '传说里认得天下所有妖怪的兽。它认得，但它不说。', tip: '神兽三阶，猛攻伤害 +4；飞行单位，可越地形。' },
+  /* —— 精英词缀 4 —— */
+  { key: 'affix_shield', kind: 'elite', name: '护盾', lore: '浊潮凝的壳。壳在，里面的东西就不算真的受伤。', tip: '受伤 -30%；站在己方阵眼上攻击可破盾。' },
+  { key: 'affix_regen', kind: 'elite', name: '自愈', lore: '伤口会自己长回去。浊潮最不讲道理的地方就在这。', tip: '每回合开始回复 10% 最大生命，别拖。' },
+  { key: 'affix_aura', kind: 'elite', name: '光环', lore: '它站着，周围的同类就都看得更准。', tip: '周围 2 格友军命中 +10，先杀带光环的那只。' },
+  { key: 'affix_berserk', kind: 'elite', name: '狂暴', lore: '半血之后才是它真正的样子。', tip: '半血后攻速 +3，会被追击——别留残血单位在它面前。' },
+  /* —— 首领 12 —— */
+  { key: 'shanxiao', kind: 'boss', name: '山魈王', lore: '青岚山的旧主。它守的不是山门，是山门后面那些还没跑掉的人。', tip: '二阶段会召来群魈，先清小怪再压血。' },
+  { key: 'bamboo', kind: 'boss', name: '竹妖', lore: '雾隐竹海里长了一千年的东西。它记得每一个砍过竹子的人。', tip: '木属性，火咒有克制。' },
+  { key: 'waterghost', kind: 'boss', name: '水鬼', lore: '断桥下拖着人脚踝的手。它自己也不知道为什么要拖。', tip: '水属性，站在岸上打，别下水。' },
+  { key: 'chisha', kind: 'boss', name: '赤砂将军', lore: '赤砂关最后一任守将。城破那夜他没走，就成了现在这样。', tip: '火属性，重甲，破甲兵装优先。' },
+  { key: 'icexiao', kind: 'boss', name: '冰魈', lore: '玄冰祭坛的看门人。它把每个闯进来的人都冻在墙上，排得很整齐。', tip: '冰面会滑行，注意落点。' },
+  { key: 'swampdragon', kind: 'boss', name: '沼龙', lore: '云梦泽底下翻身的东西。它一翻身，半个泽的水就浑了。', tip: '土属性，远程消耗优于贴身。' },
+  { key: 'turbidgeneral', kind: 'boss', name: '浊将', lore: '被浊潮吃空了的将军。甲还在，人在里面已经没有了。', tip: '带词缀，破盾后再打本体。' },
+  { key: 'xuanque', kind: 'boss', name: '玄阙', lore: '上一代最强的守脉人，云策的授业恩师。他不是在杀人，他是在做算术。', tip: '二阶段换心，先断他的阵眼供给。' },
+  { key: 'forestmaster', kind: 'boss', name: '林魈主', lore: '血槲林里所有槲树的意志。树不会追人，但树会等人。', tip: '木属性，火咒连烧两回合。' },
+  { key: 'bridgewraith', kind: 'boss', name: '桥魅', lore: '渡厄桥的怨。过桥的人越多，它就越记得自己没过去。', tip: '水属性，别让它在水格上回复。' },
+  { key: 'valleydragon', kind: 'boss', name: '谷螭', lore: '断魂谷里的无角小龙。它不咬人，它只把谷口堵上。', tip: '土属性，堵路时优先清两侧。' },
+  { key: 'tidewyrm', kind: 'boss', name: '浪蛟', lore: '沧浪津的浪是它翻的。它一停，津口就静得吓人。', tip: '水属性，站在高处打有命中加成。' },
+  /* —— 遗迹 2 —— */
+  { key: 'ruin_5A', kind: 'ruin', name: '玄冰祭坛', chapter: '5A', lore: '祭坛底下压着一条主脉的脉眼。冰不是天冷结的，是脉在喘。', tip: '冰面滑行会改变站位，进图先看地形。' },
+  { key: 'ruin_8', kind: 'ruin', name: '天柱废墟', chapter: '8', lore: '补天遗族最后立起的一根柱子。它断了，但断口还朝着天。', tip: '三处阵眼要同时守住三个己方阶段。' }
+];
+
+function codexEntry(key) {
+  return CODEX.find(e => e.key === key) || null;
+}
+
+if (typeof window !== 'undefined') {
+  window.CODEX = CODEX;
+  window.CODEX_KINDS = CODEX_KINDS;
+}

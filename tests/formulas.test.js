@@ -1922,6 +1922,55 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('勇者倍率与难度倍率可交换', Math.round(1.15 * 1.15 * 100) / 100, hh.enemyMul);
   }
 
+  console.log('\n== 30. 山海图鉴（P3.4） ==');
+  {
+    const { CODEX, CODEX_KINDS, ENEMY_TYPES, ELITE_AFFIXES, CHAPTERS } =
+      vm.runInContext('({ CODEX, CODEX_KINDS, ENEMY_TYPES, ELITE_AFFIXES, CHAPTERS })', ctx);
+    ok('图鉴条目不少于 25 条', CODEX.length >= 25);
+    eq('图鉴分类 5 类', Object.keys(CODEX_KINDS).length, 5);
+    const keys = CODEX.map(e => e.key);
+    eq('图鉴 key 唯一', new Set(keys).size, keys.length);
+    const badKind = CODEX.filter(e => !CODEX_KINDS[e.kind]).map(e => e.key);
+    eq('分类都合法', badKind.join(',') || '无', '无');
+    const badText = CODEX.filter(e => !e.name || !e.lore || !e.tip ||
+      e.name.length < 2 || e.lore.length < 12 || e.tip.length < 6).map(e => e.key);
+    eq('每条都有名字/小传/弱点', badText.join(',') || '无', '无');
+
+    /* 分类计数 */
+    const count = k => CODEX.filter(e => e.kind === k).length;
+    eq('妖兽 8 条', count('beast'), 8);
+    eq('灵兽 3 条', count('spirit'), 3);
+    eq('精英词缀 4 条', count('elite'), 4);
+    eq('首领 12 条', count('boss'), 12);
+    eq('遗迹 2 条', count('ruin'), 2);
+
+    /* 键与真实数据对齐 */
+    const beastKeys = CODEX.filter(e => e.kind === 'beast').map(e => e.key);
+    const missingBeast = beastKeys.filter(k => !ENEMY_TYPES[k]);
+    eq('妖兽键都在 ENEMY_TYPES', missingBeast.join(',') || '无', '无');
+    const beastIsBoss = beastKeys.filter(k => ENEMY_TYPES[k].boss);
+    eq('妖兽里没有 Boss', beastIsBoss.join(',') || '无', '无');
+    const bossKeys = CODEX.filter(e => e.kind === 'boss').map(e => e.key);
+    const notBoss = bossKeys.filter(k => !ENEMY_TYPES[k] || !ENEMY_TYPES[k].boss);
+    eq('首领键都是 Boss 敌型', notBoss.join(',') || '无', '无');
+    const allBosses = Object.keys(ENEMY_TYPES).filter(k => ENEMY_TYPES[k].boss);
+    eq('所有 Boss 都有图鉴条目', allBosses.filter(k => !bossKeys.includes(k)).join(',') || '无', '无');
+    const spiritKeys = CODEX.filter(e => e.kind === 'spirit').map(e => e.key);
+    eq('灵兽键都是召唤兽', spiritKeys.filter(k => !ENEMY_TYPES[k] || !k.startsWith('ally_')).join(',') || '无', '无');
+    const affixKeys = CODEX.filter(e => e.kind === 'elite').map(e => e.key.replace(/^affix_/, ''));
+    eq('精英键都对应真实词缀', affixKeys.filter(k => !ELITE_AFFIXES[k]).join(',') || '无', '无');
+    eq('四个词缀全覆盖', Object.keys(ELITE_AFFIXES).filter(k => !affixKeys.includes(k)).join(',') || '无', '无');
+    const ruinKeys = CODEX.filter(e => e.kind === 'ruin');
+    const badRuin = ruinKeys.filter(e => !CHAPTERS.some(c => String(c.id) === String(e.chapter)));
+    eq('遗迹绑定有效章节', badRuin.map(e => e.key).join(',') || '无', '无');
+    ok('遗迹都带 chapter 字段', ruinKeys.every(e => e.chapter !== undefined));
+    /* 名字不重复（同名词缀与敌型允许同名，但 key 已唯一） */
+    const names = CODEX.map(e => e.name);
+    ok('图鉴名字基本不重复', new Set(names).size >= names.length - 1);
+    /* 分类顺序常量齐全 */
+    for (const k of ['beast', 'spirit', 'elite', 'boss', 'ruin']) ok('分类名存在 ' + k, !!CODEX_KINDS[k]);
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

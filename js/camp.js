@@ -75,6 +75,7 @@ const Camp = {
     else if (this.tab === 'support') this.renderSupport(body);
     else if (this.tab === 'record') this.renderRecord(body);
     else if (this.tab === 'memorial') this.renderMemorial(body);
+    else if (this.tab === 'codex') this.renderCodex(body);
     else if (this.tab === 'deploy') this.renderDeploy(body);
   },
 
@@ -554,6 +555,39 @@ const Camp = {
         : '<div class="record-list"><div class="record-line"><span class="muted">碑上还没有名字。愿它一直空着。</span></div></div>') +
       (relics ? '<h3 style="margin-top:16px;">封 存</h3><div class="record-list">' + relics + '</div>' : '') +
       '</div>';
+  },
+
+  /* ============================================================
+   * 山海图鉴（P3.4）：击破解锁，未识只留轮廓
+   * ============================================================ */
+  renderCodex(body) {
+    const c = Game.campaign;
+    const seen = (c && c.codex) || {};
+    const order = ['beast', 'spirit', 'elite', 'boss', 'ruin'];
+    const total = CODEX.length;
+    const got = CODEX.filter(e => seen[e.key]).length;
+    const groups = order.map(kind => {
+      const list = CODEX.filter(e => e.kind === kind);
+      if (!list.length) return '';
+      const cards = list.map(e => {
+        const known = !!seen[e.key];
+        return '<div class="codex-card' + (known ? '' : ' unknown') + '">' +
+          '<div class="codex-head"><span class="codex-name">' + UI.escape(known ? e.name : '未 识') + '</span>' +
+          (known && e.chapter ? '<span class="codex-ch">' + UI.escape(UI.chapterLabel((Route.byId(e.chapter) || {}).no || '')) + '</span>' : '') +
+          '</div>' +
+          (known
+            ? '<div class="codex-lore">' + UI.escape(e.lore) + '</div><div class="codex-tip">弱点：' + UI.escape(e.tip) + '</div>'
+            : '<div class="codex-lore muted">尚未在途中遭遇，或未曾击破。</div>') +
+          '</div>';
+      }).join('');
+      return '<h3 style="margin-top:16px;">' + (CODEX_KINDS[kind] || kind) +
+        ' <span class="codex-count">' + list.filter(e => seen[e.key]).length + ' / ' + list.length + '</span></h3>' +
+        '<div class="codex-grid">' + cards + '</div>';
+    }).join('');
+    body.innerHTML = '<div class="record-wrap">' +
+      '<h3>山 海 图 鉴 <span class="codex-count">' + got + ' / ' + total + '</span></h3>' +
+      '<div class="codex-hint">击破即录入。图鉴只记「见过什么」，不记「杀了多少」。</div>' +
+      groups + '</div>';
   },
 
   /* ============================================================

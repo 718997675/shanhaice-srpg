@@ -859,5 +859,52 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (Battle.diff.heroic || Battle.B.rewindLeft === 0) throw new Error('关闭勇者后未恢复');
   }
 
+  /* P3.4 图鉴：击破录入 → 章末并入 + 遗迹解锁 → 页面渲染 */
+  {
+    const { Camp, Game: Gv, UI: UIv5, CODEX } = vm.runInContext('({ Camp, Game, UI, CODEX })', ctx);
+    const fake = Object.create(Battle);
+    fake.B = { codexSeen: {} };
+    Battle.noteCodex.call(fake, { rawType: 'wolf', affixes: ['shield', 'regen'] });
+    Battle.noteCodex.call(fake, { rawType: null, affixes: [] });
+    console.log('击破录入：', Object.keys(fake.B.codexSeen).join(' / '));
+    if (!fake.B.codexSeen.wolf) throw new Error('敌型未录入图鉴');
+    if (!fake.B.codexSeen.affix_shield || !fake.B.codexSeen.affix_regen) throw new Error('词缀未录入图鉴');
+    if (Object.keys(fake.B.codexSeen).length !== 3) throw new Error('无 rawType 的单位不该录入');
+
+    /* 章末并入：第 8 章同时解锁遗迹条目 */
+    const savedChapter = camp.chapter, savedCleared = camp.cleared, savedCodex = camp.codex;
+    const origSet = UIv5.setResult, origDlg3 = UIv5.dialogue;
+    const origSave2 = Gv.saveCampaign, origRefresh2 = Gv.refreshTitle;
+    UIv5.setResult = () => {};
+    UIv5.dialogue = () => Promise.resolve();
+    Gv.saveCampaign = () => {};
+    Gv.refreshTitle = () => {};
+    camp.codex = {};
+    camp.chapter = 8; camp.cleared = false;
+    await Gv.onChapterClear({
+      chapterId: 8, turns: 9, sideSuccess: true, units: [], fallen: [],
+      supports: {}, loot: {}, stats: {}, flags: {},
+      nodesHeld: 3, nodesTotal: 3, codex: { wolf: true, affix_shield: true }
+    });
+    UIv5.setResult = origSet; UIv5.dialogue = origDlg3;
+    Gv.saveCampaign = origSave2; Gv.refreshTitle = origRefresh2;
+    const got = Object.keys(camp.codex).sort().join(',');
+    console.log('章末并入图鉴：', got);
+    if (!camp.codex.wolf || !camp.codex.affix_shield) throw new Error('章末未并入击破记录');
+    if (!camp.codex.ruin_8) throw new Error('第 8 章未解锁天柱废墟');
+    if (camp.codex.ruin_5A) throw new Error('不该解锁未到过的遗迹');
+
+    /* 页面渲染：已识显示小传，未识显示「未 识」 */
+    const codexBody = el();
+    Camp.renderCodex(codexBody);
+    const html = codexBody.innerHTML;
+    const okKnown = html.indexOf('妖狼') >= 0 && html.indexOf('浊化最浅') >= 0;
+    const okLocked = html.indexOf('未 识') >= 0;
+    const okCount = html.indexOf('3 / ' + CODEX.length) >= 0;
+    console.log('图鉴页：已识', okKnown, '；未识占位', okLocked, '；计数', okCount);
+    if (!okKnown || !okLocked || !okCount) throw new Error('图鉴页渲染不完整');
+    camp.chapter = savedChapter; camp.cleared = savedCleared; camp.codex = savedCodex;
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

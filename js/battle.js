@@ -113,6 +113,7 @@ const Battle = {
       summoned: [],
       casualties: [],
       mainHoldCount: 0,
+      codexSeen: {},          // 本章击破的敌型 / 词缀（P3.4 图鉴）
       sideHoldCount: 0,
       spawnedReinforcements: {},
       rewindLeft: this.diff.rewinds,
@@ -2454,6 +2455,16 @@ const Battle = {
     if (debuff.res) foe.statuses.res = { val: debuff.res, until };
   },
 
+  /* 图鉴解锁（P3.4）：击破的敌型与它身上的词缀记进本章战果，章末并入存档。
+   * 说得 / 撤退的单位不算击破，所以只在这里记。 */
+  noteCodex(unit) {
+    const B = this.B;
+    if (!B || !unit) return;
+    if (!B.codexSeen || typeof B.codexSeen !== 'object') B.codexSeen = {};
+    if (unit.rawType) B.codexSeen[unit.rawType] = true;
+    for (const a of unit.affixes || []) B.codexSeen['affix_' + a] = true;
+  },
+
   async handleDeath(unit, killer) {
     if (!unit) return;
     if (unit.side === 'enemy') {
@@ -2467,6 +2478,7 @@ const Battle = {
         if (unit.rawType === 'xuanque') this.B.flags.bossDefeated = true;
       }
       this.B.stats.kills++;
+      this.noteCodex(unit);
       unit.hp = 0;
       Audio.sfx('death');
       UI.log(unit.name + '倒下了。', 'good');
@@ -2795,6 +2807,7 @@ const Battle = {
       sideSuccess: this.sideSuccess(),
       nodesHeld,
       nodesTotal,
+      codex: Object.assign({}, B.codexSeen || {}),
       units: rosterOut,
       fallen,
       recruited: B.recruited.slice(),
