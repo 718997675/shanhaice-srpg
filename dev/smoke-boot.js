@@ -136,7 +136,8 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
       console.log('确认滑行后单位停在：', '(' + mover.x + ',' + mover.y + ')  hasMoved =', mover.hasMoved);
       console.log(mover.x === 7 && mover.y === 6 ? '滑行落点正确（遇人停在 7,6）' : '!! 滑行落点异常');
       // 第三次：竖带——把单位放到 (2,3)，点 (2,4) 应下滑到图底草地 (2,7)
-      mover.x = 2; mover.y = 3; mover.acted = false;
+      // （手动传送 = 新场景，累计移动力一并清零，模拟新回合状态）
+      mover.x = 2; mover.y = 3; mover.acted = false; mover.moveUsed = 0;
       Battle.selectUnit(mover);
       await Battle.moveSelectedTo(2, 4);
       console.log('竖带下滑后单位停在：', '(' + mover.x + ',' + mover.y + ')');
@@ -1429,6 +1430,72 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (src('js/item-icons.js').indexOf('Combat.') >= 0) throw new Error('图标库不许碰公式');
     camp.convoy = [];
     console.log('H-P1 图标化：渲染接入 / 全表覆盖 / 未知回退 / 呈现层纯洁，均通过');
+  }
+
+  /* 规则：攻击不消耗移动力——原地攻击后还能走，行动菜单攻击置灰，不能攻击两次 */
+  {
+    const { Battle, UI } = vm.runInContext('({ Battle, UI })', ctx);
+    /* 打桩：预测直接放行、actionBar 记录按钮（用完还原） */
+    const origForecast = vm.runInContext('UI.forecast', ctx);
+    const origActionBar = vm.runInContext('UI.actionBar', ctx);
+    vm.runInContext('globalThis.__origForecast = UI.forecast; globalThis.__origActionBar = UI.actionBar;', ctx);
+    vm.runInContext('UI.forecast = () => Promise.resolve(true);', ctx);
+    vm.runInContext('UI.actionBar = (btns) => { globalThis.__lastButtons = btns; };', ctx);
+    const B = Battle.B;
+    /* 其他友军挂 chainUsed，防连携弹窗卡住 */
+    for (const t of B.units) if (t.side === 'player' && t.charId !== 'yunce') t.chainUsed = true;
+    const p = B.units.find(x => x.side === 'player' && x.charId && x.hp > 0);
+    p.acted = false; p.attacked = false; p.moveUsed = 0; p.hasMoved = false; p.movedDist = 0;
+    p.items = [{ key: 'iron_sword', uses: 20 }]; p.weaponIndex = 0;
+    /* 摆位：p 在 spot.x、木桩在 spot.x+1（相邻可攻）、spot.x-1 留作攻击后移动目标 */
+    const rows = B.chapter.map;
+    const free = (x, y) => !B.units.some(t => t.hp > 0 && t.x === x && t.y === y);
+    let spot = null;
+    for (let y = 0; y < rows.length && !spot; y++) {
+      for (let x = 1; x + 1 < rows[y].length; x++) {
+        if (rows[y][x - 1] === '.' && rows[y][x] === '.' && rows[y][x + 1] === '.' &&
+            free(x - 1, y) && free(x, y) && free(x + 1, y)) { spot = { x, y }; break; }
+      }
+    }
+    if (!spot) throw new Error('找不到三连空地摆位');
+    p.x = spot.x; p.y = spot.y;
+    const dummy = { id: 'du3', name: '木桩三', side: 'enemy', charId: null, hp: 999, x: spot.x + 1, y: spot.y,
+      stats: { hp: 999, str: 1, mag: 0, skl: 0, spd: 0, lck: 0, def: 1, res: 1 },
+      items: [], weaponIndex: -1, ranks: {}, statuses: {}, tags: ['human'],
+      hasMoved: false, movedDist: 0, moveUsed: 0, attacked: false };
+    B.units.push(dummy);
+    const moveStat = p.move;
+    B.selectedUnit = p;
+    await Battle.chooseAttackTarget(dummy);
+    console.log('原地攻击后：acted =', p.acted, '；mode =', B.mode, '；剩余移动范围 =', B.moveRange ? B.moveRange.size : 0);
+    if (p.acted) throw new Error('原地攻击后不应结束行动');
+    if (B.mode !== 'move') throw new Error('原地攻击后应回到移动模式');
+    if (!B.moveRange || B.moveRange.size < 2) throw new Error('原地攻击后应仍有移动范围');
+    if (!p.attacked) throw new Error('缺已攻击标记');
+    if (Battle.moveLeftFor(p) !== moveStat) throw new Error('未移动过，移动力应全额剩余');
+    /* 行动菜单：攻击置灰（每回合限一次） */
+    Battle.openActionMenu();
+    let btns = vm.runInContext('globalThis.__lastButtons', ctx);
+    const atk = btns.find(b => b.label === '攻击');
+    console.log('行动菜单攻击钮：disabled =', atk && atk.disabled, '；sub =', atk && atk.sub);
+    if (!atk || !atk.disabled) throw new Error('攻击后行动菜单应置灰攻击');
+    /* 攻击后继续移动：重新选中进移动模式（moveUsed 保留 → 范围是剩余量），移动力按格扣减 */
+    Battle.selectUnit(p);
+    if (!B.moveRange || !B.moveRange.has(Battle.key(spot.x - 1, spot.y))) throw new Error('攻击后剩余范围应含左邻格');
+    await Battle.moveSelectedTo(spot.x - 1, spot.y);
+    if (p.x !== spot.x - 1) throw new Error('攻击后移动未生效');
+    if (Battle.moveLeftFor(p) !== moveStat - 1) throw new Error('移动力未按格扣减');
+    Battle.openActionMenu();
+    btns = vm.runInContext('globalThis.__lastButtons', ctx);
+    const atk2 = btns.find(b => b.label === '攻击');
+    if (!atk2 || !atk2.disabled) throw new Error('攻击并移动后仍应置灰攻击');
+    /* 还原现场 */
+    B.units = B.units.filter(u => u.id !== 'du3');
+    for (const t of B.units) if (t.side === 'player') t.chainUsed = false;
+    p.acted = true;
+    vm.runInContext('UI.forecast = globalThis.__origForecast;', ctx);
+    vm.runInContext('UI.actionBar = globalThis.__origActionBar;', ctx);
+    console.log('规则「攻击不消耗移动力」：原地攻击后可移动 / 攻击置灰 / 移动力扣减，均通过');
   }
 
   console.log('\n冒烟通过：无引用错误');

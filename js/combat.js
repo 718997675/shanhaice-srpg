@@ -417,14 +417,15 @@ const Combat = {
 
   key(x, y) { return x + ',' + y; },
 
-  reachable(unit, grid, units, extraMove) {
+  reachable(unit, grid, units, extraMove, spent) {
     const h = grid.length, w = grid[0].length;
     const occ = new Map();
     for (const u of units) {
       if (!u || u.hp <= 0) continue;
       occ.set(this.key(u.x, u.y), u);
     }
-    const maxCost = Math.max(1, (unit.move || 0) + (extraMove || 0));
+    /* spent：本回合已花费的地形移动力（攻击后再移动用）。≤0 时只能站在原地 */
+    const maxCost = Math.max(0, (unit.move || 0) + (extraMove || 0) - (spent || 0));
     const dist = new Map();
     const prev = new Map();
     const startK = this.key(unit.x, unit.y);

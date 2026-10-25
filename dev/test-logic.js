@@ -226,6 +226,17 @@ ok(reach2.has('2,0'), '可穿过友军');
 ok(reach2.get('1,0').occupied, '友军格不可停留');
 ok(!reach2.get('1,0').endable, '友军格不可停留标记');
 
+/* 攻击不消耗移动力：spent = 本回合已花掉的移动力，按剩余量收范围 */
+const full3 = Combat.reachable(walker, grid, [walker], 0, 0);
+const after1 = Combat.reachable(walker, grid, [walker], 0, 1);
+const after2 = Combat.reachable(walker, grid, [walker], 0, 2);
+const over = Combat.reachable(walker, grid, [walker], 0, 5);
+ok(full3.has('2,0'), 'spent=0 满程可达 2 格');
+ok(!after1.has('2,0') && after1.has('1,0'), 'spent=1 后最远 1 格');
+ok(after2.has('0,0') && !after2.has('1,0'), 'spent=move 时只能原地');
+ok(over.size === 1 && over.has('0,0'), 'spent 超额仍保留自身格');
+ok(over.get('0,0').endable, '自身格可结束（原地行动）');
+
 eq(Combat.supportRank(19), null, '支援 C 之前');
 eq(Combat.supportRank(20), 'C', '支援 C');
 eq(Combat.supportRank(50), 'B', '支援 B');

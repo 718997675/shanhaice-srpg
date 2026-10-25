@@ -197,6 +197,8 @@ const Battle = {
       acted: false,
       hasMoved: false,
       movedDist: 0,
+      moveUsed: 0,
+      attacked: false,
       statuses: {},
       escaped: false,
       recruitable: false,
@@ -237,6 +239,8 @@ const Battle = {
         acted: false,
         hasMoved: false,
         movedDist: 0,
+        moveUsed: 0,
+        attacked: false,
         statuses: {},
         escaped: false,
         recruitable: !!spec.recruitable,
@@ -281,6 +285,8 @@ const Battle = {
       acted: false,
       hasMoved: false,
       movedDist: 0,
+      moveUsed: 0,
+      attacked: false,
       statuses: {},
       escaped: false,
       recruitable: false,
@@ -763,6 +769,8 @@ const Battle = {
         u.acted = false;
         u.hasMoved = false;
         u.movedDist = 0;
+        u.moveUsed = 0;
+        u.attacked = false;
         u.chainUsed = false;   // 连携每单位每回合限 1 次
       }
     }
@@ -868,7 +876,7 @@ const Battle = {
     this.pruneStatuses();
     this.updateNodes();
     for (const u of B.units) {
-      if (u.side === 'enemy' && u.hp > 0 && !u.escaped) { u.acted = false; u.hasMoved = false; u.movedDist = 0; }
+      if (u.side === 'enemy' && u.hp > 0 && !u.escaped) { u.acted = false; u.hasMoved = false; u.movedDist = 0; u.moveUsed = 0; u.attacked = false; }
     }
     this.tickAffixRegen();
     this.computeVisibility(false);
@@ -975,7 +983,42 @@ const Battle = {
    * ============================================================ */
   reachFor(unit) {
     // 传解析后的网格：覆盖层（如冰冻结）要能改变可达范围
-    return Combat.reachable(unit, TerrainFX.resolvedGrid(this.B), this.B.units, this.extraMoveFor(unit));
+    // spent：本回合已花掉的移动力（攻击不消耗移动力，攻击后按剩余量给范围）
+    return Combat.reachable(unit, TerrainFX.resolvedGrid(this.B), this.B.units,
+      this.extraMoveFor(unit), unit.moveUsed || 0);
+  },
+
+  /* 本回合剩余移动力（地形成本计） */
+  moveLeftFor(unit) {
+    if (!unit) return 0;
+    return Math.max(0, (unit.move || 0) + this.extraMoveFor(unit) - (unit.moveUsed || 0));
+  },
+
+  /* 攻击后处理（规则：攻击不消耗移动力）：
+   * 移动力有剩 → 回到移动模式继续走（行动菜单里攻击/法术置灰）；
+   * 没有剩 → 照旧结束行动。 */
+  async afterAttack(unit) {
+    const B = this.B;
+    if (!unit) return;
+    unit.attacked = true;
+    const left = this.moveLeftFor(unit);
+    if (left > 0 && !B.ending) {
+      B.selectedUnit = unit;
+      B.origin = { x: unit.x, y: unit.y };
+      B.moveUsedBackup = unit.moveUsed || 0;
+      B.hasMovedBackup = unit.hasMoved;
+      B.movedDistBackup = unit.movedDist;
+      B.mode = 'move';
+      B.attackRange = null;
+      B.targetTiles = null;
+      B.pathPreview = null;
+      B.moveRange = this.reachFor(unit);
+      B.tapHint = '攻击完毕·移动力还剩 ' + left + '，可继续移动或点击自身结束';
+      UI.unitCard(unit, B, '攻击完毕，还可移动 ' + left + ' 格');
+      UI.updateBattle(B);
+    } else {
+      await this.finishUnitAction(unit);
+    }
   },
 
   pathBetween(range, unit, x, y) {
@@ -1059,6 +1102,8 @@ const Battle = {
     unit.acted = true;
     unit.hasMoved = false;
     unit.movedDist = 0;
+    unit.moveUsed = 0;
+    unit.attacked = false;
     this.computeVisibility(false);
     UI.updateBattle(this.B);
   },
@@ -1309,6 +1354,7 @@ const Battle = {
     B.origin = { x: u.x, y: u.y };
     B.hasMovedBackup = u.hasMoved;
     B.movedDistBackup = u.movedDist;
+    B.moveUsedBackup = u.moveUsed || 0;
     B.mode = 'move';
     B.attackRange = null;
     B.targetTiles = null;
@@ -1348,6 +1394,10 @@ const Battle = {
     u.y = slide ? slide.y : y;
     u.hasMoved = path.length > 1 || u.x !== B.origin.x || u.y !== B.origin.y;
     u.movedDist = Math.max(0, (slide ? slide.path.length : path.length) - 1);
+    /* 移动力按地形成本累计（攻击后还能按剩余量继续走） */
+    const destNode = B.moveRange && B.moveRange.get(this.key(x, y));
+    const spend = slide ? Math.max(0, slide.path.length - 1) : (destNode ? destNode.cost : Math.max(0, path.length - 1));
+    u.moveUsed = (u.moveUsed || 0) + spend;
     if (slide) UI.log(u.name + '在冰面上滑行至 (' + u.x + ', ' + u.y + ')。', '');
     Audio.sfx('move');
     this.computeVisibility(false);
@@ -1374,8 +1424,8 @@ const Battle = {
     const targets = w ? this.attackTargets(u) : [];
     if (w) {
       buttons.push({
-        label: '攻击', sub: targets.length ? targets.length + ' 个目标' : '无目标', cls: 'attack',
-        disabled: !targets.length,
+        label: '攻击', sub: u.attacked ? '已攻击' : (targets.length ? targets.length + ' 个目标' : '无目标'), cls: 'attack',
+        disabled: !targets.length || !!u.attacked,
         onClick: () => this.beginAttackSelect()
       });
     }
@@ -1383,7 +1433,7 @@ const Battle = {
       const st = this.staffTargets(u);
       buttons.push({
         label: '杖', sub: st.length ? st.length + ' 个目标' : '无目标',
-        disabled: !st.length,
+        disabled: !st.length || !!u.attacked,
         onClick: () => this.beginStaffSelect()
       });
     }
@@ -1391,7 +1441,7 @@ const Battle = {
       const wt = this.warpTargets(u);
       buttons.push({
         label: '渡厄', sub: wt.length ? wt.length + ' 个目标' : '无目标',
-        disabled: !wt.length,
+        disabled: !wt.length || !!u.attacked,
         onClick: () => this.beginWarpSelect()
       });
     }
@@ -1400,11 +1450,11 @@ const Battle = {
       return def && def.kind === 'heal' && it.uses > 0 && u.hp < u.stats.hp;
     });
     if (healItems.length) {
-      buttons.push({ label: '道具', sub: healItems.length + ' 种', onClick: () => this.useItem() });
+      buttons.push({ label: '道具', sub: healItems.length + ' 种', disabled: !!u.attacked, onClick: () => this.useItem() });
     }
     const talkTarget = this.talkTarget(u);
     if (talkTarget) {
-      buttons.push({ label: '说得', sub: talkTarget.name, cls: 'attack', onClick: () => this.talkTo(talkTarget) });
+      buttons.push({ label: '说得', sub: talkTarget.name, cls: 'attack', disabled: !!u.attacked, onClick: () => this.talkTo(talkTarget) });
     }
     const village = this.villageAt(u.x, u.y);
     if (village && !B.flags.villages[this.key(u.x, u.y)]) {
@@ -1432,14 +1482,15 @@ const Battle = {
       const beastName = ENEMY_TYPES[topTier.unitType] ? ENEMY_TYPES[topTier.unitType].name : topTier.name;
       buttons.push({
         label: '召唤', sub: spot ? (beastName + ' ' + slots + '/' + SUMMON_FIELD_CAP + ' · 余 ' + this.summonUsesLeft(u)) : '无空地',
-        disabled: !spot || slots <= 0,
+        disabled: !spot || slots <= 0 || !!u.attacked,
         onClick: () => this.doSummon()
       });
     }
     const usableSpells = Spells.forUnit(u).filter(sp => Spells.canUse(u, sp.key));
     if (usableSpells.length) {
       buttons.push({
-        label: '法术', sub: usableSpells.length + ' 种', cls: 'attack',
+        label: '法术', sub: u.attacked ? '已攻击' : usableSpells.length + ' 种', cls: 'attack',
+        disabled: !!u.attacked,
         onClick: () => this.beginSpellSelect()
       });
     }
@@ -1563,7 +1614,8 @@ const Battle = {
     B.busy = false;
     if (!B.ending) await this.offerChain(u, target);
     if (!B.ending) {
-      await this.finishUnitAction(u);
+      /* 规则：攻击不消耗移动力——移动力有剩就还能继续走 */
+      await this.afterAttack(u);
     }
   },
 
@@ -1810,6 +1862,8 @@ const Battle = {
       u.acted = false;
       u.hasMoved = false;
       u.movedDist = 0;
+      u.moveUsed = 0;
+      u.attacked = false;
       n++;
     }
     B.commandUsed = true;
@@ -2081,6 +2135,8 @@ const Battle = {
     target.recruitable = false;
     target.acted = true;
     target.hasMoved = false;
+    target.moveUsed = 0;
+    target.attacked = false;
     B.recruited.push(target.charId);
     B.stats.recruits++;
     UI.log(target.name + '加入了我方。', 'gold');
@@ -2297,6 +2353,8 @@ const Battle = {
     unit.acted = true;
     unit.hasMoved = false;
     unit.movedDist = 0;
+    unit.moveUsed = 0;
+    unit.attacked = false;
     if (!opts || !opts.noCapture) this.captureNode(unit);
     // 随行召唤：护卫召唤者移动落位
     Summon.followCaster(B, unit,
@@ -2325,6 +2383,8 @@ const Battle = {
     if (B.origin) { u.x = B.origin.x; u.y = B.origin.y; }
     u.hasMoved = false;
     u.movedDist = 0;
+    /* 退回本次行动会话的起点：移动力花费一并回退（防攻击后反复取消刷范围） */
+    u.moveUsed = B.moveUsedBackup != null ? B.moveUsedBackup : 0;
     B.selectedUnit = null;
     B.origin = null;
     B.mode = 'idle';
