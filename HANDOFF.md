@@ -1,0 +1,153 @@
+# 交接快照 · 山海策 · 灵脉
+
+> **给接手的人 / 另一个账号看的唯一入口。** 读完这份就能直接开工，不必翻聊天记录。
+> 最后更新：2026-10-25 10:45 · git HEAD `9e687ea` · 全部测试绿
+
+---
+
+## 1. 一分钟上手
+
+```bash
+cd /Users/niekai/Documents/ai-game/shanhaice
+
+# 1) 看现状
+git log --oneline -5 && git status
+
+# 2) 跑全部验证（约 10 秒，必须全绿再动代码）
+node dev/test-logic.js          # 期望：3036 通过，0 失败
+node tests/formulas.test.js     # 期望：1109 通过 / 0 失败
+node dev/smoke-boot.js          # 期望：冒烟通过：无引用错误
+node dev/smoke-boot.js sandbox  # 期望：同上（沙盒变体）
+
+# 3) 起服务试玩
+node dev/serve.js               # http://127.0.0.1:4173/
+```
+
+**工作区已迁到本目录。** 以前散落在 `~/WorkBuddy AI/2026-10-23-22-40-08/` 的文档全部搬进了 `docs/`，素材源图搬进 `art-source/`（已 gitignore）。新账号请直接把本目录当工作区。
+
+---
+
+## 2. 现在做到哪了
+
+| 里程碑 | 状态 | 说明 |
+| --- | --- | --- |
+| P0 基线固化 | ✅ | tag `v0.9-baseline`、数值回归测试、dev 工具链 |
+| P1.1 阵眼升阶 | ✅ | `27eff28` 起，节点 3 阶、驻守推进 |
+| P1.2 地形动态层 + 冰面滑行 | ✅ | `js/systems/terrain.js` |
+| P1.6 武器强化 +3 / 传送武器 | ✅ | `ef7f9b6` / `fb60d66` |
+| P1.3 敌方精英词缀 | ✅ | `25fdc74` 护盾/自愈/光环/狂暴 |
+| P1.4 双人连携 + 指挥技 | ✅ | `5edc5c9` 号令/集火/坚守 |
+| **P3.1 A/B 路线分歧** | ✅ | `e75b24d` 第 4 章末分线，各 3 章 + 第 8 章汇合 |
+| **P3.2 心结 + 支援扩到 12 组** | ⬜ **下一项** | 见 §3 |
+| P3.3 替补援军 / 殉志传承 / 英魂碑 | ⬜ | |
+| P3.4 多结局 + 山海图鉴 + 勇者模式 | ⬜ | |
+| P3.5 剧情扩写（每章三幕+戏眼） | ⬜ | 工作量最大，约 10 万字 |
+| P4 视听包装（横版演出 / 图标化 / 引导） | ⬜ | |
+| P5 平衡、P6 回归与文档终稿 | ⬜ | |
+
+**当前可玩内容**：12 张地图（1/2/3/4 → 5A/6A/7A 或 5B/6B/7B → 8 → 9）、12 名角色、双路线完整通关、词缀/连携/指挥/传送武器/强化全部接入。存档键 `shanhaice.*.v4`。
+
+美术缺口：白鹭、云翎的 resolve 立绘与图标待重绘（用户在自行处理水印）；`art-source/` 里 140 张 PNG 原稿尚未全部接入游戏（游戏内用的是 `assets/portraits/*.svg` 程序生成图 + `assets/icons/weapons/*.png`）。
+
+---
+
+## 3. 下一步做什么（P3.2 心结，建议直接从这里动手）
+
+设计原文在 `docs/山海策-灵脉-升级方案.md` §4.2 / §4.3（第 247~256 行）。落地拆解：
+
+1. **数据层**（`js/data-core.js` 或新建 `js/systems/bond.js`）
+   - `BONDS`：现有 6 组支援扩到 12 组，新增 云策×墨鸦 / 云策×白鹭 / 岩隈×阿蛮 / 青萝×玄漪 / 姜姒×云策 / 虞素秋×玄漪
+   - `HEART_KNOTS`：按未选路线给角色挂心结（A 线留下守脉侧的人，B 线留下追脉侧的人），每条含 `{ char, reason, line }`
+2. **战斗层**（`js/combat.js` + `js/battle.js`）
+   - 命中公式加 `ctx.knotPenalty(unit)`：带心结 -5 命中，终章前已解则不扣
+   - 全部解开 → 终章全队 +5 命中 +5 必杀（走 `modsFor` 统一出口，别散落在各处）
+3. **营地层**（`js/camp.js`）
+   - 新增「了断」页签：心结角色 + 支援 A 级挚友配对，对话后清 `knot`，写进 `campaign.resolvedKnots`
+4. **测试**
+   - `tests/formulas.test.js` 加第 23 节（心结 -5 / 全解 +5/+5 / 支援 12 组齐全 / 配对合法性）
+   - `dev/test-logic.js` 补数据完整性（心结角色存在、支援组不重复）
+   - smoke 加一段「挂心结→命中下降→解开心结→命中恢复」
+
+**工程习惯（此前每个 sprint 都是这个流程）**：改完 → 四个测试命令全绿 → `git commit`（中文信息，正文列改动点）→ 更新 `docs/开发计划.md` 进度记录与提交链 → 追加 memory 日志。
+
+---
+
+## 4. 代码地图
+
+| 文件 | 职责 | 改动注意 |
+| --- | --- | --- |
+| `index.html` | 脚本加载顺序 | **新增 js 文件必须在这里按依赖顺序加 `<script>`**，否则 file:// 直接白屏 |
+| `js/data-core.js` | 职业、武器、角色、敌型、支援、难度、地形 | 常量表，改数值先看这里 |
+| `js/data-maps.js` | 12 张地图、目标、事件、对白、`AUTO_JOINS` | 地图固定 16×8；字符与实体坐标必须一一对应 |
+| `js/data-systems.js` | 法术、传说武器、召唤、词缀、指挥技 | 新系统常量放这里 |
+| `js/combat.js` | **所有战斗公式**（命中/伤害/必杀/追击/减伤） | 公式只许写在这里，别在 battle.js 里另算 |
+| `js/battle.js` | 战斗流程、阶段、AI、阵眼、悔棋、连携、指挥 | 最大的文件，改动集中区 |
+| `js/render.js` | Canvas 绘制与演出 | |
+| `js/ui.js` | HUD、对话、弹层、战报、预测 | `chapterLabel(ch.no)` 统一章号显示 |
+| `js/camp.js` | 营地、编成、商店、转职、打造 | |
+| `js/game.js` | 战役推进、章节结算、存档、分歧选择 | 章节一律用 chapterId，不再用数组下标 |
+| `js/systems/route.js` | A/B 路线定义、章节链、旧档迁移 | `Route.byId / order / nextId / seedOf` |
+| `js/systems/*.js` | terrain / spells / summon / smith / legendary 等 | 系统模块化 |
+| `tests/formulas.test.js` | 数值回归（1109 条） | 纯函数为主，Node + vm 直接加载 |
+| `dev/test-logic.js` | 规则与数据完整性（3036 条） | 数据改动必跑 |
+| `dev/smoke-boot.js` | 启动冒烟，含 `sandbox` 变体 | 断言真实流程，不是单元测试 |
+| `dev/serve.js` | 本地静态服务器 | |
+| `dev/cdp.js` | CDP 调试与截图 | 需要浏览器开 9222 端口 |
+| `docs/` | 全部设计文档 | 见 §7 |
+| `art-source/` | PNG 素材原稿（536M，不进库） | `manifest.json` 是交付清单 |
+
+---
+
+## 5. 工程红线（违反即返工）
+
+1. **纯静态**：vanilla JS + 多 `<script>` 标签，无构建、无依赖、**`file://` 必须能跑**。
+2. **公式只在 `combat.js`**。battle/ui 只调用，不自己算命中伤害。
+3. **章节 id 是 chapterId**（`1/2/3/4/'5A'/'6A'/'7A'/'5B'/'6B'/'7B'/8/9`），人读章号在 `ch.no`。任何 `CHAPTERS[id - 1]` 的写法都是 bug。
+4. **地图字符与实体坐标必须一一对应**（`L` 阵眼 / `v` 村 / `C` 宝匣 / `S` 祠堂 / `G` 增援 / `E` 突围口）。`dev/test-logic.js` 的「与地图一致」组就是守这个的。
+5. **存档兼容**：改存档结构就升 `SAVE_VERSION` 并在 `Route.migrateLegacyChapter` / `normalizeCampaign` 里写迁移。
+6. **改数据先跑 `dev/test-logic.js`，再跑冒烟**。
+
+---
+
+## 6. 踩坑清单（都是真金白银踩出来的）
+
+- **vm 沙箱有独立的 `Math`**：在 Node 外层改 `Math.random` 对 vm 里的代码无效。要在沙箱内打补丁：
+  `vm.runInContext('globalThis.__orig = Math.random; Math.random = () => 0.99', ctx)`，用完还原。否则传说掉落这类概率断言会偶发 flaky。
+- **`mkUnit` 默认 `id: 't'`**：多个单位一起造会 id 撞车，光环「排除自己」之类的逻辑会误判。要显式给不同 id。
+- **`mkUnit` 默认 `weaponIndex: 0`**：测 `Combat.weaponOf` 的自动优选时，先把它置 `-1`，否则直接短路。
+- **真实角色 ≠ 测试假单位**：鹿鸣只有 `staff: 'C'` 的武器 rank，给她塞铁剑 `weaponOf` 会返 null、射程判定全灭。smoke 用真实角色前先查 `ranks` / 武器类型。
+- **曼哈顿距离不是欧氏**：连携 `CHAIN_RANGE 2` 是曼哈顿，斜角 (3,3)→(4,4) 距离是 2 不是 1.41。摆位要手算。
+- **测试里的 `+chId` 陷阱**：`+'5A'` 是 `NaN`，`CHAPTERS[NaN]` 永远 undefined。按 id 比对。
+- **两套测试都要同步**：`dev/test-logic.js`（数据/规则）与 `tests/formulas.test.js`（公式）是独立的两套，改数据只跑一套会漏。P3.1 就是只更了 test-logic，formulas 留了 9 条失败。
+- **破盾逻辑位置**：`performCombat` 里破盾判定要在 `if (ev.hit)` 主层，不能嵌在 `if (wsk)` 传奇武器分支里（曾因此只在传奇武器触发时才破盾）。
+- **换位武器要先捕获武器引用**：`swapWeapon` 在 `resolve` 之前捕获，否则耐久耗尽后引用丢了，认不出是哪把武器。
+
+---
+
+## 7. 文档索引
+
+| 文档 | 用途 |
+| --- | --- |
+| `docs/开发计划.md` | **里程碑与进度以它为准**，末尾有完整提交链 |
+| `docs/山海策-灵脉-升级方案.md` | 系统设计全文（阵眼/词缀/连携/指挥/路线/心结/叙事/世界观） |
+| `docs/绘图提示词库.md` | 美术出图提示词 |
+| `docs/待生成素材清单.md`、`docs/剩余素材提示词.md` | 缺口素材与对应提示词 |
+| `docs/传说武器图标提示词.md` | 武器图标专用 |
+| `docs/战斗演出立绘提示词.md` | 战斗演出立绘 |
+| `art-source/manifest.json` | 素材交付清单（文件名 / 状态 / 水印说明） |
+
+---
+
+## 8. 提交链（新 → 旧）
+
+`9e687ea`（formulas 路线化）← `401ffed`（文档迁入 docs/）← `e75b24d`（A/B 路线）← `5edc5c9`（连携+指挥）← `25fdc74`（敌方词缀）← `fb60d66`（传送武器）← `ef7f9b6`（强化 +3）← `1aa370c` ← `e89a36e` ← `813525f` ← `667d829` ← `e309688` ← `5c0fe76` ← `bc5eeb2` ← `9182c3a` ← `14cdcc5` ← `e00ca0b` ← `27eff28` ← `6fc0bb5` ← `aae6375`
+
+---
+
+## 9. 协作约定（用户的偏好，别踩）
+
+- 验证用 **Safari**，不要用 Chrome；**不要主动截图**。
+- 节奏要快：做完一项立刻跑测试 → 提交 → 更新文档，不要停下来等确认。
+- 用户会直接指出「试玩跟基础版没区别」这类体验问题——**先修体验，再谈架构**。
+- 中文回复，提交信息也用中文，正文列具体改动点。
+- 每个 sprint 结束追加一条 memory 日志（`.workbuddy-ai/memory/YYYY-MM-DD.md`），写清坑。
