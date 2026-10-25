@@ -216,8 +216,37 @@ def sfx_boss_death():
 
 
 def sfx_step_foot():
-    return mix(noise_burst(0.10, 0.55, 650, 1.4, 0.05),
-               tone(170, 0.13, 0.42, 'triangle', 0.7, 0, 0.07))
+    """真实行走步声：噪声瞬态为主（脚跟「嗒」+ 鞋底「沙」），低频只做重量点缀。
+
+    前两版都失败在主体是 sine 下滑——正弦波瞬态衰减在声学上就是鼓的结构，
+    不管频率多低听起来都像鼓。真实脚步声的辨识度全在噪声的高频瞬态纹理上
+    （频谱重心 800~2500Hz）。
+    """
+    def one_step(vol=1.0, seed=1):
+        dur = 0.28
+        t, n = time_axis(dur)
+        rng = np.random.default_rng(seed)
+        raw = rng.standard_normal(n)
+        # ① 脚跟「嗒」：窄带噪声脉冲，8ms 直角 attack
+        click = apply(raw, 'bp', 1800.0, 2.5)
+        ec = env(dur, [(0.0, 0.0), (0.008, vol * 0.32), (0.05, vol * 0.10), (0.10, 0.0)])
+        # ② 鞋底「沙」：宽带高通噪声，15ms 钝起、长拖尾
+        scuff = apply(raw, 'hp', 500.0, 0.8)
+        es = env(dur, [(0.0, 0.0), (0.018, vol * 0.30), (0.06, vol * 0.20), (0.14, vol * 0.08), (dur, 0.0)])
+        # ③ 极弱地面共振（只给重量感，不能盖过噪声）
+        gr = osc('sine', 80, t) * env(dur, [(0.0, 0.0), (0.012, vol * 0.06), (0.08, 0.0)])
+        return click * ec + scuff * es + gr
+
+    total = 0.66
+    t, n = time_axis(total)
+    out = np.zeros(n)
+    a = one_step(1.0, seed=1)
+    out[:len(a)] += a
+    i0 = int(0.30 * SR)
+    b = one_step(0.74, seed=2)   # 第二步稍弱，自然左右脚不等响
+    nb = min(len(b), len(out) - i0)
+    out[i0:i0 + nb] += b[:nb]
+    return apply(out, 'lp', 11000, 0.707)
 
 
 def sfx_step_armor():
@@ -291,6 +320,39 @@ def sfx_summon():
                tone(48, 0.9, 0.26, 'sine', 0.6, 0.1, 0.5))
 
 
+def sfx_heal():
+    """治疗效果音：暖音琶音（C5-E5-G5-C6）+ 低频「注入暖流」+ 高频光晕尾。
+
+    有温度、可感知生命回流，不是纯电子琴琶音。
+    """
+    arp_notes = [note(72), note(76), note(79), note(84)]   # C5 E5 G5 C6
+    dur_ar = 0.45
+    total = 0.06 * 3 + dur_ar + 0.4
+    t, n = time_axis(total)
+    x = np.zeros(n)
+    # ① 暖音琶音（triangle 比 sine 多一点谐波，像钟琴/暖铃）
+    for i, f in enumerate(arp_notes):
+        i0 = int(i * 0.06 * SR)
+        tn = int(dur_ar * SR)
+        seg = osc('triangle', f, t[:tn])
+        e = env(dur_ar, [(0.0, 0.0), (0.01, 1.0), (dur_ar * 0.3, 0.7), (dur_ar, 0.0)])
+        buf = np.zeros(n)
+        buf[i0:i0 + tn] += 0.05 * seg * e
+        x += buf
+    # ② 低频注入：110Hz sine + 5Hz 颤音（像呼吸），0.7s 渐强、1.0s 淡出
+    farr = 110 + 8 * np.sin(2 * np.pi * 5 * t)
+    x += osc('sine', farr, t) * env(total, [(0.0, 0.0), (0.7, 0.06), (1.0, 0.0)])
+    # ③ 高频光点扫频（弱，通透光晕尾）
+    glow = sweep(np.random.default_rng(7).standard_normal(n) * 0.3, 'bp', 4000, 8000, Q=3.0)
+    x += 0.04 * glow * env(total, [(0.0, 0.0), (0.1, 1.0), (0.45, 0.0), (total, 0.0)])
+    # ④ 短混响尾（本音效自带混响，main 里不再叠加）
+    ir = np.random.default_rng(11).standard_normal(int(0.4 * SR)) * np.exp(-6 * np.arange(int(0.4 * SR)) / SR)
+    ir = apply(ir, 'lp', 5500, 0.707)
+    wet = np.convolve(x, ir)[:len(x)]
+    wet *= np.sqrt(np.mean(x ** 2) + 1e-12) / (np.sqrt(np.mean(wet ** 2)) + 1e-12) * 0.5
+    return apply(x + 0.12 * wet, 'hp', 50.0, 0.707)
+
+
 # case 名 → 合成函数
 GENERATED = {
     'hit_flesh': sfx_hit_flesh, 'hit_wood': sfx_hit_wood, 'foe_hit': sfx_foe_hit,
@@ -304,7 +366,11 @@ GENERATED = {
     'burst_wood': sfx_burst_wood, 'burst_water': sfx_burst_water,
     'burst_fire': sfx_burst_fire, 'burst_earth': sfx_burst_earth,
     'summon': sfx_summon,
+    'heal': sfx_heal,
 }
+
+# 不加统一混响的 case（heal 自带混响；脚步必须干声，加了就糊成一片）
+NO_TAIL = {'heal', 'step_foot', 'step_armor', 'step_beast', 'step_fly', 'step_horse'}
 
 
 def write_wav(path, x):
@@ -318,12 +384,26 @@ def write_wav(path, x):
 
 
 def main():
-    os.makedirs(OUT, exist_ok=True)
+    """用法：
+      python3 dev/gen-sfx.py                        # 全量生成到 assets/audio/sfx
+      python3 dev/gen-sfx.py --only heal,step_foot  # 只生成指定 case（改音色后快速迭代）
+      python3 dev/gen-sfx.py --only heal --out dev/sfx-preview   # 输出到试听目录
+    """
+    import argparse
+    ap = argparse.ArgumentParser(add_help=True)
+    ap.add_argument('--only', default='', help='逗号分隔的 case 名，只生成这些')
+    ap.add_argument('--out', default='', help='输出目录，默认 assets/audio/sfx')
+    args = ap.parse_args()
+    only = [s.strip() for s in args.only.split(',') if s.strip()]
+    out_dir = os.path.abspath(args.out) if args.out else OUT
+    os.makedirs(out_dir, exist_ok=True)
     n_ok = 0
-    # ① 用户 demo 素材映射复制
+    # ① 用户 demo 素材映射复制（只生成指定 case 时，跳过无关的复制）
     for src, dst in COPY_MAP.items():
+        if only and dst[:-4] not in only:
+            continue
         s = os.path.join(USER_DEMO, src)
-        d = os.path.join(OUT, dst)
+        d = os.path.join(out_dir, dst)
         if os.path.exists(s):
             shutil.copyfile(s, d)
             print('复制', src, '→', dst)
@@ -332,15 +412,22 @@ def main():
             print('!! 缺用户素材', s)
     # ② 程序化合成
     for name, fn in GENERATED.items():
-        x = tail_reverb(finish(fn()))
-        write_wav(os.path.join(OUT, name + '.wav'), x)
+        if only and name not in only:
+            continue
+        x = finish(fn())
+        if name not in NO_TAIL:
+            x = tail_reverb(x)
+        write_wav(os.path.join(out_dir, name + '.wav'), x)
         print('合成', name + '.wav', '%.2fs' % (len(x) / SR))
         n_ok += 1
     # ③ 别名：crit 与 hit_crit 在 audio.js 共用同一合成，文件层同素材
-    shutil.copyfile(os.path.join(OUT, 'hit_crit.wav'), os.path.join(OUT, 'crit.wav'))
-    print('别名 hit_crit.wav → crit.wav')
-    n_ok += 1
-    print('合计', n_ok, '个音效 →', OUT)
+    if not only or 'crit' in only or 'hit_crit' in only:
+        hc = os.path.join(out_dir, 'hit_crit.wav')
+        if os.path.exists(hc):
+            shutil.copyfile(hc, os.path.join(out_dir, 'crit.wav'))
+            print('别名 hit_crit.wav → crit.wav')
+            n_ok += 1
+    print('合计', n_ok, '个音效 →', out_dir)
 
 
 if __name__ == '__main__':

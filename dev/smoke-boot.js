@@ -1521,7 +1521,7 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
       'hit_crit', 'crit', 'foe_hit', 'miss', 'death', 'death_hero', 'foe_death', 'boss_death',
       'step_foot', 'step_armor', 'step_beast', 'step_fly', 'step_horse',
       'cast_metal', 'cast_wood', 'cast_water', 'cast_fire', 'cast_earth',
-      'burst_metal', 'burst_wood', 'burst_water', 'burst_fire', 'burst_earth', 'summon']) {
+      'burst_metal', 'burst_wood', 'burst_water', 'burst_fire', 'burst_earth', 'summon', 'heal']) {
       if (!fs.existsSync(path.join(ROOT, 'assets/audio/sfx', n + '.wav'))) throw new Error('缺音效素材 sfx/' + n + '.wav');
     }
     if (src('js/battle.js').indexOf("Audio.sfx('summon')") < 0) throw new Error('battle.js 召唤未走 summon 音');
@@ -1540,9 +1540,9 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (src('js/game.js').indexOf('BGM.setMusicOn') < 0) throw new Error('game.js 缺音乐开关接线');
     /* 沙盒 DOM 桩没有真 audio 能力：SFX 关闭、Audio.sfx 走合成不炸 */
     if (SFX.play('hit_flesh') !== false) throw new Error('沙盒桩下 SFX 应关闭');
-    vm.runInContext('Audio.sfx("swing_light"); Audio.sfx("hit_metal"); Audio.sfx("hit_crit"); Audio.sfx("foe_death"); Audio.sfx("step_armor"); Audio.sfx("cast_fire"); Audio.sfx("summon");', ctx);
+    vm.runInContext('Audio.sfx("swing_light"); Audio.sfx("hit_metal"); Audio.sfx("hit_crit"); Audio.sfx("foe_death"); Audio.sfx("step_armor"); Audio.sfx("cast_fire"); Audio.sfx("summon"); Audio.sfx("heal");', ctx);
     BGM.play('camp');   // 无文件 → 回退程序音乐，不应抛错
-    console.log('音频架构：文件层加载 / 30 音效 / clang+growl / 分流接线 / 回退不炸，均通过');
+    console.log('音频架构：文件层加载 / 31 音效 / clang+growl / 分流接线 / 回退不炸，均通过');
 
     /* 打击感行为：WebAudio 桩验证 clang/growl 节点构成 + 命中/阵亡/脚步分流 */
     const nodes = { osc: 0, gain: 0, filter: 0, buf: 0, started: 0 };

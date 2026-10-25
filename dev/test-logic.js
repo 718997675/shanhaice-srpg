@@ -457,7 +457,7 @@ const BATTLE_SFX = ['swing_light', 'swing_heavy', 'swing_sharp', 'hit_flesh', 'h
   'step_foot', 'step_armor', 'step_beast', 'step_fly', 'step_horse',
   'cast_metal', 'cast_wood', 'cast_water', 'cast_fire', 'cast_earth',
   'burst_metal', 'burst_wood', 'burst_water', 'burst_fire', 'burst_earth',
-  'summon'];
+  'summon', 'heal'];
 let wf = 0;
 const wok = (c, m) => { if (c) console.log('  ✓ ' + m); else { wf++; console.error('  ✗ ' + m); } };
 for (const n of BATTLE_SFX) {
@@ -465,7 +465,7 @@ for (const n of BATTLE_SFX) {
   wok(fs.existsSync(path.join(root, 'assets/audio/sfx', n + '.wav')), 'sfx/' + n + '.wav 存在');
 }
 wok(battleSrc.indexOf("Audio.sfx('summon')") >= 0, 'battle.js 召唤走 summon 音');
-console.log(wf === 0 ? '✓ SFX 采样池：30 战斗音效 wav 一一对应，均通过' : '✗ SFX 采样池断言有 ' + wf + ' 条失败');
+console.log(wf === 0 ? '✓ SFX 采样池：31 战斗音效 wav 一一对应，均通过' : '✗ SFX 采样池断言有 ' + wf + ' 条失败');
 if (wf) process.exitCode = 1;
 
 (async () => {
