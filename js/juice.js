@@ -140,14 +140,16 @@ const Juice = {
     return { x: (Math.random() * 2 - 1) * m * s, y: (Math.random() * 2 - 1) * m * s };
   },
 
-  /* 格坐标 → 像素（Render 未初始化时按 50px 格兜底，vm 测试可用） */
+  /* 格坐标 → 像素（Render 未初始化时按 50px 格兜底，vm 测试可用）。
+   * 二期高低地形差：像素 y 按格高度上移（与 Render.tileCenter 同口径）。 */
   _px(tx) {
     const R = (typeof Render !== 'undefined') ? Render : null;
     return R && R.ox != null ? R.ox + tx * R.tile + R.tile / 2 : tx * 50;
   },
-  _py(ty) {
+  _py(ty, tx) {
     const R = (typeof Render !== 'undefined') ? Render : null;
-    return R && R.oy != null ? R.oy + ty * R.tile + R.tile / 2 : ty * 50;
+    const rise = (R && typeof R.riseAt === 'function') ? R.riseAt(Math.round(tx || 0), Math.round(ty)) : 0;
+    return R && R.oy != null ? R.oy + ty * R.tile + R.tile / 2 - rise : ty * 50;
   },
 
   /* 粒子（像素空间；dir=攻击方相对受击方的方向，火花逆向喷） */
@@ -209,7 +211,7 @@ const Juice = {
       if (o.unitId) this.fall(o.unitId);
       this.vignette = 0.8;
     }
-    this.sparksPX(this._px(o.x), this._py(o.y), o.dir, T.sparks, tier);
+    this.sparksPX(this._px(o.x), this._py(o.y, o.x), o.dir, T.sparks, tier);
     if (T.slow) this.slow(T.slow[0], T.slow[1] / sp);
     this.vibrate(T.vib);
     if (o.crit && typeof Render !== 'undefined' && Render.floatText) {

@@ -309,6 +309,34 @@ BGM.play('title');
 eq(globalThis.__pm.length, 2, 'title 无文件直接合成');
 ok(SFX.play('hit_flesh') === false, '无 DOM 时音效池关闭');
 
+console.log('—— 高低地形差（二期）——');
+/* 数据层：height 为 8 行 × 16 位数字（0~2），不动地形字符 */
+let heightChapters = 0;
+for (const ch of CHAPTERS) {
+  if (!ch.height) { ok(true, '章节 ' + ch.id + ' 无 height 层（按全 0 兼容）'); continue; }
+  heightChapters++;
+  eq(ch.height.length, 8, '章节 ' + ch.id + ' height 行数');
+  ch.height.forEach((row, y) => {
+    eq(row.length, 16, '章节 ' + ch.id + ' height 第 ' + y + ' 行宽度');
+    ok(/^[0-2]+$/.test(row), '章节 ' + ch.id + ' height 第 ' + y + ' 行只含 0~2');
+  });
+  /* height 与 map 同尺寸：静态地形数据，两层的坐标语义一致 */
+  ok(ch.height.length === ch.map.length, '章节 ' + ch.id + ' height 与 map 行数一致');
+}
+ok(heightChapters >= 2, '至少有 2 章带 height 示范层（got ' + heightChapters + '）');
+/* 示范章的关键点位：1 章首领 (13,2) 海拔 2；3 章水鬼 (12,1) 海拔 2 */
+const ch1 = CHAPTERS.find(c => c.id === 1);
+const ch3 = CHAPTERS.find(c => c.id === 3);
+eq(ch1.height[2][13], '2', '第 1 章首领所在格海拔 2');
+eq(ch3.height[1][12], '2', '第 3 章水鬼所在格海拔 2');
+eq(ch1.height[6][8], '0', '第 1 章阵眼在平地');
+eq(ch3.height[3][8], '0', '第 3 章桥面在河谷（0）');
+/* 公式：ctx 无 heightAt 时一切照旧（旧测试场/旧章节不受影响） */
+const hctx = { mods: () => ({}), tileAt: () => TERRAIN['.'], heightAt: (x, y) => (x === 0 && y === 0 ? 2 : 0) };
+eq(Combat.heightMod(hctx, 0, 0, 1, 0).hit, 15, '高 2 层打低命中 +15');
+eq(Combat.heightMod(hctx, 1, 0, 0, 0).hit, -15, '低打高 2 层命中 -15');
+eq(Combat.heightMod(ctx0, 0, 0, 1, 0).hit, 0, '无 heightAt 无修正');
+
 console.log('\n结果：' + __pass + ' 通过，' + __fail + ' 失败');
 if (__fail) process.exitCode = 1;
 `;
@@ -327,6 +355,25 @@ if (iconSrc.indexOf('Combat.') >= 0) {
   process.exit(1);
 }
 console.log('✓ item-icons.js 无 Combat. 调用（呈现层纯洁）');
+
+/* ---------- 高低地形差：静态断言 ---------- */
+const renderSrc = fs.readFileSync(path.join(root, 'js/render.js'), 'utf8');
+const combatSrc = fs.readFileSync(path.join(root, 'js/combat.js'), 'utf8');
+const battleSrc = fs.readFileSync(path.join(root, 'js/battle.js'), 'utf8');
+const uiSrc = fs.readFileSync(path.join(root, 'js/ui.js'), 'utf8');
+const mapsSrc = fs.readFileSync(path.join(root, 'js/data-maps.js'), 'utf8');
+let hf = 0;
+const hok = (c, m) => { if (c) console.log('  ✓ ' + m); else { hf++; console.error('  ✗ ' + m); } };
+hok(renderSrc.indexOf('Combat.') < 0 || !/Combat\.(hitChance|damage|critChance|heightMod|canAttackRange|canCounter|dangerZone)/.test(renderSrc),
+  'render.js 不算战斗公式（高低差渲染只读 height 网格）');
+hok(combatSrc.indexOf('HEIGHT_HIT_HIGH') >= 0 && combatSrc.indexOf('heightMod') >= 0, 'combat.js 有高度修正函数');
+hok(combatSrc.indexOf('HEIGHT_RANGE_BONUS') >= 0, 'combat.js 射程加成接常量');
+hok(battleSrc.indexOf('heightGrid') >= 0 && battleSrc.indexOf('heightAt(x, y)') >= 0, 'battle.js 有 height 网格与访问器');
+hok(battleSrc.indexOf('heightAt: (x, y) => this.heightAt(x, y)') >= 0, 'combatCtx 暴露 heightAt');
+hok(uiSrc.indexOf('高地（命中 +15') >= 0, 'ui.js 预测有高地标签');
+hok((mapsSrc.match(/height: \[/g) || []).length >= 2, 'data-maps.js 至少 2 章 height 层');
+console.log(hf === 0 ? '✓ 高低地形差：静态断言通过' : '✗ 高低地形差静态断言有 ' + hf + ' 条失败');
+if (hf) process.exitCode = 1;
 
 /* ---------- 音频架构：静态断言 + fake DOM 行为测试 ---------- */
 const audioSrc = fs.readFileSync(path.join(root, 'js/audio.js'), 'utf8');

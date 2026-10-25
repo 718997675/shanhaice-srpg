@@ -80,6 +80,7 @@ const Battle = {
       chapter: ch,
       chapterId: this.chapterId,
       grid: ch.map.slice(),
+      height: this.heightGrid(ch),
       units: [],
       overlays: {},
       nodes: (ch.nodes || []).map(n => ({
@@ -367,6 +368,54 @@ const Battle = {
     return TERRAIN[TerrainFX.tileChar(this.B, x, y)] || TERRAIN['.'];
   },
 
+  /* 高低地形差（二期）：章节 height 层（8 行 × 16 位数字 0~2）转成 8×16 数字网格。
+   * 无 height 层的章节返回全 0（旧章节/旧存档自动兼容）。高度是静态地形数据，
+   * 不随战斗变化，故 applyState 时按章节重算而不进快照。 */
+  heightGrid(ch) {
+    const src = (ch && ch.height) || [];
+    const out = [];
+    for (let y = 0; y < 8; y++) {
+      const row = [];
+      const line = src[y];
+      for (let x = 0; x < 16; x++) {
+        const c = line ? line.charAt(x) : '0';
+        const v = parseInt(c, 10);
+        row.push(Number.isFinite(v) ? Math.max(0, Math.min(HEIGHT_MAX, v)) : 0);
+      }
+      out.push(row);
+    }
+    return out;
+  },
+
+  heightAt(x, y) {
+    if (!this.B || !this.B.height || y < 0 || y >= 8 || x < 0 || x >= 16) return 0;
+    return this.B.height[y][x] || 0;
+  },
+
+  /* 武器射程判定（含高低差）：高打低射程上限 +1。攻击/连携候选筛选统一走这里。 */
+  inWeaponRange(unit, tx, ty) {
+    const w = Combat.weaponOf(unit);
+    if (!w) return false;
+    const d = Combat.distance(unit.x, unit.y, tx, ty);
+    const hm = Combat.heightMod(this.combatCtx(), unit.x, unit.y, tx, ty);
+    return d >= w.w.rng[0] && d <= w.w.rng[1] + hm.rng;
+  },
+
+  /* 攻击范围高亮格：基础射程 + 高打低多出的那一圈（仅比单位所在地更低的格子）。 */
+  attackRangeTiles(unit) {
+    const w = Combat.weaponOf(unit);
+    if (!w) return [];
+    const out = Combat.tilesInRange(unit.x, unit.y, w.w.rng[0], w.w.rng[1], 16, 8);
+    const uh = this.heightAt(unit.x, unit.y);
+    if (uh > 0) {
+      const far = Combat.tilesInRange(unit.x, unit.y, w.w.rng[1] + 1, w.w.rng[1] + HEIGHT_RANGE_BONUS, 16, 8);
+      for (const t of far) {
+        if (this.heightAt(t.x, t.y) < uh) out.push(t);
+      }
+    }
+    return out;
+  },
+
   tileChar(x, y) {
     if (!this.B || y < 0 || y >= 8 || x < 0 || x >= 16) return null;
     return TerrainFX.tileChar(this.B, x, y);
@@ -388,6 +437,8 @@ const Battle = {
     return {
       mods: (unit, foe, initiating) => this.modsFor(unit, foe, initiating),
       tileAt: (x, y) => this.tileAt(x, y),
+      /* 高低地形差：combat.heightMod 经此读取格子高度（无 height 层的章节恒 0） */
+      heightAt: (x, y) => this.heightAt(x, y),
       rng: RNG,
       /* 供护盾词缀判断破盾期（combat.affixShieldActive 读 ctx.phaseIndex） */
       phaseIndex: this.B ? this.B.phaseIndex : 0,
@@ -1119,13 +1170,16 @@ const Battle = {
     }
     let best = null;
     const oldX = unit.x, oldY = unit.y, oldMoved = unit.hasMoved, oldDist = unit.movedDist;
+    const ctx = this.combatCtx();
     for (const node of range.values()) {
       if (!node.endable) continue;
       for (const target of players) {
         const d = Combat.distance(node.x, node.y, target.x, target.y);
-        if (d < w.w.rng[0] || d > w.w.rng[1]) continue;
+        /* 高低差：AI 从高地出手同样享受射程 +1（与 canAttackRange 同口径） */
+        const hm = Combat.heightMod(ctx, node.x, node.y, target.x, target.y);
+        if (d < w.w.rng[0] || d > w.w.rng[1] + hm.rng) continue;
         unit.x = node.x; unit.y = node.y; unit.hasMoved = !(node.x === oldX && node.y === oldY); unit.movedDist = node.cost;
-        const f = Combat.forecast(unit, target, this.combatCtx());
+        const f = Combat.forecast(unit, target, ctx);
         if (!f.canHit) continue;
         const expDmg = (f.attacker.hit / 100) * f.attacker.dmg * (f.attacker.double ? 2 : 1);
         let score = expDmg * 2 + (f.attacker.crit / 100) * f.attacker.dmg;
@@ -1530,8 +1584,7 @@ const Battle = {
     if (!w) return [];
     return this.B.units.filter(t =>
       t.side === 'enemy' && t.hp > 0 && !t.escaped &&
-      Combat.distance(unit.x, unit.y, t.x, t.y) >= w.w.rng[0] &&
-      Combat.distance(unit.x, unit.y, t.x, t.y) <= w.w.rng[1] &&
+      this.inWeaponRange(unit, t.x, t.y) &&
       (!this.B.fog || (this.B.visible && this.B.visible.has(this.key(t.x, t.y))))
     );
   },
@@ -1584,9 +1637,8 @@ const Battle = {
     if (!targets.length) return;
     B.mode = 'attack-select';
     B.targetTiles = new Set(targets.map(t => this.key(t.x, t.y)));
-    const w = Combat.weaponOf(u);
     B.attackRange = new Set();
-    for (const t of Combat.tilesInRange(u.x, u.y, w.w.rng[0], w.w.rng[1], 16, 8)) {
+    for (const t of this.attackRangeTiles(u)) {
       B.attackRange.add(this.key(t.x, t.y));
     }
     Audio.sfx('select');
@@ -1733,11 +1785,12 @@ const Battle = {
    * ============================================================ */
   chainAllies(unit, foe) {
     if (!unit || !foe || unit.side !== 'player') return [];
+    const ctx = this.combatCtx();
     return this.B.units.filter(t =>
       t.side === 'player' && t.hp > 0 && !t.escaped && !t.summoned &&
       t.id !== unit.id && !t.acted && !t.chainUsed &&
       Combat.distance(unit.x, unit.y, t.x, t.y) <= CHAIN_RANGE &&
-      Combat.canAttackRange(t, foe)
+      Combat.canAttackRange(t, foe, undefined, undefined, ctx)
     );
   },
 
@@ -2989,10 +3042,11 @@ const Battle = {
     const B = this.B;
     if (!B) return;
     const set = new Set();
+    const ctx = this.combatCtx();
     for (const u of B.units) {
       if (u.side !== 'enemy' || u.hp <= 0 || u.escaped) continue;
       if (u.ai === 'idle' && u.recruitable) continue;
-      const z = Combat.dangerZone(u, TerrainFX.resolvedGrid(B), B.units, this.extraMoveFor(u));
+      const z = Combat.dangerZone(u, TerrainFX.resolvedGrid(B), B.units, this.extraMoveFor(u), ctx);
       for (const k of z) set.add(k);
     }
     B.dangerSet = set;
@@ -3140,6 +3194,8 @@ const Battle = {
     if (!data) return;
     const B = this.B;
     B.grid = data.grid ? data.grid.slice() : this.chapter.map.slice();
+    /* 高度层是静态地形数据：按章节重算（旧存档无此字段也自动兼容） */
+    B.height = this.heightGrid(this.chapter);
     B.units = JSON.parse(JSON.stringify(data.units || []));
     // 旧存档没有 tier/hold 字段，读取时补默认值
     B.nodes = (data.nodes || []).map(n => Object.assign({ tier: 1, hold: 0 }, n));

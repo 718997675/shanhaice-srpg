@@ -9,6 +9,7 @@ const Render = {
   W: 0,
   H: 0,
   tile: 46,
+  riseUnit: 17,
   ox: 0,
   oy: 0,
   boardW: 0,
@@ -67,6 +68,9 @@ const Render = {
     tile = Math.min(tile, 80);
     tile = Math.max(tile, 20);
     this.tile = Math.floor(tile);
+    /* 高低地形差（二期）：每层高度台上移量（约 0.38 格；2 层 = 0.76 格 < 1 格，
+     * 保证高台不会整格盖住北侧邻格） */
+    this.riseUnit = Math.max(6, Math.round(this.tile * 0.38));
     this.boardW = this.tile * 16;
     this.boardH = this.tile * 8;
     this.ox = Math.round((W - this.boardW) / 2);
@@ -114,6 +118,20 @@ const Render = {
     return v - Math.floor(v);
   },
 
+  /* 高度访问（读 Battle.height 网格；无 height 层的章节/无战斗时为 0） */
+  tileHeight(x, y) {
+    const b = this.battle;
+    if (!b || !b.height || y < 0 || y >= 8 || x < 0 || x >= 16) return 0;
+    return b.height[y][x] || 0;
+  },
+
+  riseAt(x, y) { return this.tileHeight(x, y) * this.riseUnit; },
+
+  /* 格左上角像素（含高度上移）：范围高亮/光标/危险区等格子矩形统一走这里 */
+  tileXY(x, y) {
+    return { x: this.ox + x * this.tile, y: this.oy + y * this.tile - this.riseAt(x, y) };
+  },
+
   /* ---------------- 地形缓存 ---------------- */
   buildTerrain() {
     const b = this.battle;
@@ -136,11 +154,23 @@ const Render = {
     g.fillStyle = wash;
     g.fillRect(0, 0, this.boardW, this.boardH);
 
-    for (let y = 0; y < 8; y++) {
-      for (let x = 0; x < 16; x++) {
-        const ch = TerrainFX.tileChar(b, x, y);
-        const px = x * t, py = y * t;
-        this.drawTileBase(g, ch, x, y, px, py, t, pal);
+    /* 高低地形差（二期）：按高度层从低到高绘制。高台上移后，其北侧（屏幕上方）
+     * 与低地邻格重叠的部分由绘制次序自然遮盖——即「近处的台地挡住后面的坡脚」，
+     * 每层升起量 < 1 格，不会整格吞掉北侧格子。 */
+    for (let h = 0; h <= HEIGHT_MAX; h++) {
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 16; x++) {
+          if (this.tileHeight(x, y) !== h) continue;
+          const ch = TerrainFX.tileChar(b, x, y);
+          const px = x * t, py = y * t;
+          if (h > 0) this.drawHeightBase(g, x, y, px, py, t, pal, h);
+          this.drawTileBase(g, ch, x, y, px, py - h * this.riseUnit, t, pal);
+          if (h > 0) {
+            /* 台面受光：高处轻罩一层暖白，强调海拔 */
+            g.fillStyle = `rgba(255,248,232,${(0.05 * h).toFixed(3)})`;
+            g.fillRect(px, py - h * this.riseUnit, t, t);
+          }
+        }
       }
     }
     // 纸纹与墨点
@@ -156,6 +186,51 @@ const Render = {
     }
     g.restore();
     this.terrainCanvas = c;
+  },
+
+  /* 高台基座：悬崖竖面（深色长方条）+ 等高墨线 + 台口描边。
+   * 竖面收在原格内（升起量 < 1 格）：从台面底边一直画到南邻台面的顶边——
+   * 南邻同高时无缝（竖面高 0），南邻更高时本就被它遮住（同样 0），
+   * 南邻更低或出界时按层差画出悬崖，不会多涂邻格的台面。 */
+  drawHeightBase(g, x, y, px, py, t, pal, h) {
+    const rise = this.riseUnit;
+    const faceTop = py - h * rise + t;              // 高台台面的底边
+    const southH = this.tileHeight(x, y + 1);       // 出界按 0（棋盘南缘露悬崖）
+    const faceBottom = py + t - Math.min(southH, h) * rise;
+    const faceH = faceBottom - faceTop;
+    if (faceH <= 0) return;
+    // 悬崖竖面
+    g.fillStyle = this.shiftColor(pal.paper, -30, -26, -20);
+    g.fillRect(px, faceTop, t, faceH);
+    // 竖面肌理：两道竖向裂纹（按格确定性随机）
+    g.save();
+    g.globalAlpha = 0.35;
+    g.strokeStyle = pal.ink;
+    g.lineWidth = 1;
+    for (let i = 0; i < 2; i++) {
+      const cx = px + t * (0.28 + this.hash(x, y, 9 + i) * 0.44);
+      g.beginPath();
+      g.moveTo(cx, faceTop + faceH * 0.12);
+      g.lineTo(cx + (this.hash(x, y, 20 + i) - 0.5) * t * 0.1, faceTop + faceH * 0.9);
+      g.stroke();
+    }
+    g.restore();
+    // 等高线：每层一条墨线 + 台口描边
+    g.strokeStyle = 'rgba(28,36,30,.55)';
+    g.lineWidth = 1;
+    for (let i = 1; i <= h; i++) {
+      const ly = py - i * rise + t;
+      if (ly < faceTop || ly > faceBottom) continue;
+      g.beginPath();
+      g.moveTo(px + 1, ly + 0.5);
+      g.lineTo(px + t - 1, ly + 0.5);
+      g.stroke();
+    }
+    g.strokeStyle = 'rgba(24,30,25,.7)';
+    g.beginPath();
+    g.moveTo(px, faceTop + 0.5);
+    g.lineTo(px + t, faceTop + 0.5);
+    g.stroke();
   },
 
   drawTileBase(g, ch, x, y, px, py, t, pal) {
@@ -475,12 +550,24 @@ const Render = {
     const y = clientY - rect.top;
     const tx = Math.floor((x - this.ox) / this.tile);
     const ty = Math.floor((y - this.oy) / this.tile);
-    if (tx < 0 || ty < 0 || tx >= 16 || ty >= 8) return null;
+    if (tx < 0 || tx >= 16) return null;
+    /* 高台上移：按候选格的「抬高后矩形」反算，0~HEIGHT_MAX 层都试，
+     * 命中哪个算哪个；越界行返回 null（保持原行为）。 */
+    const y0 = Math.max(0, ty), y1 = Math.min(7, ty + HEIGHT_MAX);
+    for (let cy = y0; cy <= y1; cy++) {
+      const top = this.oy + cy * this.tile - this.riseAt(tx, cy);
+      if (y >= top && y < top + this.tile) return { x: tx, y: cy };
+    }
+    if (ty < 0 || ty >= 8) return null;
     return { x: tx, y: ty };
   },
 
   tileCenter(x, y) {
-    return { x: this.ox + x * this.tile + this.tile / 2, y: this.oy + y * this.tile + this.tile / 2 };
+    const hx = Math.round(x), hy = Math.round(y);
+    return {
+      x: this.ox + x * this.tile + this.tile / 2,
+      y: this.oy + y * this.tile + this.tile / 2 - this.riseAt(hx, hy)
+    };
   },
 
   getUnitPos(unit) {
@@ -768,7 +855,8 @@ const Render = {
     if (b.moveRange && b.moveRange.size) {
       for (const node of b.moveRange.values()) {
         if (node.occupied && !(b.selectedUnit && node.x === b.selectedUnit.x && node.y === b.selectedUnit.y)) continue;
-        const px = this.ox + node.x * t, py = this.oy + node.y * t;
+        const q = this.tileXY(node.x, node.y);
+        const px = q.x, py = q.y;
         ctx.fillStyle = node.endable ? 'rgba(78,128,145,.25)' : 'rgba(78,128,145,.13)';
         ctx.fillRect(px + 1, py + 1, t - 2, t - 2);
         if (node.endable) {
@@ -783,7 +871,8 @@ const Render = {
         const p = k.split(',');
         const x = +p[0], y = +p[1];
         if (x < 0 || y < 0 || x >= 16 || y >= 8) continue;
-        const px = this.ox + x * t, py = this.oy + y * t;
+        const q = this.tileXY(x, y);
+        const px = q.x, py = q.y;
         ctx.fillStyle = 'rgba(156,64,51,.22)';
         ctx.fillRect(px + 1, py + 1, t - 2, t - 2);
         ctx.strokeStyle = 'rgba(189,93,73,.46)';
@@ -795,7 +884,8 @@ const Render = {
       const pulse = 0.4 + Math.sin(now / 180) * 0.2;
       for (const k of b.targetTiles) {
         const p = k.split(',');
-        const px = this.ox + (+p[0]) * t, py = this.oy + (+p[1]) * t;
+        const q = this.tileXY(+p[0], +p[1]);
+        const px = q.x, py = q.y;
         ctx.strokeStyle = `rgba(220,114,84,${pulse.toFixed(2)})`;
         ctx.lineWidth = 2;
         ctx.strokeRect(px + 2.5, py + 2.5, t - 5, t - 5);
@@ -806,10 +896,9 @@ const Render = {
       ctx.fillStyle = 'rgba(230,196,122,.8)';
       for (let i = 0; i < b.pathPreview.length; i++) {
         const p = b.pathPreview[i];
-        const cx = this.ox + p.x * t + t / 2;
-        const cy = this.oy + p.y * t + t / 2;
+        const c = this.tileCenter(p.x, p.y);
         ctx.beginPath();
-        ctx.arc(cx, cy, i === b.pathPreview.length - 1 ? 4 : 2, 0, Math.PI * 2);
+        ctx.arc(c.x, c.y, i === b.pathPreview.length - 1 ? 4 : 2, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
@@ -821,7 +910,8 @@ const Render = {
         const x = +p[0], y = +p[1];
         if (x < 0 || y < 0 || x >= 16 || y >= 8) continue;
         if (b.fog && b.visible && !b.visible.has(k)) continue;
-        const px = this.ox + x * t, py = this.oy + y * t;
+        const q = this.tileXY(x, y);
+        const px = q.x, py = q.y;
         ctx.fillStyle = 'rgba(155,55,45,.2)';
         ctx.fillRect(px, py, t, t);
         ctx.strokeStyle = 'rgba(206,96,74,.33)';
@@ -837,7 +927,8 @@ const Render = {
     }
     // 已行动未选中单位不额外标记
     if (b.hover && b.hoverTileInfo) {
-      const px = this.ox + b.hover.x * t, py = this.oy + b.hover.y * t;
+      const q = this.tileXY(b.hover.x, b.hover.y);
+      const px = q.x, py = q.y;
       ctx.strokeStyle = 'rgba(240,225,190,.55)';
       ctx.lineWidth = 1.5;
       ctx.strokeRect(px + 0.5, py + 0.5, t - 1, t - 1);
@@ -955,8 +1046,8 @@ const Render = {
 
   drawUnit(ctx, u, pos, b, now) {
     const t = this.tile;
-    const cx = this.ox + pos.x * t + t / 2;
-    const cy = this.oy + pos.y * t + t / 2;
+    const center = this.tileCenter(pos.x, pos.y);
+    const cx = center.x, cy = center.y;
     const isPlayer = u.side === 'player';
     const color = isPlayer ? '#3f6259' : (u.recruitable ? '#8e7340' : '#854036');
     const ring = isPlayer ? '#b9d0c4' : '#e0b8a9';
@@ -1146,7 +1237,8 @@ const Render = {
   drawCursor(ctx, b) {
     if (!b.hover) return;
     const t = this.tile;
-    const px = this.ox + b.hover.x * t, py = this.oy + b.hover.y * t;
+    const q = this.tileXY(b.hover.x, b.hover.y);
+    const px = q.x, py = q.y;
     ctx.save();
     ctx.strokeStyle = 'rgba(235,214,167,.75)';
     ctx.lineWidth = 1;
@@ -1172,8 +1264,8 @@ const Render = {
       const s = this.slashes[i];
       const p = (now - s.start) / s.life;
       if (p >= 1) { this.slashes.splice(i, 1); continue; }
-      const cx = this.ox + s.x * t + t / 2;
-      const cy = this.oy + s.y * t + t / 2;
+      const c = this.tileCenter(s.x, s.y);
+      const cx = c.x, cy = c.y;
       ctx.save();
       ctx.globalAlpha = 1 - p;
       ctx.strokeStyle = s.kind === 'crit' ? '#f0c977' : '#f1e8d6';
@@ -1198,8 +1290,9 @@ const Render = {
       const f = this.floats[i];
       const p = (now - f.start) / f.life;
       if (p >= 1) { this.floats.splice(i, 1); continue; }
-      const cx = this.ox + f.x * t + t / 2;
-      const cy = this.oy + f.y * t + t / 2 - p * t * 0.7;
+      const c = this.tileCenter(f.x, f.y);
+      const cx = c.x;
+      const cy = c.y - p * t * 0.7;
       ctx.save();
       ctx.globalAlpha = p < 0.8 ? 1 : 1 - (p - 0.8) / 0.2;
       /* 会心大字：easeOutBack 式快速回落 */

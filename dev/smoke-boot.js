@@ -1524,5 +1524,99 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     console.log('音频架构：文件层加载 / 21 音效 / 接线 / 回退不炸，均通过');
   }
 
+  /* 高低地形差（二期）：height 网格 / ctx 暴露 / 射程命中判定 / 快照兼容 / 渲染抬升 */
+  {
+    const { Battle, Combat, Render } = vm.runInContext('({ Battle, Combat, Render })', ctx);
+    const B = Battle.B;
+    /* 1) height 网格：8×16 数字，越界恒 0 */
+    if (!Array.isArray(B.height) || B.height.length !== 8 || B.height[0].length !== 16) {
+      throw new Error('B.height 不是 8×16 网格');
+    }
+    const hBoss = Battle.heightAt(13, 2), hNode = Battle.heightAt(8, 6);
+    console.log('height(13,2) =', hBoss, '；height(8,6) =', hNode,
+      '；越界 =', Battle.heightAt(-1, 0), '/', Battle.heightAt(99, 99));
+    if (Battle.heightAt(-1, 0) !== 0 || Battle.heightAt(99, 99) !== 0) throw new Error('越界高度应为 0');
+    /* 2) combatCtx 暴露 heightAt（公式层经它读高度） */
+    const c0 = Battle.combatCtx();
+    if (typeof c0.heightAt !== 'function' || c0.heightAt(13, 2) !== hBoss) throw new Error('combatCtx 未暴露 heightAt');
+    /* 3) 快照回放后高度仍在（静态地形数据按章节重算，不进存档） */
+    const snapH = Battle.serialize(false);
+    Battle.applyState(JSON.parse(JSON.stringify(snapH)));
+    if (Battle.heightAt(13, 2) !== hBoss) throw new Error('applyState 后 height 丢失');
+
+    const hasHeight = Battle.heightAt(12, 5) > 0;
+    /* heightGrid 纯函数：无 height 层 → 全 0；非法字符钳 0；超范围钳 HEIGHT_MAX */
+    const g0 = Battle.heightGrid({});
+    if (g0.length !== 8 || g0.some(r => r.length !== 16 || r.some(v => v !== 0))) throw new Error('无 height 层应全 0');
+    const g1 = Battle.heightGrid({ height: ['0000000000000002', 'x000000000000000', '0000000000000009'] });
+    if (g1[0][15] !== 2) throw new Error('height 数字解析错误');
+    if (g1[1][0] !== 0) throw new Error('非法字符应钳 0');
+    if (g1[2][15] !== 2) throw new Error('超范围应钳到 HEIGHT_MAX=2');
+    if (g1[3][0] !== 0) throw new Error('缺行应补 0');
+    console.log('heightGrid：无层全 0 / 非法钳 0 / 超范围钳 2，均通过');
+    if (hasHeight) {
+      /* 4) 射程判定：高打低 +1（云策铁剑射程 1，站在台地 (12,5) 可以着到 2 格外低地的木桩） */
+      const yunce = B.units.find(x => x.side === 'player' && x.charId === 'yunce' && x.hp > 0);
+      if (!yunce) throw new Error('找不到云策');
+      const free = (x, y) => !B.units.some(t => t.hp > 0 && t.x === x && t.y === y);
+      if (!free(12, 5) || !free(10, 5) || !free(8, 6) || !free(10, 6)) throw new Error('高度摆位格被占用');
+      const dummy = { id: 'duH', name: '木桩四', side: 'enemy', charId: null, hp: 999, x: 10, y: 5,
+        stats: { hp: 999, str: 1, mag: 0, skl: 0, spd: 0, lck: 0, def: 1, res: 1 },
+        items: [], weaponIndex: -1, ranks: {}, statuses: {}, tags: ['human'],
+        hasMoved: false, movedDist: 0, moveUsed: 0, attacked: false };
+      B.units.push(dummy);
+      const oldX = yunce.x, oldY = yunce.y;
+      yunce.items = [{ key: 'iron_sword', uses: 20 }]; yunce.weaponIndex = 0;
+      /* 高打低：台地 (12,5) → 低地 (10,5)，直线距离 2 */
+      yunce.x = 12; yunce.y = 5;
+      dummy.x = 10; dummy.y = 5;
+      let targets = Battle.attackTargets(yunce).map(t => t.id);
+      console.log('高打低：台地 (12,5) 的攻击目标含 2 格外木桩 =', targets.includes('duH'));
+      if (!targets.includes('duH')) throw new Error('高打低射程 +1 未生效（attackTargets）');
+      const fHigh = Combat.forecast(yunce, dummy, Battle.combatCtx());
+      if (!fHigh.canHit || !fHigh.height.high) throw new Error('预测未认高地');
+      /* 低打高：平地 (10,5) → 台地 (12,5)，直线距离 2，不加射程 */
+      yunce.x = 10; yunce.y = 5;
+      dummy.x = 12; dummy.y = 5;
+      targets = Battle.attackTargets(yunce).map(t => t.id);
+      console.log('低打高：平地 (10,5) 不含 2 格外台地木桩 =', !targets.includes('duH'));
+      if (targets.includes('duH')) throw new Error('低打高不应加射程');
+      const fLow = Combat.forecast(yunce, dummy, Battle.combatCtx());
+      if (!fLow.height.low) throw new Error('预测未认低地');
+      /* 对照：等高 2 格也不加（平地 (8,6) → 平地 (10,6)） */
+      yunce.x = 8; yunce.y = 6;
+      dummy.x = 10; dummy.y = 6;
+      targets = Battle.attackTargets(yunce).map(t => t.id);
+      if (targets.includes('duH')) throw new Error('等高不应加射程');
+      /* 还原现场 */
+      yunce.x = oldX; yunce.y = oldY;
+      B.units = B.units.filter(u => u.id !== 'duH');
+      console.log('射程判定：高打低 +1 / 低打高不加 / 等高不加，均通过');
+    } else {
+      /* 沙盒章无 height 层：全 0 兼容，判定照旧 */
+      if (hBoss !== 0 || hNode !== 0) throw new Error('无 height 层章节应全 0');
+      const c1 = { mods: () => ({}), tileAt: () => vm.runInContext('TERRAIN', ctx)['.'] };
+      if (Combat.heightMod(c1, 0, 0, 1, 0).hit !== 0) throw new Error('无 heightAt 时不应有高度修正');
+      console.log('无 height 层章节：全 0 兼容，判定照旧');
+    }
+
+    /* 5) 渲染抬升：tileCenter/tileXY 按高度上移；toTile 反算命中高台格 */
+    if (Render.riseUnit <= 0) throw new Error('riseUnit 未初始化');
+    const flat = Render.tileCenter(5, 2);      // 同行平地格（第 2 行 x5 海拔 0）
+    const high = Render.tileCenter(13, 2);     // 同行的 2 层高峰
+    const expect = Render.oy + 2 * Render.tile + Render.tile / 2 - hBoss * Render.riseUnit;
+    console.log('抬升量/层 =', Render.riseUnit, '；(13,2) 比同行平地高', (flat.y - high.y).toFixed(1), 'px');
+    if (Math.abs(high.y - expect) > 0.01) throw new Error('tileCenter 高度上移不符');
+    if (flat.y - high.y !== hBoss * Render.riseUnit) throw new Error('tileCenter 未按层数上移');
+    const q = Render.tileXY(13, 2);
+    if (q.y !== Render.oy + 2 * Render.tile - hBoss * Render.riseUnit) throw new Error('tileXY 高度上移不符');
+    /* toTile：点高台中心应落回 (13,2)（Canvas 桩补 getBoundingClientRect） */
+    Render.canvas.getBoundingClientRect = () => ({ left: 0, top: 0 });
+    const hit = Render.toTile(Render.ox + 13 * Render.tile + Render.tile / 2, high.y);
+    console.log('toTile 反算高台中心 →', hit ? '(' + hit.x + ',' + hit.y + ')' : 'null');
+    if (!hit || hit.x !== 13 || hit.y !== 2) throw new Error('toTile 未按抬高矩形反算');
+    console.log('渲染抬升：tileCenter/tileXY/toTile 高度一致，均通过');
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

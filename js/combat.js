@@ -7,6 +7,7 @@
  *          - (敌攻速×2 + 敌幸运 + 地形回避 + 敌回避加成)
  *   暴击 = 武器暴击 + floor(技巧/2) + 加成 - 敌幸运 - 敌暴击回避
  *   攻速差 ≥4 追击；命中 2RN，暴击 1RN，暴击伤害 ×3。
+ *   高低地形差：高打低命中 +15 / 射程上限 +1，低打高命中 -15（常量见 data-systems.js）。
  * ============================================================ */
 const Combat = {
   zeroMods() {
@@ -24,6 +25,22 @@ const Combat = {
   tileAt(ctx, x, y) {
     if (ctx && typeof ctx.tileAt === 'function') return ctx.tileAt(x, y) || TERRAIN['.'];
     return TERRAIN['.'];
+  },
+
+  /* 高度访问（纯函数）：ctx.heightAt(x,y) 缺省（旧测试场/无 height 层的章节）视为 0。 */
+  heightAt(ctx, x, y) {
+    if (ctx && typeof ctx.heightAt === 'function') return ctx.heightAt(x, y) || 0;
+    return 0;
+  },
+
+  /* 高低地形差修正（纯函数）：返回 { hit, rng, diff }。
+   * diff > 0（高打低）：命中 +HEIGHT_HIT_HIGH、射程上限 +HEIGHT_RANGE_BONUS；
+   * diff < 0（低打高）：命中 +HEIGHT_HIT_LOW；等高无修正。 */
+  heightMod(ctx, ax, ay, dx, dy) {
+    const diff = this.heightAt(ctx, ax, ay) - this.heightAt(ctx, dx, dy);
+    if (diff > 0) return { hit: HEIGHT_HIT_HIGH, rng: HEIGHT_RANGE_BONUS, diff };
+    if (diff < 0) return { hit: HEIGHT_HIT_LOW, rng: 0, diff };
+    return { hit: 0, rng: 0, diff: 0 };
   },
 
   weaponOf(unit) {
@@ -106,21 +123,26 @@ const Combat = {
 
   distance(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); },
 
-  canAttackRange(attacker, target, ax, ay) {
+  canAttackRange(attacker, target, ax, ay, ctx) {
     if (!attacker || !target || attacker.side === target.side) return false;
     if (target.hp <= 0) return false;
     const w = this.weaponOf(attacker);
     if (!w) return false;
-    const d = this.distance(ax === undefined ? attacker.x : ax, ay === undefined ? attacker.y : ay, target.x, target.y);
-    return d >= w.w.rng[0] && d <= w.w.rng[1];
+    const px = ax === undefined ? attacker.x : ax, py = ay === undefined ? attacker.y : ay;
+    const d = this.distance(px, py, target.x, target.y);
+    /* 高低地形差：高打低射程上限 +HEIGHT_RANGE_BONUS（ctx 缺省无高度信息时不加） */
+    const hm = this.heightMod(ctx, px, py, target.x, target.y);
+    return d >= w.w.rng[0] && d <= w.w.rng[1] + hm.rng;
   },
 
-  canCounter(defender, attacker) {
+  canCounter(defender, attacker, ctx) {
     if (!defender || !attacker || defender.hp <= 0) return false;
     const w = this.weaponOf(defender);
     if (!w) return false;
     const d = this.distance(defender.x, defender.y, attacker.x, attacker.y);
-    return d >= w.w.rng[0] && d <= w.w.rng[1];
+    /* 反击同样吃高低差：占高地的防守方可以着到更远的目标 */
+    const hm = this.heightMod(ctx, defender.x, defender.y, attacker.x, attacker.y);
+    return d >= w.w.rng[0] && d <= w.w.rng[1] + hm.rng;
   },
 
   triangle(attacker, defender) {
@@ -245,7 +267,9 @@ const Combat = {
     const tri = this.triangle(attacker, defender);
     const tile = this.tileAt(ctx, defender.x, defender.y);
     const pm = this.weaponPlusMods(w.item.plus);
-    let hit = (w.w.hit || 0) + (attacker.stats.skl || 0) * 2 + Math.floor((attacker.stats.lck || 0) / 2) + tri.hit + am.hit + pm.hit;
+    /* 高低地形差：高打低 +15 / 低打高 -15 命中（等高无） */
+    const hm = this.heightMod(ctx, attacker.x, attacker.y, defender.x, defender.y);
+    let hit = (w.w.hit || 0) + (attacker.stats.skl || 0) * 2 + Math.floor((attacker.stats.lck || 0) / 2) + tri.hit + am.hit + pm.hit + hm.hit;
     let avoid = this.attackSpeed(defender) * 2 + (defender.stats.lck || 0) + (tile.avoid || 0) + dm.avoid;
     return Math.max(0, Math.min(100, Math.round(hit - avoid)));
   },
@@ -291,11 +315,14 @@ const Combat = {
   forecast(attacker, defender, ctx) {
     const w = this.weaponOf(attacker);
     const dist = this.distance(attacker.x, attacker.y, defender.x, defender.y);
-    const canHit = !!w && dist >= w.w.rng[0] && dist <= w.w.rng[1];
-    const counter = this.canCounter(defender, attacker);
+    /* 与 resolve/canAttackRange 同口径：高打低射程 +1 */
+    const hm = this.heightMod(ctx, attacker.x, attacker.y, defender.x, defender.y);
+    const canHit = !!w && dist >= w.w.rng[0] && dist <= w.w.rng[1] + hm.rng;
+    const counter = this.canCounter(defender, attacker, ctx);
     const out = {
       distance: dist,
       canHit,
+      height: { diff: hm.diff, high: hm.diff > 0, low: hm.diff < 0 },
       triangle: this.triangle(attacker, defender),
       effective: this.isEffective(attacker, defender),
       counterEffective: counter ? this.isEffective(defender, attacker) : false,
@@ -335,22 +362,22 @@ const Combat = {
   resolve(attacker, defender, ctx) {
     const rng = (ctx && ctx.rng) || RNG;
     const events = [];
-    if (!this.canAttackRange(attacker, defender)) return events;
+    if (!this.canAttackRange(attacker, defender, undefined, undefined, ctx)) return events;
     const aW = this.weaponOf(attacker);
     if (!aW) return events;
 
     const order = [];
     order.push(attacker);
-    if (this.canCounter(defender, attacker)) order.push(defender);
+    if (this.canCounter(defender, attacker, ctx)) order.push(defender);
     if (this.doubles(attacker, defender)) order.push(attacker);
-    if (this.canCounter(defender, attacker) && this.doubles(defender, attacker)) order.push(defender);
+    if (this.canCounter(defender, attacker, ctx) && this.doubles(defender, attacker)) order.push(defender);
 
     for (const striker of order) {
       const foe = striker === attacker ? defender : attacker;
       if (striker.hp <= 0 || foe.hp <= 0) break;
       const wInfo = this.weaponOf(striker);
       if (!wInfo) continue;
-      if (striker === defender && !this.canCounter(striker, foe)) continue;
+      if (striker === defender && !this.canCounter(striker, foe, ctx)) continue;
 
       const hitRate = this.hitChance(striker, foe, ctx, striker === attacker);
       const critRate = this.critChance(striker, foe, ctx, striker === attacker);
@@ -503,8 +530,9 @@ const Combat = {
     return this.tilesInRange(unit.x, unit.y, w.w.rng[0], w.w.rng[1], 999, 999);
   },
 
-  /* 危险范围：所有可停留点的攻击范围并集 */
-  dangerZone(unit, grid, units, extraMove) {
+  /* 危险范围：所有可停留点的攻击范围并集。
+   * ctx 带 heightAt 时，高地停留点的射程按高低差 +1 计入（只加比停留点更低的格子）。 */
+  dangerZone(unit, grid, units, extraMove, ctx) {
     const reach = this.reachable(unit, grid, units, extraMove || 0);
     const w = this.weaponOf(unit);
     const set = new Set();
@@ -514,6 +542,13 @@ const Combat = {
       if (!node.endable) continue;
       const tiles = this.tilesInRange(node.x, node.y, w.w.rng[0], w.w.rng[1], width, h);
       for (const t of tiles) set.add(this.key(t.x, t.y));
+      const nh = this.heightAt(ctx, node.x, node.y);
+      if (nh > 0) {
+        const far = this.tilesInRange(node.x, node.y, w.w.rng[1] + 1, w.w.rng[1] + HEIGHT_RANGE_BONUS, width, h);
+        for (const t of far) {
+          if (this.heightAt(ctx, t.x, t.y) < nh) set.add(this.key(t.x, t.y));
+        }
+      }
     }
     return set;
   },

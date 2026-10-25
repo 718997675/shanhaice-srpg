@@ -392,6 +392,9 @@ const UI = {
       if (f.effective) tags.push('<span class="tri-good">特效克制</span>');
       if (tri.state === 'good') tags.push('<span class="tri-good">' + this.escape(tri.text) + '</span>');
       if (tri.state === 'bad') tags.push('<span class="tri-bad">' + this.escape(tri.text) + '</span>');
+      /* 高低地形差（二期）：居高临下命中 +15、射程 +1；仰攻命中 -15 */
+      if (f.height && f.height.high) tags.push('<span class="tri-good">高地（命中 +15 · 射程 +1）</span>');
+      if (f.height && f.height.low) tags.push('<span class="tri-bad">低地（命中 -15）</span>');
       if (f.attacker.double) tags.push('我方追击');
       if (f.defender.canCounter) tags.push('敌方反击');
       if (f.defender.double) tags.push('敌方追击');

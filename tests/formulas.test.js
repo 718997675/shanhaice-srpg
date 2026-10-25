@@ -2717,6 +2717,83 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('clearAll 清定格卡', J.deathCard, null);
   }
 
+  console.log('\n== 39. 高低地形差（二期：height 层） ==');
+  {
+    const HIT_HIGH = vm.runInContext('HEIGHT_HIT_HIGH', ctx);
+    const HIT_LOW = vm.runInContext('HEIGHT_HIT_LOW', ctx);
+    const RNG_BONUS = vm.runInContext('HEIGHT_RANGE_BONUS', ctx);
+    const HEIGHT_MAX_V = vm.runInContext('HEIGHT_MAX', ctx);
+    eq('常量：高打低命中 +15', HIT_HIGH, 15);
+    eq('常量：低打高命中 -15', HIT_LOW, -15);
+    eq('常量：高打低射程 +1', RNG_BONUS, 1);
+    eq('常量：高度上限 2 层', HEIGHT_MAX_V, 2);
+
+    /* 高度场地：进攻方 (0,0) 高 1，目标 (1,0) 低 0 */
+    const HIGH_CTX = { mods: () => null, tileAt: () => TERRAIN['.'], heightAt: (x, y) => (x === 0 && y === 0 ? 1 : 0) };
+    const LOW_CTX = { mods: () => null, tileAt: () => TERRAIN['.'], heightAt: (x, y) => (x === 1 && y === 0 ? 1 : 0) };
+
+    const hm1 = Combat.heightMod(HIGH_CTX, 0, 0, 1, 0);
+    ok('高打低：命中 +15、射程 +1、diff=1', hm1.hit === 15 && hm1.rng === 1 && hm1.diff === 1);
+    const hm2 = Combat.heightMod(LOW_CTX, 0, 0, 1, 0);
+    ok('低打高：命中 -15、射程不变、diff=-1', hm2.hit === -15 && hm2.rng === 0 && hm2.diff === -1);
+    const hm3 = Combat.heightMod(FLAT, 0, 0, 1, 0);
+    ok('等高/无 heightAt：无修正', hm3.hit === 0 && hm3.rng === 0 && hm3.diff === 0);
+
+    /* 命中公式：敌幸运 20 → 平地 72，高打低 87，低打高 57 */
+    const mkAtk = () => give(mkUnit({ x: 0, y: 0 }), 'iron_sword');
+    const mkDef = () => mkUnit({ side: 'enemy', x: 1, y: 0, stats: { hp: 30, str: 10, mag: 0, skl: 10, spd: 10, lck: 20, def: 5, res: 5 } });
+    eq('平地命中基线 = 72', Combat.hitChance(mkAtk(), mkDef(), FLAT), 72);
+    eq('高打低命中 +15 = 87', Combat.hitChance(mkAtk(), mkDef(), HIGH_CTX), 87);
+    eq('低打高命中 -15 = 57', Combat.hitChance(mkAtk(), mkDef(), LOW_CTX), 57);
+    eq('无 heightAt 的旧场地行为不变', Combat.hitChance(mkAtk(), mkDef(), FLAT), Combat.hitChance(mkAtk(), mkDef(), { mods: () => null, tileAt: () => TERRAIN['.'] }));
+
+    /* 射程：铁剑射程 1，高打低可以着到 2 格外的低地目标 */
+    const near = give(mkUnit({ x: 0, y: 0 }), 'iron_sword');
+    const far = mkUnit({ side: 'enemy', x: 2, y: 0 });
+    eq('平地打 2 格外不可命中', Combat.canAttackRange(near, far, undefined, undefined, FLAT), false);
+    eq('高打低射程 +1 可命中 2 格', Combat.canAttackRange(near, far, undefined, undefined, HIGH_CTX), true);
+    eq('低打高不加射程', Combat.canAttackRange(near, far, undefined, undefined, LOW_CTX), false);
+
+    /* 反击同样吃高低差：占高地的防守方可以着到 2 格外的进攻方 */
+    const hiDef = give(mkUnit({ side: 'enemy', x: 2, y: 0 }), 'iron_sword');
+    const loAtk = mkUnit({ x: 0, y: 0 });
+    const DEF_HIGH_CTX = { mods: () => null, tileAt: () => TERRAIN['.'], heightAt: (x, y) => (x === 2 && y === 0 ? 1 : 0) };
+    eq('平地 2 格无法反击', Combat.canCounter(hiDef, loAtk, FLAT), false);
+    eq('高地防守方反击射程 +1', Combat.canCounter(hiDef, loAtk, DEF_HIGH_CTX), true);
+
+    /* 战斗预测：canHit 与 height 标注 */
+    const f = Combat.forecast(mkAtk(), mkDef(), HIGH_CTX);
+    ok('预测：高打低可命中', f.canHit === true);
+    ok('预测：height.high = true', f.height.high === true && f.height.diff === 1);
+    ok('预测：命中含 +15', f.attacker.hit === 87);
+    const fLow = Combat.forecast(mkAtk(), mkDef(), LOW_CTX);
+    ok('预测：低打高 height.low = true', fLow.height.low === true && fLow.height.diff === -1);
+    ok('预测：低打高命中 57', fLow.attacker.hit === 57);
+
+    /* 危险范围：高地单位的射程圈外多一圈（仅更低的格子） */
+    const grid = Array.from({ length: 8 }, () => Array(16).fill('.'));
+    const hunter = give(mkUnit({ id: 'h1', side: 'enemy', x: 5, y: 5, move: 0 }), 'iron_sword');
+    const zFlat = Combat.dangerZone(hunter, grid, [hunter], 0, FLAT);
+    eq('平地危险范围 = 射程内 4 格', zFlat.size, 4);
+    const HG = { mods: () => null, tileAt: () => TERRAIN['.'], heightAt: (x, y) => (x === 5 && y === 5 ? 1 : (x === 7 && y === 5 ? 2 : 0)) };
+    const zHigh = Combat.dangerZone(hunter, grid, [hunter], 0, HG);
+    ok('高地危险范围含 2 格低地（3,5）', zHigh.has('3,5'));
+    ok('高地危险范围不含 2 格高峰（7,5）', !zHigh.has('7,5'));
+    eq('高地危险范围 = 4 + 7（距离 2 共 8 格，扣 1 格更高的）', zHigh.size, 11);
+
+    /* resolve 全链：高打低让 2 格外的出手成立（必中、不暴击的假 rng） */
+    const HIT_RNG = { hitRoll: () => 0, next: () => 0.99 };
+    const R_HIGH = Object.assign({}, HIGH_CTX, { rng: HIT_RNG });
+    const R_FLAT = Object.assign({}, FLAT, { rng: HIT_RNG });
+    const atk2 = give(mkUnit({ x: 0, y: 0 }), 'iron_sword');
+    const def2 = mkUnit({ side: 'enemy', x: 2, y: 0, stats: { hp: 40, str: 10, mag: 0, skl: 10, spd: 10, lck: 5, def: 5, res: 5 } });
+    const evFlat = Combat.resolve(atk2, def2, R_FLAT);
+    eq('平地 2 格不出手（无事件）', evFlat.length, 0);
+    const evHigh = Combat.resolve(atk2, def2, R_HIGH);
+    ok('高打低 2 格出手成立', evHigh.length === 1 && evHigh[0].type === 'strike');
+    ok('高打低命中生效（扣血）', evHigh[0].hit === true && evHigh[0].dmg > 0);
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

@@ -352,6 +352,18 @@ const COMMAND_VOLLEY_HIT = 15;   // 集火命中加成
 const COMMAND_HOLD_MUL = 0.8;    // 坚守减伤
 const CHAIN_RANGE = 2;           // 连携：与攻击者相距 ≤2 格
 
+/* ---------------- 高低地形差（二期）----------------
+ * 章节 data 增 height 层（8 行 × 16 字符，数字 0~2，不动地形字符）：
+ *   攻击方高度 > 目标：命中 +HEIGHT_HIT_HIGH，射程上限 +HEIGHT_RANGE_BONUS；
+ *   攻击方高度 < 目标：命中 +HEIGHT_HIT_LOW（负值），射程不变；
+ *   等高：无修正。法术不吃高低差（保持射程与判定从简）。
+ * 公式侧（combat.js）经 ctx.heightAt(x,y) 读取；旧测试场无 heightAt 时视为全 0。
+ * 渲染侧（render.js）按层数上移台面、绘制悬崖竖面与投影。 */
+const HEIGHT_MAX = 2;            // 高度层数上限（0~2）
+const HEIGHT_HIT_HIGH = 15;      // 高打低命中加成
+const HEIGHT_HIT_LOW = -15;      // 低打高命中惩罚
+const HEIGHT_RANGE_BONUS = 1;    // 高打低射程上限加成
+
 /* ---------------- 武器进化树（P2.3） ----------------
  * 同型兵装逐级进化：铁 → 钢 → 银/名器。规则在 systems/smith.js：
  *   进化后保留强化等级（+N 随兵装走）、耐久刷满、装备位不变；
