@@ -1,7 +1,7 @@
 # 交接快照 · 山海策 · 灵脉
 
 > **给接手的人 / 另一个账号看的唯一入口。** 读完这份就能直接开工，不必翻聊天记录。
-> 最后更新：2026-10-25 20:30 · git HEAD `875dcc6` · **二期进行中**
+> 最后更新：2026-10-25 21:10 · git HEAD `39680a8` · **二期进行中**
 
 ---
 
@@ -40,14 +40,23 @@
 - 测试坑：`_can()` 能力探测也 `createElement('audio')`，fake DOM 统计元素要过滤探测桩；静态查 `Combat.` 会被文件头注释误伤。
 - **BGM 素材仍是唯一外求项**：清单与 AI 提示词在 `docs/素材清单与生成提示词.md`（4 首必做：营地/战斗/Boss/剧情），文件丢进 `assets/audio/bgm/` 即自动挂上。
 
-### 🔄 进行中：高低地形差（height 层）
+### ✅ 高低地形差（提交 `39680a8`，四连全绿：3612 / 1689 / 冒烟双变体）
 
-章节加 `height` 层（8×16 数字 0~2，不动地形字符）→ render 高度渲染（上移+悬崖侧面+阴影）→ combat.js 判定（高打低命中+15/射程+1，低打高-15）→ forecast「高地」标签。先做第 1/3 章示范。
+- **数据**：章节加 `height` 层（8 行 × 16 位数字 0~2，与 map 同尺寸但**不动地形字符**）。先做第 1/3 章示范：1 章东侧山脊（x12~14）台地、首领 (13,2) 海拔 2；3 章北岸渡口台地、水鬼 (12,1) 海拔 2，河面与两座木桥保持 0。旧章节无此字段 → 全 0 兼容。
+- **判定**（常量在 `data-systems.js`：HEIGHT_HIT_HIGH 15 / HEIGHT_HIT_LOW -15 / HEIGHT_RANGE_BONUS 1）：`combat.js` 新增 `heightAt/heightMod` 纯函数，经 `ctx.heightAt(x,y)` 读高度（旧测试场无此函数视为全 0，**公式行为零变化**）。高打低：命中 +15、射程上限 +1（`canAttackRange`/`canCounter` 均吃，反击同口径）；低打高：命中 -15；等高无。`hitChance` 计入 hm.hit；`forecast` 输出 `height:{diff,high,low}`；`dangerZone` 对高地停留点多算一圈（只加更低的格子）；`resolve` 全链传 ctx。**法术刻意不吃高低差**（射程与判定从简）。
+- **编排**：`battle.js` `heightGrid(ch)` 建 8×16 数字网格（createState 建、applyState 按章节重算——高度是静态数据**不进快照**，旧存档自动兼容）；`combatCtx` 暴露 `heightAt`；`attackTargets`/连携/AI `bestEnemyAttack`/`recomputeDanger` 全部走高度判定；`attackRangeTiles` 让攻击高亮多画那一圈。
+- **渲染**：`render.js` 按高度层**从低到高**绘制（painter 次序：南侧高台自然遮住北侧坡脚）；每层上移 `riseUnit = round(tile×0.38)`（2 层 0.76 格 < 1 格，不会整格吞掉北邻格）；`drawHeightBase` 画悬崖竖面 + 竖纹 + 等高墨线 + 台口描边，**竖面只延伸到南邻台面顶边**（同高无缝、南邻更高被遮、出界露崖）；高台台面罩一层暖白受光。`tileCenter/tileXY/toTile/drawUnit/ranges/cursor/floats` 全接入高度偏移；`toTile` 按候选格「抬高后矩形」反算（0~2 层都试）。`juice.js _py` 同步上移，命中粒子跟随高台。
+- **UI**：战斗预测标签「高地（命中 +15 · 射程 +1）」/「低地（命中 -15）」。
+- 测试：formulas 第 39 节 28 条（常量/heightMod/命中三态/射程/反击/预测/危险圈/resolve 全链）；test-logic 数据校验 + 静态断言（3612）；smoke 端到端（heightGrid 回退钳位、射程三态、快照兼容、渲染抬升、toTile 反算）。
+- **坑**：① `mkUnit` 的 `stats` 是**覆盖语义**（`Object.assign(base, o)` 会先用 o.stats 换掉 base.stats），传部分 stats 会丢其他属性——测试里要传全量；② 冒烟后段区块会**重开第 1 章**，sandbox 变体也走在有 height 的分支，无 height 章的回退改用 `Battle.heightGrid({})` 纯函数直接测；③ 纯垂直上移方案下**投影必然被台面+竖面完全遮住**（死代码），已删——视觉高低差靠上移+悬崖+受光三层表达；④ diff 输出里出现过 `2m+` 前缀是终端 artifact，文件内容是干净的。
+
+### 🔄 接下来：背侧判定（任务 #7）
+
+单位 `facing`（上右下左，移动/攻击时更新）→ combat.js 背刺（夹角 180°±45°）命中 +15/暴击 +20、侧击（90°±45°）+5/+10，数值进常量表 → forecast 标签 → render 朝向翻转。P1 不做 AI 主动绕背。
 
 ### ⬜ 之后再排
 
 背侧判定（任务 #7）→ 法术演出（任务 #8）→ 军议卡/结算摘要 → A 战略层 / D 宿命脚本 → B 薪火 / E 军令声望 / F 机动 → C 圣脉 → H-P2/P3 图标。
-
 ---
 
 ## 1. 一分钟上手
@@ -59,8 +68,8 @@ cd /Users/niekai/Documents/ai-game/shanhaice
 git log --oneline -5 && git status
 
 # 2) 跑全部验证（约 10 秒，必须全绿再动代码）
-node dev/test-logic.js          # 期望：3558 通过，0 失败
-node tests/formulas.test.js     # 期望：1661 通过 / 0 失败
+node dev/test-logic.js          # 期望：3612 通过，0 失败
+node tests/formulas.test.js     # 期望：1689 通过 / 0 失败
 node dev/smoke-boot.js          # 期望：冒烟通过：无引用错误
 node dev/smoke-boot.js sandbox  # 期望：同上（沙盒变体）
 
