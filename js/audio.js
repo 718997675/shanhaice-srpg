@@ -273,12 +273,13 @@ const Audio = {
       case 'boss_death': this.clang(1400, 0.15); this.growl(0.9, 200, 50, 0.12, 0.12); this.tone(48, 1.1, { type: 'sine', vol: 0.14, slide: 0.5, delay: 0.1 }); this.noise(0.5, 0.08, 180, 0.1); break;
       /* 妖物受击：短嘶吼 + 钝击（金属目标不吃这套，走 hit_metal） */
       case 'foe_hit': this.growl(0.26, 300, 120, 0.1); this.clang(220, 0.09); break;
-      /* 脚步（按移动类型分流）：步兵 / 甲胄 / 兽足 / 飞行 / 马蹄 */
-      case 'step_foot': this.noise(0.05, 0.05, 900); this.tone(170, 0.07, { type: 'triangle', vol: 0.045, slide: 0.7 }); break;
-      case 'step_armor': this.clang(1100, 0.05); this.noise(0.05, 0.04, 1400); break;
-      case 'step_beast': this.noise(0.06, 0.05, 380); this.tone(95, 0.09, { type: 'triangle', vol: 0.06, slide: 0.6 }); break;
-      case 'step_fly': this.sweep(0.22, 0.05, 500, 1300, 0, 'bandpass', 1.2); break;
-      case 'step_horse': this.noise(0.04, 0.05, 700); this.tone(130, 0.06, { type: 'triangle', vol: 0.05, slide: 0.7 }); this.noise(0.04, 0.045, 700, 0.13); this.tone(120, 0.06, { type: 'triangle', vol: 0.045, slide: 0.7, delay: 0.13 }); break;
+      /* 脚步（按移动类型分流）：步兵 / 甲胄 / 兽足 / 飞行 / 马蹄。
+       * 分量要压过持续 BGM——低于 0.09 的音量在战斗音乐下听不见。 */
+      case 'step_foot': this.noise(0.1, 0.11, 650); this.tone(170, 0.13, { type: 'triangle', vol: 0.09, slide: 0.7 }); break;
+      case 'step_armor': this.clang(1300, 0.08); this.noise(0.08, 0.07, 1400); break;
+      case 'step_beast': this.noise(0.1, 0.09, 420); this.tone(85, 0.13, { type: 'triangle', vol: 0.09, slide: 0.6 }); break;
+      case 'step_fly': this.sweep(0.22, 0.07, 500, 1300, 0, 'bandpass', 1.2); break;
+      case 'step_horse': this.noise(0.06, 0.08, 700); this.tone(130, 0.08, { type: 'triangle', vol: 0.08, slide: 0.7 }); this.noise(0.06, 0.07, 700, 0.15); this.tone(120, 0.08, { type: 'triangle', vol: 0.07, slide: 0.7, delay: 0.15 }); break;
       /* 占领阵眼：玉磬 + 能量锁定 */
       case 'node_capture': [392, 587, 784, 1175].forEach((f, i) => this.tone(f, 0.5, { type: 'sine', vol: 0.045, delay: i * 0.07 })); break;
       case 'ui_confirm': this.tone(720, 0.05, { type: 'triangle', vol: 0.045 }); this.tone(1080, 0.06, { type: 'triangle', vol: 0.03, delay: 0.03 }); break;

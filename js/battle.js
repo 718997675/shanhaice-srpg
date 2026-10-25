@@ -426,11 +426,11 @@ const Battle = {
     return 'step_foot';
   },
 
-  /* 行进音：立即一拍；路程 ≥5 格时约半程再补一拍（animateMove 每格约 120ms） */
+  /* 行进音：立即一拍；路程 ≥3 格时约半程再补一拍（animateMove 每格约 120ms） */
   playStepSfx(unit, pathLen) {
     const s = this.stepSfxFor(unit);
     Audio.sfx(s);
-    if (pathLen >= 5) setTimeout(() => Audio.sfx(s), 260);
+    if (pathLen >= 3) setTimeout(() => Audio.sfx(s), 260);
   },
 
   /* 命中音按攻受两端分流（二期打击感）：妖物嘶吼 / 对金铁 clang / 杖与木腔 / 肉身 */
