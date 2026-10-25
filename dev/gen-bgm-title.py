@@ -17,24 +17,24 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from audio_dsp import SR, time_axis, env, osc, apply, sweep, make_ir, note, finish  # noqa: E402
 from scipy.signal import lfilter, fftconvolve  # noqa: E402
 
-BPM = 66.0
-BEAT = 60.0 / BPM          # 0.909s
-BAR = 4.0 * BEAT           # 3.636s
+BPM = 76.0
+BEAT = 60.0 / BPM          # 0.789s
+BAR = 4.0 * BEAT           # 3.158s
 N_BARS = 16
-DUR = N_BARS * BAR         # ≈ 58.2s
+DUR = N_BARS * BAR         # ≈ 50.5s
 TAIL = 1.2                 # 循环尾巴（末音衰减空间）
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'audio', 'bgm')
 
 # D 宫五声音阶：D E F# A B
 # 低音 D3=50 A2=45 B2=47；中 D4=62 E4=64 F#4=66 A4=69 B4=71；高 D5=74 E5=76 F#5=78 A5=81 B5=83
-LEAD_XIAO = [  # (bar, beat, 时长拍, MIDI) —— A 段箫主旋律，悠长线条
-    (0, 0.0, 2.0, 74), (0, 2.0, 1.0, 76), (0, 3.0, 1.0, 78),
-    (1, 0.0, 3.0, 81), (1, 3.0, 1.0, 78),
-    (2, 0.0, 2.0, 76), (2, 2.0, 2.0, 74),
-    (3, 0.0, 1.0, 71), (3, 1.0, 1.0, 74), (3, 2.0, 2.0, 69),
-    (4, 0.0, 2.0, 74), (4, 2.0, 1.0, 76), (4, 3.0, 1.0, 78),
-    (5, 0.0, 3.0, 83), (5, 3.0, 1.0, 81),
-    (6, 0.0, 2.0, 78), (6, 2.0, 2.0, 76),
+LEAD_XIAO = [  # (bar, beat, 时长拍, MIDI) —— A 段箫主旋律：级进为主的流动线条（清朗，避大跳长音）
+    (0, 0.0, 1.0, 74), (0, 1.0, 0.5, 76), (0, 1.5, 0.5, 78), (0, 2.0, 1.0, 76), (0, 3.0, 1.0, 74),
+    (1, 0.0, 1.0, 71), (1, 1.0, 1.0, 74), (1, 2.0, 1.0, 76), (1, 3.0, 1.0, 78),
+    (2, 0.0, 1.5, 81), (2, 1.5, 0.5, 78), (2, 2.0, 1.0, 76), (2, 3.0, 1.0, 74),
+    (3, 0.0, 1.0, 71), (3, 1.0, 1.0, 69), (3, 2.0, 2.0, 74),
+    (4, 0.0, 1.0, 74), (4, 1.0, 0.5, 76), (4, 1.5, 0.5, 78), (4, 2.0, 1.0, 81), (4, 3.0, 1.0, 78),
+    (5, 0.0, 1.0, 76), (5, 1.0, 1.0, 74), (5, 2.0, 2.0, 71),
+    (6, 0.0, 1.0, 74), (6, 1.0, 1.0, 76), (6, 2.0, 1.0, 78), (6, 3.0, 1.0, 81),
     (7, 0.0, 4.0, 74),
 ]
 LEAD_ZHENG = [  # B 段古筝主奏（第 9 小节起），带跳跃与切分
@@ -51,17 +51,18 @@ XIAO_ECHO = [  # B 段箫长音对位（每两小节一口，气声绵长）
     (8, 0.0, 4.0, 69), (10, 0.0, 4.0, 66),
     (12, 0.0, 4.0, 69), (14, 0.0, 3.5, 62),
 ]
-BASS = [  # 每小节根音长音（D 徵羽商交替）
-    (0, 50, 3.5), (1, 45, 3.5), (2, 47, 3.5), (3, 45, 3.5),
-    (4, 50, 3.5), (5, 45, 3.5), (6, 47, 3.5), (7, 45, 3.5),
-    (8, 50, 3.5), (9, 45, 3.5), (10, 47, 3.5), (11, 45, 3.5),
-    (12, 50, 3.5), (13, 45, 3.5), (14, 47, 3.5), (15, 50, 3.5),
+BASS = [  # 每小节根音（D 徵羽商交替，3 拍留缝——忌持续低音 drone）
+    (0, 50, 3.0), (1, 45, 3.0), (2, 47, 3.0), (3, 45, 3.0),
+    (4, 50, 3.0), (5, 45, 3.0), (6, 47, 3.0), (7, 45, 3.0),
+    (8, 50, 3.0), (9, 45, 3.0), (10, 47, 3.0), (11, 45, 3.0),
+    (12, 50, 3.0), (13, 45, 3.0), (14, 47, 3.0), (15, 50, 3.0),
 ]
 ARPEGGIO = [  # A 段古筝琶音铺底：每拍分解和弦音（D 宫五声）
     (0, [62, 69, 74, 78]), (1, [57, 64, 69, 76]), (2, [59, 66, 71, 78]), (3, [57, 64, 69, 74]),
     (4, [62, 69, 74, 78]), (5, [57, 64, 69, 76]), (6, [59, 66, 71, 78]), (7, [62, 69, 74, 78]),
 ]
-PAD = [(0, [50, 57]), (4, [50, 57]), (8, [45, 52]), (12, [45, 52])]  # 氛围垫：根音+五度
+# 氛围垫：每 4 小节一口 8s（根音+五度），忌 15s 长鸣
+PAD = [(0, [50, 57]), (4, [50, 57]), (8, [45, 52]), (12, [45, 52])]
 
 
 def guzheng(f, dur, gain=1.0, damp=0.996, seed=None):
@@ -81,15 +82,15 @@ def guzheng(f, dur, gain=1.0, damp=0.996, seed=None):
     return gain * y / (np.abs(y).max() + 1e-9)
 
 
-def xiao(f, dur, gain=1.0, vib=5.2, cents=14.0):
-    """洞箫：正弦基音+弱泛音+气声噪声，慢 attack、颤音。"""
+def xiao(f, dur, gain=1.0, vib=4.6, cents=7.0):
+    """洞箫：正弦基音+弱泛音+轻气声，浅颤音（深颤+浓气声=鬼片感，忌）。"""
     t, n = time_axis(dur)
     vibarr = 1.0 + (cents / 1200.0) * np.sin(2.0 * math.pi * vib * t) / 100.0 * 100.0
     farr = f * (1.0 + (cents / 100.0) * np.sin(2.0 * math.pi * vib * t))
     body = osc("sine", farr, t)
     body += 0.22 * osc("sine", 2.0 * farr, t)
     body += 0.08 * osc("sine", 3.0 * farr, t)
-    air = sweep(np.random.default_rng(7).standard_normal(n), "bp", 1700.0, 2300.0, Q=0.8) * 0.10
+    air = sweep(np.random.default_rng(7).standard_normal(n), "bp", 1700.0, 2300.0, Q=0.8) * 0.045
     e = env(dur, [(0.0, 0.0), (0.09, 1.0), (0.25, 0.82), (dur * 0.72, 0.66), (dur, 0.0)])
     return gain * (body + air) * e
 
@@ -143,10 +144,10 @@ def build():
     # ---- 氛围垫（最底层，宽） ----
     for bar, midis in PAD:
         for m in midis:
-            put(pad_chord(note(m), BAR * 4.0 + 0.4, gain=0.036), bar * BAR, pan=0.5)
+            put(pad_chord(note(m), BAR * 2.4 + 0.4, gain=0.036), bar * BAR, pan=0.5)
     # ---- 低音根音 ----
     for bar, m, beats in BASS:
-        put(gehu(note(m), beats * BEAT, gain=0.14), bar * BAR, pan=0.5)
+        put(gehu(note(m), beats * BEAT, gain=0.105), bar * BAR, pan=0.5)
     # ---- A 段古筝琶音（每拍一音，轻，偏右） ----
     for bar, chord in ARPEGGIO:
         for i, m in enumerate(chord):
@@ -162,16 +163,14 @@ def build():
     for bar, beat, dur, m in LEAD_ZHENG:
         put(guzheng(note(m), min(dur * BEAT, 2.0), gain=0.55, damp=0.997, seed=m * 3 + bar),
             (bar + beat / 4.0) * BAR, pan=0.66)
-    # ---- 打击：大鼓（段首/小节头）+ 木鱼（B 段每小节第 3 拍） ----
+    # ---- 打击：大鼓（段首/小节头）+ 木鱼（B 段每小节第 3 拍，极简） ----
     for bar in (0, 4, 8, 12):
-        put(drum(gain=0.65), bar * BAR, pan=0.5)
+        put(drum(gain=0.6), bar * BAR, pan=0.5)
     for bar in range(8, 16):
-        put(muyu(gain=0.30), bar * BAR + 2 * BEAT, pan=0.42)
-        if bar % 2 == 0:
-            put(muyu(gain=0.22), bar * BAR + 3.5 * BEAT, pan=0.58)
+        put(muyu(gain=0.16), bar * BAR + 2 * BEAT, pan=0.42)
 
-    # ---- 混响：大厅 IR，整体偏湿 ----
-    ir = make_ir(2.2, 5.0, seed=42, cutoff=4200.0)
+    # ---- 混响：亮而短（长而暗的混响是阴森感主源） ----
+    ir = make_ir(1.7, 3.8, seed=42, cutoff=5200.0)
     for mix in (mixL, mixR):
         wet = fftconvolve(mix, ir)[:total]
         wet *= np.sqrt(np.mean(mix ** 2) + 1e-12) / (np.sqrt(np.mean(wet ** 2) + 1e-12) * 3.2)
