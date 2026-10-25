@@ -901,7 +901,7 @@ const Camp = {
         }],
         buttons: [{ label: '再想想', value: null }, { label: '开炉', value: 'go' }]
       }).then(v => {
-        if (v !== 'go' || !this.active || !Game.campaign) return;
+        if (v !== 'go' || !Game.campaign) return;
         const r = Smith.strengthen(Game.campaign, item);
         if (!r.ok) {
           UI.toast(r.why === 'gold' ? '盘缠不足' : r.why === 'mat' ? '材料不足' : r.why === 'broken' ? '兵装已损坏，先修补' : '无法强化');
@@ -941,7 +941,7 @@ const Camp = {
         }],
         buttons: [{ label: '再想想', value: null }, { label: '开炉', value: 'go' }]
       }).then(v => {
-        if (v !== 'go' || !this.active || !Game.campaign) return;
+        if (v !== 'go' || !Game.campaign) return;
         const r = Smith.evolve(Game.campaign, item);
         if (!r.ok) {
           UI.toast(r.why === 'gold' ? '盘缠不足' : r.why === 'mat' ? '材料不足' : r.why === 'broken' ? '兵装已损坏，先修补' : '无法进化');

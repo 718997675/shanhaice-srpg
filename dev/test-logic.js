@@ -514,12 +514,15 @@ if (wf) process.exitCode = 1;
   ack(campEl.loop === true && campEl.children.length === 3, 'loop + m4a/mp3/ogg 三 source');
   ack(campEl.children[0].src.indexOf('bgm_camp.m4a') >= 0, 'm4a 优先于 mp3/ogg');
   ack(get('__pm.length') === 0, '文件模式不回退合成');
-  await wait(1250);   // 等 900ms 淡入跑完（留足余量，别卡在 0.49 上偶发红）
+  /* 等 900ms 淡入跑完。这里用轮询而不是固定 sleep：本文件里还有别的
+   * async 测试并行跑，主线程被占住时 setInterval 会少跳几拍，固定等待
+   * 就会偶发红在 0.4x 上。轮询到目标值或超时为止。 */
+  for (let i = 0; i < 50 && Math.abs(campEl.volume - 0.55) > 0.02; i++) await wait(60);
   ack(Math.abs(campEl.volume - 0.55) < 0.05, '淡入到 0.55（got ' + campEl.volume.toFixed(2) + '）');
 
   /* b. duck：文件音乐瞬压再回 */
   run('Audio.duck(0.08)');
-  await wait(150);
+  for (let i = 0; i < 12 && campEl.volume >= 0.2; i++) await wait(25);
   ack(campEl.volume < 0.2, 'duck 压住音量（got ' + campEl.volume.toFixed(2) + '）');
   await wait(600);
   ack(Math.abs(campEl.volume - 0.55) < 0.05, 'duck 后恢复（got ' + campEl.volume.toFixed(2) + '）');
@@ -659,6 +662,30 @@ if (wf) process.exitCode = 1;
   if (wire.length) process.exitCode = 1;
 })();
 
+/* ---------- 铁匠铺（强化+进化）：静态断言 ----------
+ * 守卫 bug 复发防护：strengthen/evolve 的 modal .then 回调里出现过
+ * `!this.active` 死守卫——Camp 对象从未给 this.active 赋值，导致点
+ * 「开炉」永远静默 return（强化条件够也没反应）。这里钉死守卫不再
+ * 引用 this.active，且分支接线齐全。 */
+(() => {
+  const camp = fs.readFileSync(path.join(root, 'js/camp.js'), 'utf8');
+  const smith = fs.readFileSync(path.join(root, 'js/systems/smith.js'), 'utf8');
+  let ff = 0;
+  const fok = (c, m) => { if (!c) { ff++; console.error('  ✗ ' + m); } };
+  fok(camp.indexOf("act === 'strengthen'") >= 0, 'camp.js 有强化点击分支');
+  fok(camp.indexOf("act === 'evolve'") >= 0, 'camp.js 有进化点击分支');
+  fok(camp.indexOf("Smith.strengthen(Game.campaign, item)") >= 0, 'camp.js 点开炉后调 Smith.strengthen');
+  fok(camp.indexOf("Smith.evolve(Game.campaign, item)") >= 0, 'camp.js 点开炉后调 Smith.evolve');
+  fok(camp.indexOf('!this.active') < 0, 'camp.js 强化/进化回调不再有 this.active 死守卫（bug 复发防护）');
+  fok(smith.indexOf('canStrengthen') >= 0 && smith.indexOf('matCount') >= 0 && smith.indexOf('strengthen(') >= 0,
+    'smith.js 有 canStrengthen/matCount/strengthen 接口');
+  fok(smith.indexOf("uses: 1, price: 60") >= 0 || smith.indexOf('mat_iron') >= 0
+    || fs.readFileSync(path.join(root, 'js/data-core.js'), 'utf8').indexOf('mat_iron') >= 0,
+    '材料 key mat_iron 在数据层定义');
+  console.log(ff === 0 ? '✓ 铁匠铺（强化+进化）：守卫与接线断言通过' : '✗ 铁匠铺断言有 ' + ff + ' 条失败');
+  if (ff) process.exitCode = 1;
+})();
+
 /* ---------- 舆图（大地图）：静态断言 ----------
  * 布局与状态机的行为测试在 dev/check-map.js（坐标/交叉/出界那套几何检查
  * 放主测试里太重），这里只锁「接线没断」。 */
@@ -685,3 +712,116 @@ if (wf) process.exitCode = 1;
   if (mf) process.exitCode = 1;
   else console.log('✓ 舆图（大地图）：接线断言通过');
 })();
+
+/* ---------- 法术演出（二期任务 #8）：五形态行为 + 接线 ----------
+ * 独立 context：data-core 给人物职业、data-systems 给 SPELLS/ELEMENTS，
+ * juice.js 提供 ring/stream/burst 原语，spell-fx.js 是被测对象。
+ * host.wait 换成立即 resolve 的假实现，不占真实时间；
+ * A 阶的 critWindUp/critWindDown 内部走 setTimeout，用 speed=8 压到几十毫秒。 */
+(async () => {
+  let xf = 0;
+  const xok = (c, m) => { if (!c) { xf++; console.error('  ✗ ' + m); } };
+
+  const ctx = vm.createContext({
+    console, Math,
+    setTimeout, clearTimeout,
+    performance: { now: () => Date.now() },
+    Game: { settings: { juice: true } }
+  });
+  for (const f of ['js/data-core.js', 'js/data-systems.js', 'js/juice.js', 'js/systems/spell-fx.js']) {
+    vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
+  }
+  const Fx = vm.runInContext('SpellFx', ctx);
+  const J = vm.runInContext('Juice', ctx);
+  const EL = vm.runInContext('ELEMENTS', ctx);
+
+  const mkSpell = (el, rank) => ({ key: 'test_' + el, name: '测', element: el, rank, rng: [1, 3] });
+  const mkU = (x, y) => ({ x, y, name: '甲', side: 'player' });
+  const mkHost = (speed) => ({
+    B: { speed: speed || 1 },
+    sfxLog: [],
+    sfx(n) { this.sfxLog.push(n); },
+    wait() { return Promise.resolve(); },
+    log() {}, float() {}
+  });
+  const reset = () => { J.rings.length = 0; J.streams.length = 0; J.particles.length = 0; J.cutIn = null; };
+
+  /* 1. 元素 → 音效 / 颜色 / 时长 */
+  xok(Fx.sfxOf('metal').cast === 'cast_metal' && Fx.sfxOf('metal').hit === 'burst_metal',
+    '金 → cast_metal / burst_metal');
+  xok(Fx.sfxOf('none').cast === 'heal' && Fx.sfxOf('none').hit === 'heal', '歌（无元素）走 heal');
+  xok(Fx.colorOf('fire') === EL.fire.color, '火色取 ELEMENTS.fire.color');
+  xok(Fx.colorOf('none') === '#e6cf8e', '歌用柔金色');
+  xok(Fx.flightMs('metal', 2) > Fx.flightMs('metal', 0), '同元素阶数越高飞得越久');
+  xok(Fx.flightMs('earth', 1) < Fx.flightMs('none', 1), '土最快（原地崩），歌最慢（飘过去）');
+
+  /* 2. 五形态 + 歌：土没有飞行物，其余各一条流；歌三条 */
+  const streamsOf = { metal: 1, wood: 1, water: 1, fire: 1, earth: 0, none: 3 };
+  for (const el of Object.keys(streamsOf)) {
+    reset();
+    const host = mkHost(1);
+    const played = await Fx.play(host, mkU(0, 0), mkU(4, 2), mkSpell(el, 'C'));
+    xok(played === true, el + '：play 返回 true');
+    xok(J.rings.length > 0, el + '：起了法阵');
+    xok(J.streams.length === streamsOf[el],
+      el + '：弹道数 = ' + streamsOf[el] + '（got ' + J.streams.length + '）');
+    const wantCast = el === 'none' ? 'heal' : 'cast_' + el;
+    xok(host.sfxLog[0] === wantCast, el + '：起手音 = ' + wantCast + '（got ' + host.sfxLog[0] + '）');
+  }
+  /* 金 A 阶三刃齐发（lanes = 1 + rank） */
+  reset();
+  await Fx.play(mkHost(8), mkU(0, 0), mkU(4, 2), mkSpell('metal', 'A'));
+  xok(J.streams.length === 3, '金 A 阶三刃齐发（got ' + J.streams.length + '）');
+
+  /* 3. 关打击感：只响一声、不画、不占时间 */
+  ctx.Game.settings.juice = false;
+  reset();
+  const hostOff = mkHost(1);
+  const tOff = Date.now();
+  const rOff = await Fx.play(hostOff, mkU(0, 0), mkU(4, 2), mkSpell('fire', 'A'));
+  const costOff = Date.now() - tOff;
+  xok(rOff === false, 'Juice 关闭：play 返回 false');
+  xok(J.rings.length === 0 && J.streams.length === 0, 'Juice 关闭：不画任何东西');
+  xok(costOff < 40, 'Juice 关闭：不占时间（got ' + costOff + 'ms）');
+  xok(hostOff.sfxLog.length === 1 && hostOff.sfxLog[0] === 'cast_fire', 'Juice 关闭：起手音照播');
+
+  /* 4. 无障碍模式：同样只响不画 */
+  ctx.Game.settings.juice = true;
+  ctx.Game.settings.reducedMotion = true;
+  reset();
+  const rRed = await Fx.play(mkHost(1), mkU(0, 0), mkU(4, 2), mkSpell('fire', 'A'));
+  xok(rRed === false && J.rings.length === 0, '无障碍模式：同样不画');
+  ctx.Game.settings.reducedMotion = false;
+
+  /* 5. 命中只画不响（音效由 Spells.cast 按暴击分派，避免双声） */
+  reset();
+  const hostI = mkHost(1);
+  Fx.impact(hostI, mkU(4, 2), mkSpell('fire', 'B'));
+  xok(hostI.sfxLog.length === 0, 'impact 不播音效');
+  xok(J.rings.length > 0 && J.particles.length > 0, 'impact 画了环与爆点');
+
+  /* 6. A 阶插一次立绘切入 */
+  reset();
+  let ups = 0;
+  const realUp = J.critWindUp;
+  J.critWindUp = async (u, sp) => { ups++; return realUp.call(J, u, sp); };
+  await Fx.play(mkHost(8), mkU(0, 0), mkU(4, 2), mkSpell('water', 'A'));
+  J.critWindUp = realUp;
+  xok(ups === 1, 'A 阶插一次立绘切入（got ' + ups + '）');
+
+  /* 7. 接线 */
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+  const html = read('index.html');
+  const spellSrc = read('js/systems/spells.js');
+  const fxSrc = read('js/systems/spell-fx.js');
+  xok(html.indexOf('js/systems/spell-fx.js') > html.indexOf('js/systems/spells.js'),
+    'index.html 加载顺序 spells → spell-fx');
+  xok(spellSrc.indexOf('SpellFx.play') >= 0, 'spells.js 调 SpellFx.play');
+  xok(spellSrc.indexOf('SpellFx.impact') >= 0, 'spells.js 调 SpellFx.impact');
+  xok(fxSrc.indexOf('Combat.') < 0, 'spell-fx.js 不碰战斗公式');
+  xok(fxSrc.indexOf('localStorage') < 0, 'spell-fx.js 不碰存档');
+  xok(read('dev/smoke-boot.js').indexOf('spell-fx.js') >= 0, 'smoke-boot 载入 spell-fx');
+
+  if (xf) { process.exitCode = 1; console.error('✗ 法术演出：' + xf + ' 条失败'); }
+  else console.log('✓ 法术演出：五形态行为 + 接线通过');
+})().catch(e => { console.error('法术演出测试异常：', e); process.exit(1); });
