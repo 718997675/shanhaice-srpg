@@ -1,11 +1,11 @@
 # 交接快照 · 山海策 · 灵脉
 
 > **给接手的人 / 另一个账号看的唯一入口。** 读完这份就能直接开工，不必翻聊天记录。
-> 最后更新：2026-10-25 18:50 · git HEAD `165302c` · **二期进行中**
+> 最后更新：2026-10-25 20:30 · git HEAD `875dcc6` · **二期进行中**
 
 ---
 
-## 0. 当前节点速览（2026-10-25 18:50）
+## 0. 当前节点速览（2026-10-25 20:30）
 
 **P6 已搁置**（用户决定，`dev/regress.js` 停在 75 通过 / 2 失败未提交）。**二期已启动**，主文档：`docs/山海策-灵脉-二期计划.md`（四根主轴：尺度/传承/宿命/呈现）。执行顺序按计划 §3：**P1 = A 战略层 + D 宿命脚本 + G 打击感 + H-P1 图标**，其中 **G 与 H-P1 投入产出比最高，最先做**。
 
@@ -32,9 +32,21 @@
 - 接入面：`camp.js` 商店/打造坊/行囊行/兵装行（`weaponIconHTML` 传说仍 PNG 优先 + SVG 兜底）、强化与进化弹窗（`UI.modal` 的 `item.icon`，弹窗按钮有图标时加 `has-icon` 隐圆点）；`ui.js` 战斗预测 `fc-hp` 武器名、单位卡兵装行；`battle.js` 五行法术菜单。`css/style.css` 补 `.ml-icon/.ii-16/20/22/24/.ii-row/.fc-wicon/.uc-weapon img.ii`。
 - 测试：test-logic 新增 H-P1 节（files 加 `data-systems.js`+`item-icons.js`）；smoke 新增图标区块（渲染接入 + 全表覆盖 + 静态接线 + `Combat.` 纯洁）。**坑**：smoke 的 `src()` 是 Juice 区块内局部函数，新区块要自己定义；smoke FILES 忘了加 `js/item-icons.js` 会 ReferenceError。
 
+### ✅ 音频架构（提交 `875dcc6`，四连全绿：3558 / 1661 / 冒烟双变体）
+
+- `js/audio-bgm.js`（220 行）：**file:// 下 `<audio>` 是唯一可靠播本地音频文件的方式**（WebAudio 的 fetch+decodeAudioData 被 CORS 挡），故 BGM/采样走元素、合成退居兜底。`BGM` 场景音乐管理器（ogg→mp3 双 source、crossfade、duck 静默一拍、setMusicOn；文件缺失一次探测记终身自动回退程序音乐；无 DOM 整体静默）。`SFX` 采样音效池（文件优先，首次未就绪当次合成、之后全走文件——换采样零成本）。
+- `audio.js`：`sweep()` 扫频噪声基底 + 21 个合成音效（挥击 3 / 材质命中 3 / 暴击 / 五系吟唱 5 / 五系爆发 5 / 阵亡 / 占阵 / UI）；`sfx` 开头接 SFX 钩子；duck 在文件音乐激活时转 BGM.duck。
+- 接线：battle.js 挥击按武器类型（轻重锐）、命中按材质（披甲/木器/肉身），音乐切换全走 `BGM.play`；game.js 开关补 `BGM.setMusicOn`。
+- 测试坑：`_can()` 能力探测也 `createElement('audio')`，fake DOM 统计元素要过滤探测桩；静态查 `Combat.` 会被文件头注释误伤。
+- **BGM 素材仍是唯一外求项**：清单与 AI 提示词在 `docs/素材清单与生成提示词.md`（4 首必做：营地/战斗/Boss/剧情），文件丢进 `assets/audio/bgm/` 即自动挂上。
+
+### 🔄 进行中：高低地形差（height 层）
+
+章节加 `height` 层（8×16 数字 0~2，不动地形字符）→ render 高度渲染（上移+悬崖侧面+阴影）→ combat.js 判定（高打低命中+15/射程+1，低打高-15）→ forecast「高地」标签。先做第 1/3 章示范。
+
 ### ⬜ 之后再排
 
-音频架构（任务 #5 进行中：`<audio>` 池 + BGM 管理器 + 21 个合成音效，素材清单见 `docs/素材清单与生成提示词.md`——除 BGM 外全部开发侧直接产出）→ 高低地形差（任务 #6）→ 背侧判定（任务 #7）→ 法术演出（任务 #8）→ 军议卡/结算摘要 → A 战略层 / D 宿命脚本 → B 薪火 / E 军令声望 / F 机动 → C 圣脉 → H-P2/P3 图标。
+背侧判定（任务 #7）→ 法术演出（任务 #8）→ 军议卡/结算摘要 → A 战略层 / D 宿命脚本 → B 薪火 / E 军令声望 / F 机动 → C 圣脉 → H-P2/P3 图标。
 
 ---
 
@@ -47,7 +59,7 @@ cd /Users/niekai/Documents/ai-game/shanhaice
 git log --oneline -5 && git status
 
 # 2) 跑全部验证（约 10 秒，必须全绿再动代码）
-node dev/test-logic.js          # 期望：3552 通过，0 失败
+node dev/test-logic.js          # 期望：3558 通过，0 失败
 node tests/formulas.test.js     # 期望：1661 通过 / 0 失败
 node dev/smoke-boot.js          # 期望：冒烟通过：无引用错误
 node dev/smoke-boot.js sandbox  # 期望：同上（沙盒变体）
