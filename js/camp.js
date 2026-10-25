@@ -672,11 +672,12 @@ const Camp = {
     }
     if (!this.deploySel) this.deploySel = new Set();
     const ids = c.roster.map(r => r.id);
+    const allowed = ids.filter(id => Strategy.canDeploy(c, id));
     for (const id of Array.from(this.deploySel)) {
-      if (!ids.includes(id)) this.deploySel.delete(id);
+      if (!ids.includes(id) || !allowed.includes(id)) this.deploySel.delete(id);
     }
     if (!this.deploySel.size) {
-      for (const rec of c.roster.slice(0, ch.deployCount)) this.deploySel.add(rec.id);
+      for (const id of allowed.slice(0, ch.deployCount)) this.deploySel.add(id);
     }
     if (!this.deploySel.has('yunce')) this.deploySel.add('yunce');
     while (this.deploySel.size > ch.deployCount) {
@@ -688,9 +689,18 @@ const Camp = {
       const base = CHARS[rec.id];
       const cls = CLASSES[rec.cls] || {};
       const selected = this.deploySel.has(rec.id);
+      const ok = allowed.includes(rec.id);
       const w = Combat.weaponOf(rec);
       const wname = w ? w.w.name : ((rec.items[0] && (WEAPONS[rec.items[0].key] || ITEMS[rec.items[0].key]) || {}).name || '空手');
       const lord = rec.id === 'yunce';
+      if (!ok) {
+        return '<button class="deploy-card rear" data-act="splitBlocked" data-id="' + rec.id + '" title="留守另一条战线，本章不能出战">' +
+          '<div class="dc-top">' + UI.portraitHTML(base.name) +
+          '<span><span class="dc-name">' + UI.escape(base.name) + '</span>' +
+          '<span class="dc-sub">' + UI.escape(cls.name || '') + ' Lv.' + rec.level + '</span></span></div>' +
+          '<div class="dc-hp" style="color:#8a6a3f;">留守 · ' + UI.escape(Strategy.frontLabel(c.strategy.front)) + '</div>' +
+          '<div class="dc-item">本章缺席</div></button>';
+      }
       return '<button class="deploy-card' + (selected ? ' selected' : '') + (lord ? ' lord' : '') + '" data-act="toggleDeploy" data-id="' + rec.id + '">' +
         '<div class="dc-top">' + UI.portraitHTML(base.name) +
         '<span><span class="dc-name">' + UI.escape(base.name) + (lord ? '<span class="roster-lv" style="margin-left:5px;">守脉</span>' : '') + '</span>' +
@@ -699,10 +709,21 @@ const Camp = {
         '<div class="dc-item">' + UI.escape(wname) + '</div></button>';
     }).join('');
     const side = ch.side ? '<div class="deploy-obj"><b>支线</b>　' + UI.escape(ch.side.text) + '</div>' : '';
+    const strat = Strategy.summary(c);
+    const absent = Strategy.absentIds(c);
+    const stratBar = '<div class="deploy-strategy">' +
+      '<span class="ds-line">' + (strat.active ? UI.escape(strat.text) : '未分兵 · 全员可出战') + '</span>' +
+      (strat.active
+        ? '<button class="mini-btn" data-act="split"' + (Strategy.canAdjust(c, c.chapter) ? '' : ' disabled') + '>' +
+          (Strategy.canAdjust(c, c.chapter) ? '分兵' : '本章已调整') + '</button>'
+        : '') + '</div>' +
+      (absent.length
+        ? '<div class="deploy-absent">缺席 ' + absent.length + ' 人：' + absent.map(id => UI.escape(CHARS[id] ? CHARS[id].name : id)).join('、') + '</div>'
+        : '');
     body.innerHTML = '<div class="deploy-view">' +
       '<div class="deploy-info"><div class="ch-no">' + UI.chapterLabel(ch.no) + '</div>' +
       '<h3>' + UI.escape(ch.name) + '</h3>' +
-      '<p>目标：' + UI.escape(ch.objective.text) + '</p>' + side +
+      '<p>目标：' + UI.escape(ch.objective.text) + '</p>' + side + stratBar +
       '<p>' + UI.escape(ch.tips || '') + '</p>' +
       '<p style="color:#8a6a3f;">出击上限 ' + ch.deployCount + ' 人 · 云策必须出战</p>' +
       '<div class="item-empty" style="line-height:1.8;">' + UI.escape((DIFFICULTIES[c.difficulty] || DIFFICULTIES.normal).desc) + '</div>' +

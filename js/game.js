@@ -95,6 +95,7 @@ const Game = {
       codex: {},
       supports: {},
       knots: {},
+      strategy: Strategy.empty(),
       convoy: [{ key: 'potion', uses: 3 }],
       sideCleared: {},
       introSeen: {},
@@ -202,6 +203,8 @@ const Game = {
     if (c.route && HEART_KNOTS[c.route] && !c.knots[HEART_KNOTS[c.route].char]) {
       c.knots[HEART_KNOTS[c.route].char] = { resolved: false, route: c.route };
     }
+    /* 分兵（二期 A）：旧档无此字段 → 补默认且保持解锁（不追溯施加缺席惩罚） */
+    c.strategy = Strategy.normalize(c);
     if (!Array.isArray(c.convoy)) c.convoy = [];
     c.convoy = c.convoy.filter(it => it && (WEAPONS[it.key] || ITEMS[it.key]));
     if (!c.sideCleared || typeof c.sideCleared !== 'object') c.sideCleared = {};
@@ -539,11 +542,17 @@ const Game = {
         const pick = await this.chooseRoute();
         this.campaign.route = pick;
         this.applyKnots(pick);
+        /* 分兵（二期 A）：两条战线各留一半人，之后三章按战线出战 */
+        await this.chooseSplit(pick);
         this.saveCampaign();
       }
+      /* 本章缺席名单要在推进章节前取（第 8 章会解锁清空） */
+      const absentIds = Strategy.absentIds(this.campaign);
       const nextId = Route.nextId(this.campaign.route, ch.id);
       this.campaign.chapter = nextId;
       if (!nextId) this.campaign.cleared = true;
+      /* 天柱废墟汇合：两条战线的人归队，缺席解除 */
+      if (nextId === Route.MERGE) Strategy.unlock(this.campaign);
       /* 图鉴（P3.4）：并入本章击破的敌型；本章若为遗迹所在地，解锁遗迹条目 */
       if (!this.campaign.codex || typeof this.campaign.codex !== 'object') this.campaign.codex = {};
       for (const k of Object.keys(result.codex || {})) this.campaign.codex[k] = true;
@@ -583,6 +592,7 @@ const Game = {
         UI.escape(CHARS[u.id].name) + '·' + UI.escape((WEAPON_TYPES[u.wt] && WEAPON_TYPES[u.wt].name) || u.wt) +
         ' ' + u.from + '→' + u.to).join('、') + '</b></div>';
       if (fallenNames.length) list += '<div style="color:#8b3b2d;">阵亡：' + fallenNames.map(n => UI.escape(n)).join('、') + '。他们将留在行录里。</div>';
+      if (absentIds.length) list += '<div style="color:#8a6a3f;">留守另一战线：' + absentIds.map(id => UI.escape(CHARS[id] ? CHARS[id].name : id)).join('、') + '（本章未随行）</div>';
       for (const lg of legacies) {
         const parts = [];
         if (lg.skill) parts.push('「' + UI.escape(lg.skill) + '」');
@@ -667,6 +677,106 @@ const Game = {
       closable: false
     });
     return pick === 'B' ? 'B' : 'A';
+  },
+
+  /* ---------------- 分兵（二期 A · 大地图战略层） ----------------
+   * 把队伍分成随行 / 留守两路。第 4 章末强制分一次并锁定；
+   * 营地可每章调整一次（adjust = true）。返回是否确认。 */
+  async chooseSplit(route, opts) {
+    const o = opts || {};
+    const c = this.campaign;
+    if (!c) return false;
+    const rosterIds = c.roster.map(r => r.id).filter(id => !(CHARS[id] && CHARS[id].reserve));
+    if (!rosterIds.length) return false;
+    if (o.adjust && !Strategy.canAdjust(c, c.chapter)) {
+      UI.toast('本章已经调整过分兵，下一章再改');
+      return false;
+    }
+    const cap = Strategy.CAP;
+    const existing = (c.strategy && c.strategy.deploy) || {};
+    const hasExisting = rosterIds.some(id => existing[id]);
+    let draft = (o.adjust && hasExisting) ? Object.assign({}, existing) : Strategy.defaultDeploy(c, cap);
+    /* 兜底：未列入名单的一律随行（新入队的同伴跟着队伍走） */
+    for (const id of rosterIds) if (draft[id] !== 'front' && draft[id] !== 'rear') draft[id] = 'front';
+    draft.yunce = 'front';
+
+    const front = () => rosterIds.filter(id => draft[id] !== 'rear');
+    const rear = () => rosterIds.filter(id => draft[id] === 'rear');
+    const cardHtml = (id) => {
+      const rec = c.roster.find(r => r.id === id);
+      const base = CHARS[id] || {};
+      const cls = rec ? (CLASSES[rec.cls] || {}) : {};
+      const lord = id === 'yunce';
+      return '<button class="split-card' + (lord ? ' lord' : '') + '" data-split-id="' + id + '"' +
+        (lord ? ' title="守脉人必须随行"' : '') + '>' +
+        '<span class="sc-name">' + UI.escape(base.name || id) + (lord ? '<small>守脉</small>' : '') + '</span>' +
+        '<span class="sc-sub">' + UI.escape(cls.name || '') + ' Lv.' + (rec ? rec.level : 1) + '</span></button>';
+    };
+    const panelHtml = () => {
+      const f = front(), r = rear();
+      return '<div class="split-panel">' +
+        '<div class="split-head"><b>' + UI.escape(Strategy.frontLabel(route)) + '</b>' +
+        '<span class="split-count' + (f.length > cap ? ' over' : '') + '">随行 ' + f.length + ' / ' + cap +
+        ' · 留守 ' + r.length + '</span></div>' +
+        '<div class="split-cols">' +
+        '<div class="split-col"><h4>随 行</h4><div class="split-cards">' +
+        (f.map(cardHtml).join('') || '<div class="item-empty">空</div>') + '</div></div>' +
+        '<div class="split-col rear"><h4>留 守</h4><div class="split-cards">' +
+        (r.map(cardHtml).join('') || '<div class="item-empty">无人留守</div>') + '</div></div>' +
+        '</div>' +
+        '<div class="split-hint">点名字在两侧之间移动。留守的人这三章不随行（另一条战线也在打），' +
+        '心结也了断不了；每章可在营地改一次。<button class="mini-btn" data-split-reset>重新平均</button></div>' +
+        '</div>';
+    };
+    const result = await UI.modal({
+      title: '分 兵',
+      sub: '一条路只能带一队人。留下的，替你看住另一头。',
+      body: panelHtml(),
+      buttons: [{ label: '就这样出发', value: true, cls: 'primary' }],
+      closable: false,
+      onMount: (box) => {
+        const paint = () => {
+          const panel = box.querySelector('.split-panel');
+          if (!panel) return;
+          panel.outerHTML = panelHtml();
+          bind();
+        };
+        const bind = () => {
+          box.querySelectorAll('[data-split-id]').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const id = btn.dataset.splitId;
+              if (id === 'yunce') { UI.toast('守脉人云策必须随行'); return; }
+              draft[id] = draft[id] === 'rear' ? 'front' : 'rear';
+              Audio.sfx('tap');
+              paint();
+            });
+          });
+          const reset = box.querySelector('[data-split-reset]');
+          if (reset) reset.addEventListener('click', () => {
+            draft = Strategy.defaultDeploy(c, cap);
+            draft.yunce = 'front';
+            Audio.sfx('tap');
+            paint();
+          });
+        };
+        bind();
+      }
+    });
+    if (result !== true) return false;
+    const f = front();
+    if (f.length > cap) { UI.toast('随行最多 ' + cap + ' 人，先送一个人去留守'); return false; }
+    if (!f.length) { UI.toast('至少要有人随行'); return false; }
+    if (o.adjust) {
+      c.strategy = Strategy.normalize(c, null);
+      c.strategy.deploy = {};
+      for (const id of rosterIds) c.strategy.deploy[id] = draft[id] === 'rear' ? 'rear' : 'front';
+      c.strategy.deploy.yunce = 'front';
+      Strategy.markAdjusted(c, c.chapter);
+    } else {
+      Strategy.lock(c, route, draft);
+    }
+    this.saveCampaign();
+    return true;
   },
 
   /* 心结：选定路线后，把「被放弃的那条路」挂到对应角色身上（P3.2） */
