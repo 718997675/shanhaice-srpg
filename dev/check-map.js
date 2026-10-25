@@ -119,7 +119,8 @@ const cases = [
 for (const [name, c] of cases) {
   const svg = WM.svg(c, WM.pickDefault(c));
   const nodes = (svg.match(/class="wm-node /g) || []).length;
-  const roads = (svg.match(/class="wm-road/g) || []).length;
+  /* 只数主路，别把 .wm-road-under（描边底）算进去 */
+  const roads = (svg.match(/class="wm-road(?![-\w])/g) || []).length;
   const cur = (svg.match(/is-current/g) || []).length;
   const dead = (svg.match(/is-abandoned/g) || []).length;
   if (nodes !== 16) bad(name + '：节点数 ' + nodes + ' ≠ 16（十六个节点应一次画全）');

@@ -669,148 +669,242 @@ img { display: block; }
 .split-hint { font-size: 10px; line-height: 1.75; color: #7c725b; }
 .split-hint .mini-btn { margin-left: 6px; }
 
-/* ═══════════════════ 舆图（大地图） ═══════════════════ */
+/* ═══════════════════ 舆图（大地图） ═══════════════════
+ * 玄墨底 + 鎏金线 + 朱砂印：一张摊在暗室里的绢本图。
+ * 右侧是宣纸卷宗（章节详情），一暗一明，反差本身就在说「图在案上」。 */
 .map-wrap { display: flex; gap: 14px; width: 100%; height: 100%; overflow: hidden; }
 .map-sheet {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(ellipse 80% 60% at 18% 4%, rgba(255, 251, 238, .55), transparent 62%),
-    radial-gradient(ellipse 70% 50% at 92% 96%, rgba(95, 147, 137, .16), transparent 66%),
-    linear-gradient(150deg, rgba(240, 231, 211, .98), rgba(212, 196, 164, .97));
-  border: 1px solid rgba(122, 90, 44, .38);
-  border-radius: 4px;
-  box-shadow: var(--shadow), inset 0 0 50px rgba(122, 90, 44, .1);
-  padding: 10px 12px 8px;
   position: relative;
+  border-radius: 3px;
+  padding: 8px 10px 6px;
   overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 60% at 40% 36%, #1e251e 0%, #141a15 52%, #090d0a 100%);
+  border: 1px solid rgba(211, 171, 94, .34);
+  box-shadow:
+    var(--shadow),
+    inset 0 0 60px rgba(0, 0, 0, .7),
+    0 0 0 1px rgba(0, 0, 0, .5);
 }
-/* 云纹底纹压在纸面上，压得很淡 */
+/* 绢纹：平铺一张 180×180 的噪点小图。不用 SVG 全幅 feTurbulence——
+ * 那玩意儿压在动画层下面，移动端每帧都要重算一次，白烧电。 */
 .map-sheet::after {
   content: "";
-  position: absolute; inset: 0;
-  background-image: var(--cloud);
-  background-size: 200px 200px;
-  opacity: .5;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   pointer-events: none;
-  mix-blend-mode: multiply;
+  opacity: .07;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+/* 外层再套一圈细金线，像装裱的绫边 */
+.map-sheet::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(211, 171, 94, .16);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 3;
 }
 .map-head {
   display: flex; align-items: baseline; gap: 12px;
-  position: relative; z-index: 2;
-  padding: 0 2px 6px;
-  border-bottom: 1px solid rgba(80, 68, 45, .16);
+  position: relative; z-index: 4;
+  padding: 2px 4px 7px;
 }
-.map-title { font-size: 15px; letter-spacing: .3em; color: #3a3d2e; font-weight: 600; }
-.map-progress { font-family: var(--sans); font-size: 11px; color: #7c725b; }
-.map-front { font-size: 10px; color: #8a6a3f; margin-left: auto; letter-spacing: .06em; }
+.map-title {
+  font-size: 15px; letter-spacing: .34em; font-weight: 600;
+  color: var(--gold-2);
+  text-shadow: 0 0 14px rgba(240, 209, 137, .35), 0 1px 0 rgba(0, 0, 0, .8);
+}
+.map-progress {
+  font-family: var(--sans); font-size: 11px; letter-spacing: .06em;
+  color: rgba(211, 171, 94, .62);
+}
+.map-front { font-size: 10px; color: rgba(211, 171, 94, .5); margin-left: auto; letter-spacing: .06em; }
 
 .wm-svg { flex: 1; width: 100%; min-height: 0; display: block; position: relative; z-index: 1; }
-.wm-sea { pointer-events: none; }
-.wm-coast { fill: none; stroke: #6f8f88; stroke-width: 1.1; stroke-opacity: .35; stroke-dasharray: 5 4; }
-.wm-wash { opacity: .1; pointer-events: none; }
-.wm-hill path { fill: #4a5342; fill-opacity: .2; stroke: #3f4636; stroke-opacity: .42; stroke-width: .9; }
-.wm-hill .wm-hill-ridge { fill: none; stroke: #3f4636; stroke-opacity: .34; stroke-width: .8; }
-.wm-wave { fill: none; stroke: #4f7d7c; stroke-opacity: .3; stroke-width: 1.2; stroke-linecap: round; }
+
+/* 海 */
+.wm-coast {
+  fill: none;
+  stroke: rgba(126, 186, 176, .38);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+.wm-coast.foam {
+  stroke: rgba(180, 226, 214, .12);
+  stroke-width: 4;
+  stroke-dasharray: 1 13;
+  stroke-linecap: round;
+}
+.wm-ring { fill: none; stroke: rgba(126, 186, 176, .5); stroke-width: .9; }
+.wm-wave { fill: none; stroke: rgba(126, 186, 176, .34); stroke-width: 1.2; stroke-linecap: round; }
+
+/* 山：剪影 + 受光面 + 峰线 */
+.wm-range-body { fill: url(#wmRidgeG); stroke: rgba(211, 171, 94, .16); stroke-width: .8; }
+.wm-range.far .wm-range-body { fill: url(#wmFarG); stroke: none; }
+.wm-range-shade { fill: #0b100d; opacity: .55; }
+.wm-range-ridge { fill: none; stroke: rgba(211, 171, 94, .28); stroke-width: 1; stroke-linejoin: round; }
+
+/* 地名：淡金大字 */
 .wm-region {
-  font-family: var(--serif); font-size: 15px; letter-spacing: .22em;
-  fill: #6b6448; fill-opacity: .42; text-anchor: middle;
+  font-family: var(--serif);
+  font-size: 16px;
+  letter-spacing: .3em;
+  fill: #d3ab5e;
+  fill-opacity: .26;
+  text-anchor: middle;
+  pointer-events: none;
 }
 
-/* 道路 */
+/* 灵脉：极细的灵青丝，越靠海眼越亮 */
+.wm-vein {
+  fill: none;
+  stroke: #7fb59a;
+  stroke-opacity: .18;
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-dasharray: 1 5;
+}
+
+/* 道路：深色描边垫底，金线压在上面 */
+.wm-road-under { fill: none; stroke: #06090a; stroke-opacity: .7; stroke-width: 3.4; stroke-linecap: round; }
 .wm-road {
   fill: none;
-  stroke: #8a6a34; stroke-opacity: .38;
-  stroke-width: 1.6; stroke-linecap: round;
-  stroke-dasharray: 6 6;
+  stroke: rgba(211, 171, 94, .34);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-dasharray: 5 6;
 }
-.wm-road.done { stroke: #9e3b32; stroke-opacity: .62; stroke-width: 2.2; stroke-dasharray: none; }
-.wm-road.dead { stroke-opacity: .16; stroke-width: 1.2; stroke-dasharray: 2 7; }
+.wm-road.done {
+  stroke: #e6bf74;
+  stroke-opacity: .95;
+  stroke-width: 2;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 3px rgba(240, 209, 137, .45));
+}
+.wm-road.dead { stroke: rgba(120, 118, 100, .3); stroke-width: 1.1; stroke-dasharray: 2 8; }
 
-/* 节点 */
+/* 节点印面 */
 .wm-node { cursor: pointer; outline: none; }
 .wm-hit { fill: transparent; }
-.wm-dot {
-  fill: #efe5cd;
-  stroke: #8a6a34;
-  stroke-width: 1.8;
-  transition: fill .16s, stroke .16s;
+.wm-ring-out {
+  fill: none;
+  stroke: rgba(211, 171, 94, .55);
+  stroke-width: 1.4;
+  transition: stroke .16s, stroke-width .16s;
 }
-.wm-node:hover .wm-dot { stroke: #9e3b32; stroke-width: 2.4; }
+.wm-dot {
+  fill: var(--tint, #8fa18a);
+  fill-opacity: .3;
+  stroke: rgba(211, 171, 94, .3);
+  stroke-width: .8;
+  transition: fill-opacity .16s;
+}
+.wm-node:hover .wm-ring-out { stroke: #f0d189; stroke-width: 2.2; }
+.wm-node:hover .wm-dot { fill-opacity: .62; }
 .wm-no {
-  font-family: var(--sans); font-size: 11px; font-weight: 700;
-  fill: #6b6448; text-anchor: middle; pointer-events: none;
+  font-family: var(--sans); font-size: 10.5px; font-weight: 700;
+  fill: #cfc6a8; text-anchor: middle; pointer-events: none;
+  letter-spacing: -.02em;
 }
 .wm-name {
-  font-family: var(--serif); font-size: 11.5px; letter-spacing: .08em;
-  fill: #4a4738; text-anchor: middle; pointer-events: none;
+  font-family: var(--serif); font-size: 11.5px; letter-spacing: .1em;
+  fill: #a99f80; text-anchor: middle; pointer-events: none;
 }
 .wm-tag {
-  font-family: var(--serif); font-size: 8.5px; letter-spacing: .18em;
-  fill: #9a927a; text-anchor: middle; pointer-events: none;
+  font-family: var(--serif); font-size: 8.5px; letter-spacing: .2em;
+  fill: rgba(150, 145, 120, .55); text-anchor: middle; pointer-events: none;
 }
-.wm-line-badge { fill: #6b6448; }
+.wm-line-badge { fill: #0d1210; stroke: rgba(211, 171, 94, .5); stroke-width: 1; }
 .wm-line-text {
   font-family: var(--sans); font-size: 8px; font-weight: 700;
-  fill: #f2e8d0; text-anchor: middle; pointer-events: none;
+  fill: #d3ab5e; text-anchor: middle; pointer-events: none;
 }
 
 /* 已过：朱砂印 */
-.wm-node.is-cleared .wm-dot { fill: #9e3b32; stroke: #6d281f; }
+.wm-node.is-cleared .wm-ring-out { stroke: rgba(240, 209, 137, .8); stroke-width: 1.8; }
+.wm-node.is-cleared .wm-dot { fill: #9e3b32; fill-opacity: 1; stroke: #6d281f; }
 .wm-node.is-cleared .wm-no { fill: #f6ead2; }
-.wm-node.is-cleared .wm-name { fill: #6d3a2c; }
+.wm-node.is-cleared .wm-name { fill: #d8c9a4; }
 
-/* 当前：鎏金 + 脉冲 + 旗 */
-.wm-node.is-current .wm-dot { fill: var(--gold, #d3ab5e); stroke: #8a6a34; stroke-width: 2.6; }
-.wm-node.is-current .wm-no { fill: #3a2f1a; }
-.wm-node.is-current .wm-name { fill: #3a3d2e; font-weight: 600; }
+/* 当前：鎏金 + 光晕 + 旗 */
+.wm-node.is-current .wm-ring-out { stroke: #f0d189; stroke-width: 2.4; }
+.wm-node.is-current .wm-dot { fill: #d3ab5e; fill-opacity: 1; stroke: #8a6a34; }
+.wm-node.is-current .wm-no { fill: #221a0d; }
+/* 不用描边压字：paint-order 一旦不被支持，11px 的描边会把字吃掉。
+ * 深底 + 亮金字本身就是高对比，加粗就够。 */
+.wm-node.is-current .wm-name { fill: #f7e9c6; font-weight: 600; letter-spacing: .12em; }
 .wm-pulse {
-  fill: none; stroke: #9e3b32; stroke-width: 1.6;
+  fill: none; stroke: #f0d189; stroke-width: 1.4;
   transform-box: fill-box;
   transform-origin: center;
-  animation: wmPulse 2.2s ease-out infinite;
+  animation: wmPulse 2.4s ease-out infinite;
 }
 @keyframes wmPulse {
-  0%   { transform: scale(.74); opacity: .8; }
-  70%  { transform: scale(1.55); opacity: 0; }
-  100% { transform: scale(1.55); opacity: 0; }
+  0%   { transform: scale(.7); opacity: .85; }
+  72%  { transform: scale(1.7); opacity: 0; }
+  100% { transform: scale(1.7); opacity: 0; }
 }
-.wm-flag path { fill: #9e3b32; stroke: #6d281f; stroke-width: 1.1; }
+.wm-flag path { fill: #b04638; stroke: #f0d189; stroke-width: .9; }
 
 /* 未至 */
-.wm-node.is-locked .wm-dot { fill: #e8dfc7; stroke: #a79c80; stroke-dasharray: 3 3; }
-.wm-node.is-locked .wm-no { fill: #9a927a; }
-.wm-node.is-locked .wm-name { fill: #8d8770; }
+.wm-node.is-locked .wm-ring-out { stroke: rgba(211, 171, 94, .22); stroke-dasharray: 3 4; }
+.wm-node.is-locked .wm-dot { fill-opacity: .1; stroke: rgba(211, 171, 94, .14); }
+.wm-node.is-locked .wm-no { fill: #6f6b56; }
+.wm-node.is-locked .wm-name { fill: #6b6752; }
 
 /* 未走之路 */
-.wm-node.is-abandoned .wm-dot { fill: #dcd6c3; stroke: #a79c80; stroke-dasharray: 2 4; opacity: .8; }
-.wm-node.is-abandoned .wm-no { fill: #a8a08a; }
-.wm-node.is-abandoned .wm-name { fill: #a29a84; }
+.wm-node.is-abandoned .wm-ring-out { stroke: rgba(120, 116, 98, .3); stroke-dasharray: 2 5; }
+.wm-node.is-abandoned .wm-dot { fill-opacity: .05; stroke: rgba(120, 116, 98, .2); }
+.wm-node.is-abandoned .wm-no { fill: #5a5646; }
+.wm-node.is-abandoned .wm-name { fill: #575343; }
 
-/* 选中：外圈 */
-.wm-node.is-pick .wm-dot { stroke: #7a2b22; stroke-width: 2.6; }
-.wm-node.is-pick .wm-name { fill: #7a2b22; font-weight: 600; }
+/* 选中：外圈加一道暗红 */
+.wm-node.is-pick .wm-ring-out { stroke: #e08a6f; }
+.wm-node.is-pick .wm-name { fill: #f0d189; letter-spacing: .12em; }
 
+/* 装裱：双线金框 + 四角回纹 + 朱印 */
+.wm-frame rect {
+  fill: none;
+  stroke: rgba(211, 171, 94, .5);
+  stroke-width: 1.4;
+}
+.wm-frame rect.thin { stroke: rgba(211, 171, 94, .2); stroke-width: .8; }
+.wm-corner { fill: none; stroke: #d3ab5e; stroke-opacity: .55; stroke-width: 1.3; stroke-linecap: square; }
+.wm-corner.thin { stroke-opacity: .3; stroke-width: .9; }
+.wm-seal rect { fill: #9e3b32; fill-opacity: .82; stroke: #d9a48c; stroke-opacity: .5; stroke-width: .9; }
+.wm-seal-text {
+  font-family: var(--serif); font-size: 12px; letter-spacing: 0;
+  fill: #f6e6cd; fill-opacity: .9; text-anchor: middle;
+}
+
+/* 图例 */
 .map-legend {
-  display: flex; gap: 12px; align-items: center;
-  position: relative; z-index: 2;
-  padding: 4px 2px 0;
-  border-top: 1px solid rgba(80, 68, 45, .14);
-  font-family: var(--sans); font-size: 10px; color: #7c725b;
+  display: flex; gap: 14px; align-items: center;
+  position: relative; z-index: 4;
+  padding: 5px 4px 1px;
+  font-family: var(--sans); font-size: 10px; color: rgba(211, 171, 94, .5);
 }
-.map-legend .lg { display: flex; align-items: center; gap: 5px; }
+.map-legend .lg { display: flex; align-items: center; gap: 6px; }
 .map-legend .lg::before {
-  content: ""; width: 9px; height: 9px; border-radius: 50%;
-  border: 1.4px solid #8a6a34; background: #efe5cd;
+  content: ""; width: 10px; height: 10px; border-radius: 50%;
+  border: 1.4px solid rgba(211, 171, 94, .45);
+  background: rgba(143, 161, 138, .18);
 }
-.map-legend .lg.is-cleared::before { background: #9e3b32; border-color: #6d281f; }
-.map-legend .lg.is-current::before { background: #d3ab5e; border-color: #8a6a34; }
-.map-legend .lg.is-locked::before { border-style: dashed; border-color: #a79c80; }
-.map-legend .lg.is-abandoned::before { border-style: dotted; border-color: #a79c80; background: #dcd6c3; }
+.map-legend .lg.is-cleared::before { background: #9e3b32; border-color: rgba(240, 209, 137, .8); }
+.map-legend .lg.is-current::before { background: #d3ab5e; border-color: #f0d189; box-shadow: 0 0 8px rgba(240, 209, 137, .55); }
+.map-legend .lg.is-locked::before { border-style: dashed; border-color: rgba(211, 171, 94, .28); background: transparent; }
+.map-legend .lg.is-abandoned::before { border-style: dotted; border-color: rgba(120, 116, 98, .4); background: transparent; }
 
-/* 侧栏 */
+/* 右侧：宣纸卷宗 */
 .map-detail {
   width: 292px; flex: none;
   overflow-y: auto;
