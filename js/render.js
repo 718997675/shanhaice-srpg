@@ -1115,6 +1115,26 @@ const Render = {
     ctx.arc(cx, cy, r - 2.5, 0, Math.PI * 2);
     ctx.stroke();
 
+    /* 朝向标记（二期背侧判定）：盘面前缘一枚浅色尖角，随 facing 转动。
+     * facing 缺省时 Combat.facingOf 按阵营回退（我军朝北 / 敌军朝南）。 */
+    {
+      const fd = [[0, -1], [1, 0], [0, 1], [-1, 0]][(typeof Combat !== 'undefined') ? Combat.facingOf(u) : 0] || [0, -1];
+      const fr = r * 0.68;
+      const s = Math.max(2.4, t * 0.055);
+      ctx.save();
+      ctx.globalAlpha *= 0.92;
+      ctx.fillStyle = 'rgba(244,236,214,.92)';
+      ctx.translate(cx + fd[0] * fr, cy + fd[1] * fr);
+      ctx.rotate(Math.atan2(fd[1], fd[0]) + Math.PI / 2);
+      ctx.beginPath();
+      ctx.moveTo(0, -s);
+      ctx.lineTo(s * 0.86, s * 0.7);
+      ctx.lineTo(-s * 0.86, s * 0.7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
     ctx.globalAlpha = (u.acted && isPlayer ? 0.68 : 1) * fallA;
     /* 单位图标（P4.5）：有美术就把图标裁进圆里，没有才落姓名首字。
      * 解析链与横版演出共用 BattleView.iconOf（杂兵变体/Boss/召唤一张表）。 */

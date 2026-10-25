@@ -50,14 +50,14 @@ const FLAT = { mods: () => null, tileAt: () => TERRAIN['.'] };   // 无任何加
 console.log('\n== 1. 命中公式 ==');
 {
   const a = give(mkUnit(), 'iron_sword');
-  const d = mkUnit({ side: 'enemy', x: 1, y: 0 });
+  const d = mkUnit({ side: 'enemy', x: 1, y: 0, facing: 3 });
   // 命中 = 武器命中 + 技巧×2 + floor(幸运/2) - (敌攻速×2 + 敌幸运 + 地形回避)
   //      = 90 + 20 + 2 - (20 + 5) = 87
   eq('铁剑对无武器目标命中 = 87', Combat.hitChance(a, d, FLAT), 87);
 }
 {
   const a = give(mkUnit(), 'iron_sword');
-  const d = give(mkUnit({ side: 'enemy', x: 1, y: 0 }), 'iron_blade');
+  const d = give(mkUnit({ side: 'enemy', x: 1, y: 0, facing: 3 }), 'iron_blade');
   // 剑克重刃：+15 → 102，再受敌攻速/幸运 → 102 - 25 = 77
   eq('武器三角命中 +15，且命中上限钳制在 100', Combat.hitChance(a, d, FLAT), 100);
   const t = Combat.triangle(a, d);
@@ -66,7 +66,7 @@ console.log('\n== 1. 命中公式 ==');
 }
 {
   const a = give(mkUnit(), 'iron_blade');
-  const d = give(mkUnit({ side: 'enemy', x: 1, y: 0 }), 'iron_sword');
+  const d = give(mkUnit({ side: 'enemy', x: 1, y: 0, facing: 3 }), 'iron_sword');
   eq('被克（重刃←剑）命中 -15（敌持剑攻速7，回避19）', Combat.hitChance(a, d, FLAT), 63);
   eq('三角伤害修正 -2', Combat.triangle(a, d).dmg, -2);
 }
@@ -128,7 +128,7 @@ console.log('\n== 4. 攻速与追击 ==');
 console.log('\n== 5. 暴击 ==');
 {
   const a = give(mkUnit({ stats: { skl: 20 } }), 'iron_sword');   // crit 0 + 10 = 10 - 敌幸运 5 = 5
-  const d = mkUnit({ side: 'enemy', x: 1, y: 0 });
+  const d = mkUnit({ side: 'enemy', x: 1, y: 0, facing: 3 });
   eq('暴击率 = 5', Combat.critChance(a, d, FLAT), 5);
 }
 
@@ -928,8 +928,8 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     const ctx2 = { mods: (u, f, init) => Battle.modsFor.call(fake, u, f, init), tileAt: () => TERRAIN['.'], rng: RNG };
     const hero = give(mkUnit({ cls: 'zzz', x: 0, y: 0 }), 'lw_yunque');
     hero.ranks.sword = 'S';
-    const beastFoe = mkUnit({ cls: 'zzz', side: 'enemy', x: 1, y: 0, tags: ['beast'] });
-    const plainFoe = mkUnit({ cls: 'zzz', side: 'enemy', x: 1, y: 0 });
+    const beastFoe = mkUnit({ cls: 'zzz', side: 'enemy', x: 1, y: 0, facing: 3, tags: ['beast'] });
+    const plainFoe = mkUnit({ cls: 'zzz', side: 'enemy', x: 1, y: 0, facing: 3 });
     eq('云却对人形伤害 = 力15+威15-防5', Combat.damage(hero, plainFoe, ctx2), 20);
     eq('云却对猛兽伤害含断岳 +3', Combat.damage(hero, beastFoe, ctx2), 23);
     eq('云却词条命中 +10', Combat.hitChance(hero, plainFoe, ctx2), 97);
@@ -1217,7 +1217,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     const hero = give(mkUnit({ cls: 'zzz', x: 0, y: 0 }), 'iron_sword');
     hero.ranks.sword = 'A';
     hero.items[0].plus = 3;
-    const foe = mkUnit({ cls: 'zzz', side: 'enemy', x: 1, y: 0 });
+    const foe = mkUnit({ cls: 'zzz', side: 'enemy', x: 1, y: 0, facing: 3 });
     // 铁剑 mt 5 hit 90；+3 后 mt 8 hit 99、暴击 +5
     eq('+3 铁剑伤害 = 力10+威8-防5', Combat.damage(hero, foe, ctx3), 13);
     eq('+3 铁剑命中 = 90+9+20+2-25', Combat.hitChance(hero, foe, ctx3), 96);
@@ -1269,7 +1269,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     const rogue = give(mkUnit(), 'dagger_zhuiying');
     ok('追影刃被 weaponOf 识别', !!Combat.weaponOf(rogue) && Combat.weaponOf(rogue).w.swapOnHit === true);
     eq('追影刃不进 staffOf', Combat.staffOf(rogue), null);
-    eq('追影刃命中 88', Combat.hitChance(rogue, mkUnit({ side: 'enemy', x: 1, y: 0 }), FLAT), 85);
+    eq('追影刃命中 88', Combat.hitChance(rogue, mkUnit({ side: 'enemy', x: 1, y: 0, facing: 3 }), FLAT), 85);
     /* 19.5 商店闸门数据（weaponStock 在 camp.js，此处锁数据侧前提） */
     ok('渡厄杖闸门仅章节', duo.shopGate.char === undefined);
     ok('追影刃闸门含角色', typeof zhui.shopGate.char === 'string');
@@ -1300,7 +1300,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     ok('浊甲卫 elite 类型存在', !!ET2['elite']);
     /* 20.4 护盾减伤：受伤 -30%（floor），破盾期还原 */
     const hero4 = give(mkUnit(), 'iron_sword');
-    const foe4 = mkUnit({ side: 'enemy', x: 1, y: 0 });
+    const foe4 = mkUnit({ side: 'enemy', x: 1, y: 0, facing: 3 });
     eq('无盾伤害 = 力10+威5-防5', Combat.damage(hero4, foe4, FLAT), 10);
     foe4.affixes = ['shield'];
     eq('护盾减伤 30%（10→7）', Combat.damage(hero4, foe4, FLAT), 7);
@@ -1390,7 +1390,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     fakeC.B.volleyTarget = null;
     /* 21.4 坚守：受伤 -20%（combat.damage 读 ctx.holdActive） */
     const heroH = give(mkUnit(), 'iron_sword');
-    const foeH = mkUnit({ side: 'enemy', x: 1, y: 0 });
+    const foeH = mkUnit({ side: 'enemy', x: 1, y: 0, facing: 3 });
     const holdCtx = { mods: () => null, tileAt: () => TERRAIN['.'], phaseIndex: 1, holdActive: u => u === foeH };
     eq('坚守减伤 20%（10→8）', Combat.damage(heroH, foeH, holdCtx), 8);
     eq('未受保护不减免', Combat.damage(heroH, foeH, FLAT), 10);
@@ -1450,9 +1450,9 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
 
     /* 新分支的职业技必须真进 modsFor */
     const fake = Object.create(Battle);
-    const armorFoe = mkUnit({ id: 'fa', side: 'enemy', x: 1, y: 0, tags: ['human', 'armor'] });
-    const flyFoe = mkUnit({ id: 'ff', side: 'enemy', x: 1, y: 0, tags: ['flying'] });
-    const plainFoe = mkUnit({ id: 'fp', side: 'enemy', x: 1, y: 0 });
+    const armorFoe = mkUnit({ id: 'fa', side: 'enemy', x: 1, y: 0, facing: 3, tags: ['human', 'armor'] });
+    const flyFoe = mkUnit({ id: 'ff', side: 'enemy', x: 1, y: 0, facing: 3, tags: ['flying'] });
+    const plainFoe = mkUnit({ id: 'fp', side: 'enemy', x: 1, y: 0, facing: 3 });
     const mk = (cls, extra) => mkUnit(Object.assign({ cls: cls }, extra || {}));
     const only = u => { fake.B = { units: [u], nodes: [], supports: {} }; return u; };
 
@@ -1598,7 +1598,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     /* modsFor：未解 -5 / 解开 0 / 终章全解 +5+5 / 非终章不给 */
     const fake = Object.create(Battle);
     const hero = mkUnit({ charId: 'chisang', cls: 'zzz', x: 3, y: 3 });
-    const foe = mkUnit({ id: 'e', side: 'enemy', x: 1, y: 0 });
+    const foe = mkUnit({ id: 'e', side: 'enemy', x: 1, y: 0, facing: 3 });
     fake.B = { units: [hero], nodes: [], supports: {} };
     fake.chapter = { no: 5 };
     fake.campaign = { knots: { chisang: { resolved: false, route: 'A' } }, supports: {} };
@@ -1695,7 +1695,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
 
     /* --- 26.3 同名字段取较大值，不叠乘、不压低 --- */
     const fake = Object.create(Battle);
-    const foe = mkUnit({ id: 'e', side: 'enemy', x: 1, y: 0 });
+    const foe = mkUnit({ id: 'e', side: 'enemy', x: 1, y: 0, facing: 3 });
     fake.B = { units: [yunce], nodes: [], supports: {}, phaseIndex: 0 };
     eq('个人技② 魔抗真进公式', Battle.modsFor.call(fake, yunce, foe).res, 2);
     const wounded = mkChar('yunce');
@@ -2741,7 +2741,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
 
     /* 命中公式：敌幸运 20 → 平地 72，高打低 87，低打高 57 */
     const mkAtk = () => give(mkUnit({ x: 0, y: 0 }), 'iron_sword');
-    const mkDef = () => mkUnit({ side: 'enemy', x: 1, y: 0, stats: { hp: 30, str: 10, mag: 0, skl: 10, spd: 10, lck: 20, def: 5, res: 5 } });
+    const mkDef = () => mkUnit({ side: 'enemy', x: 1, y: 0, facing: 3, stats: { hp: 30, str: 10, mag: 0, skl: 10, spd: 10, lck: 20, def: 5, res: 5 } });
     eq('平地命中基线 = 72', Combat.hitChance(mkAtk(), mkDef(), FLAT), 72);
     eq('高打低命中 +15 = 87', Combat.hitChance(mkAtk(), mkDef(), HIGH_CTX), 87);
     eq('低打高命中 -15 = 57', Combat.hitChance(mkAtk(), mkDef(), LOW_CTX), 57);
@@ -2792,6 +2792,75 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     const evHigh = Combat.resolve(atk2, def2, R_HIGH);
     ok('高打低 2 格出手成立', evHigh.length === 1 && evHigh[0].type === 'strike');
     ok('高打低命中生效（扣血）', evHigh[0].hit === true && evHigh[0].dmg > 0);
+  }
+
+  console.log('\n== 40. 背侧判定（二期：facing 上右下左） ==');
+  {
+    const BS_HIT = vm.runInContext('BACKSTAB_HIT', ctx);
+    const BS_CRIT = vm.runInContext('BACKSTAB_CRIT', ctx);
+    const SD_HIT = vm.runInContext('SIDE_HIT', ctx);
+    const SD_CRIT = vm.runInContext('SIDE_CRIT', ctx);
+    eq('常量：背刺命中 +15', BS_HIT, 15);
+    eq('常量：背刺暴击 +20', BS_CRIT, 20);
+    eq('常量：侧击命中 +5', SD_HIT, 5);
+    eq('常量：侧击暴击 +10', SD_CRIT, 10);
+
+    /* facingOf 回退：我军朝北 / 敌军朝南，显式 facing 优先 */
+    eq('facingOf：我军缺省朝北', Combat.facingOf(mkUnit()), 0);
+    eq('facingOf：敌军缺省朝南', Combat.facingOf(mkUnit({ side: 'enemy' })), 2);
+    eq('facingOf：显式 facing 优先', Combat.facingOf(mkUnit({ facing: 1 })), 1);
+
+    /* 几何：攻方 (0,0) 在守方 (1,0) 正西。攻方相对守方的方向为正西。
+     * 守方面西 = 正面；朝东 = 背刺（180°）；朝北/朝南 = 侧击（90°）。 */
+    eq('facingAngle：守方面向攻方 = 0', Combat.facingAngle(mkUnit(), mkUnit({ side: 'enemy', x: 1, y: 0, facing: 3 })), 0);
+    ok('facingAngle：守方背对攻方 ≈ π', Math.abs(Combat.facingAngle(mkUnit(), mkUnit({ side: 'enemy', x: 1, y: 0, facing: 1 })) - Math.PI) < 1e-9);
+    ok('facingAngle：守方垂直攻方 = π/2', Math.abs(Combat.facingAngle(mkUnit(), mkUnit({ side: 'enemy', x: 1, y: 0, facing: 0 })) - Math.PI / 2) < 1e-9);
+
+    /* backstabMod 三级 */
+    const bsFront = Combat.backstabMod(mkUnit(), mkUnit({ side: 'enemy', x: 1, y: 0, facing: 3 }));
+    ok('背侧：正面无修正', bsFront.hit === 0 && bsFront.crit === 0 && bsFront.state === 'front' && bsFront.text === '');
+    const bsBack = Combat.backstabMod(mkUnit(), mkUnit({ side: 'enemy', x: 1, y: 0, facing: 1 }));
+    ok('背侧：背刺 +15/+20', bsBack.hit === 15 && bsBack.crit === 20 && bsBack.state === 'back' && bsBack.text === '背刺');
+    const bsSide = Combat.backstabMod(mkUnit(), mkUnit({ side: 'enemy', x: 1, y: 0, facing: 0 }));
+    ok('背侧：侧击 +5/+10', bsSide.hit === 5 && bsSide.crit === 10 && bsSide.state === 'side' && bsSide.text === '侧击');
+    const bsSide2 = Combat.backstabMod(mkUnit(), mkUnit({ side: 'enemy', x: 1, y: 0, facing: 2 }));
+    ok('背侧：另一侧同为侧击', bsSide2.state === 'side');
+
+    /* 命中/暴击公式：铁剑基线命中 87、暴击 5；侧击 92/15；背刺 100（钳）/25 */
+    const mkAtk2 = () => give(mkUnit({ x: 0, y: 0 }), 'iron_sword');
+    const mkDefF = (f) => mkUnit({ side: 'enemy', x: 1, y: 0, facing: f });
+    eq('命中：正面 87', Combat.hitChance(mkAtk2(), mkDefF(3), FLAT), 87);
+    eq('命中：侧击 92（+5）', Combat.hitChance(mkAtk2(), mkDefF(0), FLAT), 92);
+    eq('命中：背刺 100（+15 钳顶）', Combat.hitChance(mkAtk2(), mkDefF(1), FLAT), 100);
+    eq('暴击：正面 0', Combat.critChance(mkAtk2(), mkDefF(3), FLAT), 0);
+    eq('暴击：侧击 10（+10）', Combat.critChance(mkAtk2(), mkDefF(0), FLAT), 10);
+    eq('暴击：背刺 20（+20）', Combat.critChance(mkAtk2(), mkDefF(1), FLAT), 20);
+
+    /* 背侧不动伤害：三种朝向伤害一致 */
+    const dFront = Combat.damage(mkAtk2(), mkDefF(3), FLAT);
+    const dBack = Combat.damage(mkAtk2(), mkDefF(1), FLAT);
+    eq('伤害：背刺不改变伤害', dFront, dBack);
+
+    /* 预测字段：backstab / backstabCounter */
+    const fBack = Combat.forecast(mkAtk2(), mkDefF(1), FLAT);
+    ok('预测：backstab 背刺', fBack.backstab.state === 'back' && fBack.backstab.text === '背刺');
+    eq('预测：攻方命中含背刺 = 100', fBack.attacker.hit, 100);
+    eq('预测：攻方暴击含背刺 = 20', fBack.attacker.crit, 20);
+    /* 守方 (1,0) 面东（背对攻方），反击时打 (0,0) 朝北的攻方 = 侧击 */
+    ok('预测：backstabCounter 侧击', fBack.backstabCounter.state === 'side');
+
+    /* 法术刻意不吃背侧：同 cast 同目标，命中与朝向无关 */
+    const spell = SPELLS.fire || Object.values(SPELLS)[0];
+    const sFront = Combat.spellAttack(mkUnit({ x: 0, y: 0, stats: { hp: 30, str: 0, mag: 10, skl: 10, spd: 10, lck: 5, def: 5, res: 5 } }), mkDefF(3), spell, FLAT);
+    const sBack = Combat.spellAttack(mkUnit({ x: 0, y: 0, stats: { hp: 30, str: 0, mag: 10, skl: 10, spd: 10, lck: 5, def: 5, res: 5 } }), mkDefF(1), spell, FLAT);
+    eq('法术命中不随朝向变化', sFront.hit, sBack.hit);
+
+    /* resolve 端到端：背刺必中扣血（不暴击的假 rng） */
+    const RNG_BACK = { hitRoll: () => 0, next: () => 0.99 };
+    const R_CTX = Object.assign({}, FLAT, { rng: RNG_BACK });
+    const evBack = Combat.resolve(give(mkUnit({ x: 0, y: 0 }), 'iron_sword'),
+      mkUnit({ side: 'enemy', x: 1, y: 0, facing: 1, stats: { hp: 40, str: 10, mag: 0, skl: 10, spd: 10, lck: 5, def: 5, res: 5 } }), R_CTX);
+    ok('resolve：背刺命中成立（扣血）', evBack.length === 1 && evBack[0].hit === true && evBack[0].dmg > 0);
   }
 
   console.log('\n----------------------------------------');

@@ -157,7 +157,7 @@ function mkUnit(over) {
 }
 const ctx0 = { mods: () => ({}), tileAt: () => TERRAIN['.'] };
 const a = mkUnit();
-const b = mkUnit({ id: 'u2', name: '敌', side: 'enemy', x: 1, y: 0, items: [{ key: 'iron_sword', uses: 35 }] });
+const b = mkUnit({ id: 'u2', name: '敌', side: 'enemy', x: 1, y: 0, facing: 3, items: [{ key: 'iron_sword', uses: 35 }] });
 eq(Combat.attackSpeed(a), 7, '攻速');
 eq(Combat.damage(a, b, ctx0), 10, '基础伤害');
 eq(Combat.hitChance(a, b, ctx0), 93, '基础命中');
@@ -184,7 +184,7 @@ ok(Combat.isEffective(talis, armored), '灵符对披甲特效');
 
 RNG.setSeed(12345);
 const seqA = mkUnit({ stats: { hp: 50, str: 12, mag: 0, skl: 15, spd: 15, lck: 10, def: 8, res: 3 }, items: [{ key: 'iron_sword', uses: 35 }] });
-const seqB = mkUnit({ id: 'u2', name: '敌', side: 'enemy', x: 1, y: 0, stats: { hp: 50, str: 8, mag: 0, skl: 5, spd: 5, lck: 0, def: 5, res: 2 }, items: [{ key: 'iron_blade', uses: 30 }] });
+const seqB = mkUnit({ id: 'u2', name: '敌', side: 'enemy', x: 1, y: 0, facing: 3, stats: { hp: 50, str: 8, mag: 0, skl: 5, spd: 5, lck: 0, def: 5, res: 2 }, items: [{ key: 'iron_blade', uses: 30 }] });
 const ev = Combat.resolve(seqA, seqB, { mods: () => ({}), tileAt: () => TERRAIN['.'], rng: RNG });
 ok(ev.length >= 2, '交战产生事件');
 ok(ev.some(e => e.type === 'strike' && e.hit), '存在命中事件');
@@ -194,7 +194,7 @@ eq(seqA.items[0].uses, 35 - ev.filter(e => e.type === 'strike' && e.attacker ===
 ok(seqB.items[0].uses < 30, '守方反击消耗耐久');
 
 const breaker = mkUnit({ items: [{ key: 'iron_sword', uses: 1 }] });
-const dummy = mkUnit({ id: 'u2', name: '木桩', side: 'enemy', x: 1, y: 0, items: [{ key: 'iron_blade', uses: 30 }], stats: { hp: 99, str: 0, mag: 0, skl: 0, spd: 0, lck: 0, def: 0, res: 0 } });
+const dummy = mkUnit({ id: 'u2', name: '木桩', side: 'enemy', x: 1, y: 0, facing: 3, items: [{ key: 'iron_blade', uses: 30 }], stats: { hp: 99, str: 0, mag: 0, skl: 0, spd: 0, lck: 0, def: 0, res: 0 } });
 RNG.setSeed(99);
 Combat.resolve(breaker, dummy, { mods: () => ({}), tileAt: () => TERRAIN['.'], rng: RNG });
 ok(breaker.weaponBroken, '武器耐久归零');
@@ -337,6 +337,31 @@ eq(Combat.heightMod(hctx, 0, 0, 1, 0).hit, 15, '高 2 层打低命中 +15');
 eq(Combat.heightMod(hctx, 1, 0, 0, 0).hit, -15, '低打高 2 层命中 -15');
 eq(Combat.heightMod(ctx0, 0, 0, 1, 0).hit, 0, '无 heightAt 无修正');
 
+console.log('—— 背侧判定（二期）——');
+/* facing 上右下左；几何：攻方 (0,0) 在守方 (1,0) 正西 */
+const mkFace = (f) => mkUnit({ id: 'u3', name: '敌', side: 'enemy', x: 1, y: 0, facing: f });
+eq(Combat.facingOf(a), 0, '我军缺省朝北');
+eq(Combat.facingOf(mkUnit({ side: 'enemy' })), 2, '敌军缺省朝南');
+const bsF = Combat.backstabMod(a, mkFace(3));
+ok(bsF.state === 'front' && bsF.hit === 0 && bsF.crit === 0, '守方面向攻方 = 正面无修正');
+const bsB = Combat.backstabMod(a, mkFace(1));
+ok(bsB.state === 'back' && bsB.hit === 15 && bsB.crit === 20, '守方背对攻方 = 背刺 +15/+20');
+const bsS = Combat.backstabMod(a, mkFace(0));
+ok(bsS.state === 'side' && bsS.hit === 5 && bsS.crit === 10, '守方垂直攻方 = 侧击 +5/+10');
+eq(Combat.hitChance(a, mkFace(3), ctx0), 93, '正面命中基线 93');
+eq(Combat.hitChance(a, mkFace(0), ctx0), 98, '侧击命中 +5');
+eq(Combat.hitChance(a, mkFace(1), ctx0), 100, '背刺命中 +15（钳顶）');
+eq(Combat.critChance(a, mkFace(3), ctx0), 0, '正面暴击基线 0');
+eq(Combat.critChance(a, mkFace(0), ctx0), 10, '侧击暴击 +10');
+eq(Combat.critChance(a, mkFace(1), ctx0), 20, '背刺暴击 +20');
+eq(Combat.damage(a, mkFace(1), ctx0), Combat.damage(a, mkFace(3), ctx0), '背刺不改变伤害');
+/* 法术刻意不吃背侧 */
+const sp0 = SPELLS.fire || Object.values(SPELLS)[0];
+const mage = mkUnit({ cls: 'talisman', stats: { hp: 30, str: 0, mag: 12, skl: 10, spd: 10, lck: 5, def: 5, res: 8 } });
+eq(Combat.spellAttack(mage, mkFace(3), sp0, ctx0).hit, Combat.spellAttack(mage, mkFace(1), sp0, ctx0).hit, '法术命中不随朝向变化');
+const fBack = Combat.forecast(a, mkFace(1), ctx0);
+ok(fBack.backstab.state === 'back' && fBack.backstabCounter.state === 'side', '预测带背刺与反击背刺字段');
+
 console.log('\n结果：' + __pass + ' 通过，' + __fail + ' 失败');
 if (__fail) process.exitCode = 1;
 `;
@@ -374,6 +399,19 @@ hok(uiSrc.indexOf('高地（命中 +15') >= 0, 'ui.js 预测有高地标签');
 hok((mapsSrc.match(/height: \[/g) || []).length >= 2, 'data-maps.js 至少 2 章 height 层');
 console.log(hf === 0 ? '✓ 高低地形差：静态断言通过' : '✗ 高低地形差静态断言有 ' + hf + ' 条失败');
 if (hf) process.exitCode = 1;
+
+/* ---------- 背侧判定：静态断言 ---------- */
+let bf = 0;
+const bok = (c, m) => { if (c) console.log('  ✓ ' + m); else { bf++; console.error('  ✗ ' + m); } };
+bok(combatSrc.indexOf('BACKSTAB_HIT') >= 0 && combatSrc.indexOf('BACKSTAB_CRIT') >= 0, 'combat.js 背刺常量接 data-systems');
+bok(combatSrc.indexOf('SIDE_HIT') >= 0 && combatSrc.indexOf('SIDE_CRIT') >= 0, 'combat.js 侧击常量');
+bok(combatSrc.indexOf('backstabMod(attacker, defender)') >= 0, 'combat.js 有背侧修正函数');
+bok(battleSrc.indexOf('facingFromDelta') >= 0 && battleSrc.indexOf('faceToward') >= 0, 'battle.js 移动/出手更新 facing');
+bok(battleSrc.indexOf('facing: 0,') >= 0 && battleSrc.indexOf('facing: 2,') >= 0, 'battle.js 我军朝北/敌军朝南默认朝向');
+bok(renderSrc.indexOf('facingOf(u)') >= 0, 'render.js 有朝向尖角标记');
+bok(uiSrc.indexOf('背刺（命中 +15') >= 0 && uiSrc.indexOf('侧击（命中 +5') >= 0, 'ui.js 预测有背刺/侧击标签');
+console.log(bf === 0 ? '✓ 背侧判定：静态断言通过' : '✗ 背侧判定静态断言有 ' + bf + ' 条失败');
+if (bf) process.exitCode = 1;
 
 /* ---------- 音频架构：静态断言 + fake DOM 行为测试 ---------- */
 const audioSrc = fs.readFileSync(path.join(root, 'js/audio.js'), 'utf8');

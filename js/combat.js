@@ -8,6 +8,7 @@
  *   暴击 = 武器暴击 + floor(技巧/2) + 加成 - 敌幸运 - 敌暴击回避
  *   攻速差 ≥4 追击；命中 2RN，暴击 1RN，暴击伤害 ×3。
  *   高低地形差：高打低命中 +15 / 射程上限 +1，低打高命中 -15（常量见 data-systems.js）。
+ *   背侧判定：背刺（180°±45°）命中 +15 / 暴击 +20，侧击（90°±45°）+5 / +10，正面无。
  * ============================================================ */
 const Combat = {
   zeroMods() {
@@ -41,6 +42,34 @@ const Combat = {
     if (diff > 0) return { hit: HEIGHT_HIT_HIGH, rng: HEIGHT_RANGE_BONUS, diff };
     if (diff < 0) return { hit: HEIGHT_HIT_LOW, rng: 0, diff };
     return { hit: 0, rng: 0, diff: 0 };
+  },
+
+  /* ---------------- 背侧判定（二期） ----------------
+   * facing：0 上 / 1 右 / 2 下 / 3 左。单位缺 facing（旧存档）时我军默认朝北、
+   * 敌军默认朝南——开局隔空相向，先手互殴都是正面，不白送背刺。
+   * 返回弧度制朝向角（0 = 正面对峙，π = 背对）。 */
+  facingOf(unit) {
+    const f = unit && unit.facing;
+    if (f === FACING_UP || f === FACING_RIGHT || f === FACING_DOWN || f === FACING_LEFT) return f;
+    return (unit && unit.side === 'enemy') ? FACING_DOWN : FACING_UP;
+  },
+
+  facingAngle(attacker, defender) {
+    const atk = Math.atan2(attacker.y - defender.y, attacker.x - defender.x);
+    const dirs = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];   // 上右下左
+    let diff = atk - dirs[this.facingOf(defender)];
+    while (diff <= -Math.PI) diff += Math.PI * 2;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    return Math.abs(diff);
+  },
+
+  /* 背刺/侧击修正（纯函数）：{ hit, crit, state, text }。
+   * 背刺 180°±45°：命中 +15 / 暴击 +20；侧击 90°±45°：+5 / +10；正面无。 */
+  backstabMod(attacker, defender) {
+    const ang = this.facingAngle(attacker, defender);
+    if (ang >= Math.PI * 0.75) return { hit: BACKSTAB_HIT, crit: BACKSTAB_CRIT, state: 'back', text: '背刺' };
+    if (ang >= Math.PI * 0.25) return { hit: SIDE_HIT, crit: SIDE_CRIT, state: 'side', text: '侧击' };
+    return { hit: 0, crit: 0, state: 'front', text: '' };
   },
 
   weaponOf(unit) {
@@ -269,7 +298,9 @@ const Combat = {
     const pm = this.weaponPlusMods(w.item.plus);
     /* 高低地形差：高打低 +15 / 低打高 -15 命中（等高无） */
     const hm = this.heightMod(ctx, attacker.x, attacker.y, defender.x, defender.y);
-    let hit = (w.w.hit || 0) + (attacker.stats.skl || 0) * 2 + Math.floor((attacker.stats.lck || 0) / 2) + tri.hit + am.hit + pm.hit + hm.hit;
+    /* 背侧判定：背刺 +15 / 侧击 +5 命中（正面无） */
+    const bs = this.backstabMod(attacker, defender);
+    let hit = (w.w.hit || 0) + (attacker.stats.skl || 0) * 2 + Math.floor((attacker.stats.lck || 0) / 2) + tri.hit + am.hit + pm.hit + hm.hit + bs.hit;
     let avoid = this.attackSpeed(defender) * 2 + (defender.stats.lck || 0) + (tile.avoid || 0) + dm.avoid;
     return Math.max(0, Math.min(100, Math.round(hit - avoid)));
   },
@@ -280,7 +311,9 @@ const Combat = {
     const am = this.modsOf(ctx, attacker, defender, initiating);
     const dm = this.modsOf(ctx, defender, attacker, false);
     const pm = this.weaponPlusMods(w.item.plus);
-    let crit = (w.w.crit || 0) + Math.floor((attacker.stats.skl || 0) / 2) + am.crit + pm.crit;
+    /* 背侧判定：背刺 +20 / 侧击 +10 暴击（正面无） */
+    const bs = this.backstabMod(attacker, defender);
+    let crit = (w.w.crit || 0) + Math.floor((attacker.stats.skl || 0) / 2) + am.crit + pm.crit + bs.crit;
     crit -= (defender.stats.lck || 0) + dm.critAvoid;
     return Math.max(0, Math.min(100, Math.round(crit)));
   },
@@ -319,10 +352,13 @@ const Combat = {
     const hm = this.heightMod(ctx, attacker.x, attacker.y, defender.x, defender.y);
     const canHit = !!w && dist >= w.w.rng[0] && dist <= w.w.rng[1] + hm.rng;
     const counter = this.canCounter(defender, attacker, ctx);
+    const bs = this.backstabMod(attacker, defender);
     const out = {
       distance: dist,
       canHit,
       height: { diff: hm.diff, high: hm.diff > 0, low: hm.diff < 0 },
+      backstab: bs,
+      backstabCounter: this.backstabMod(defender, attacker),
       triangle: this.triangle(attacker, defender),
       effective: this.isEffective(attacker, defender),
       counterEffective: counter ? this.isEffective(defender, attacker) : false,

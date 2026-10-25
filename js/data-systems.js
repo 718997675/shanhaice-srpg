@@ -364,6 +364,19 @@ const HEIGHT_HIT_HIGH = 15;      // 高打低命中加成
 const HEIGHT_HIT_LOW = -15;      // 低打高命中惩罚
 const HEIGHT_RANGE_BONUS = 1;    // 高打低射程上限加成
 
+/* ---------------- 背侧判定（二期）----------------
+ * 单位 facing：0 上 / 1 右 / 2 下 / 3 左（移动收尾与出手时更新）。
+ * 以「进攻方出手方向与防守方朝向的夹角」分级：
+ *   背刺 180°±45°：命中 +BACKSTAB_HIT、暴击 +BACKSTAB_CRIT；
+ *   侧击  90°±45°：命中 +SIDE_HIT、暴击 +SIDE_CRIT；
+ *   正面（<45°）无修正。只影响命中/暴击，不动伤害。
+ * P1 不做 AI 主动绕背；facing 由移动与攻击自然更新。 */
+const FACING_UP = 0, FACING_RIGHT = 1, FACING_DOWN = 2, FACING_LEFT = 3;
+const BACKSTAB_HIT = 15;         // 背刺命中加成
+const BACKSTAB_CRIT = 20;        // 背刺暴击加成
+const SIDE_HIT = 5;              // 侧击命中加成
+const SIDE_CRIT = 10;            // 侧击暴击加成
+
 /* ---------------- 武器进化树（P2.3） ----------------
  * 同型兵装逐级进化：铁 → 钢 → 银/名器。规则在 systems/smith.js：
  *   进化后保留强化等级（+N 随兵装走）、耐久刷满、装备位不变；

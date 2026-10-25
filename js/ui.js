@@ -395,6 +395,13 @@ const UI = {
       /* 高低地形差（二期）：居高临下命中 +15、射程 +1；仰攻命中 -15 */
       if (f.height && f.height.high) tags.push('<span class="tri-good">高地（命中 +15 · 射程 +1）</span>');
       if (f.height && f.height.low) tags.push('<span class="tri-bad">低地（命中 -15）</span>');
+      /* 背侧判定（二期）：背刺命中 +15 / 暴击 +20；侧击 +5 / +10 */
+      if (f.backstab && f.backstab.state === 'back') tags.push('<span class="tri-good">背刺（命中 +15 · 暴击 +20）</span>');
+      if (f.backstab && f.backstab.state === 'side') tags.push('<span class="tri-good">侧击（命中 +5 · 暴击 +10）</span>');
+      if (f.defender.canCounter && f.backstabCounter &&
+          (f.backstabCounter.state === 'back' || f.backstabCounter.state === 'side')) {
+        tags.push('<span class="tri-bad">敌方反击' + this.escape(f.backstabCounter.text) + '</span>');
+      }
       if (f.attacker.double) tags.push('我方追击');
       if (f.defender.canCounter) tags.push('敌方反击');
       if (f.defender.double) tags.push('敌方追击');

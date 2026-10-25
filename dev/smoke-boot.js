@@ -1618,5 +1618,59 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     console.log('渲染抬升：tileCenter/tileXY/toTile 高度一致，均通过');
   }
 
+  /* 背侧判定（二期）：默认朝向 / facingFromDelta / faceToward / 命中暴击修正 */
+  {
+    const { Battle, Combat } = vm.runInContext('({ Battle, Combat })', ctx);
+    /* 重开第 1 章拿干净状态（前文测试已让单位出过手，facing 被转向改过） */
+    await Battle.start({ chapterId: 1, campaign: camp, deployedIds: ['yunce', 'luming'] });
+    const B = Battle.B;
+    /* 1) 默认朝向：我军朝北（0）、敌军朝南（2）——开局隔空相向不白送背刺 */
+    const p0 = B.units.find(x => x.side === 'player');
+    const e0 = B.units.find(x => x.side === 'enemy');
+    if (!p0 || p0.facing !== 0) throw new Error('我军默认朝向应为朝北');
+    if (!e0 || e0.facing !== 2) throw new Error('敌军默认朝向应为朝南');
+    /* 2) facingFromDelta：四向 + 斜向按主轴（先横后竖） */
+    if (Battle.facingFromDelta(0, -1) !== 0 || Battle.facingFromDelta(1, 0) !== 1 ||
+        Battle.facingFromDelta(0, 1) !== 2 || Battle.facingFromDelta(-1, 0) !== 3) {
+      throw new Error('facingFromDelta 四向错误');
+    }
+    if (Battle.facingFromDelta(1, -1) !== 1 || Battle.facingFromDelta(-1, 1) !== 3) {
+      throw new Error('facingFromDelta 斜向应按横轴取');
+    }
+    /* 3) 出手转向 + 预测字段：木桩 (1,0) 面东（背对西侧攻方）= 背刺 */
+    const atk = B.units.find(x => x.side === 'player' && x.hp > 0);
+    if (!atk) throw new Error('找不到我方单位');
+    const free = (x, y) => !B.units.some(t => t.hp > 0 && t.x === x && t.y === y);
+    if (!free(0, 0) || !free(1, 0)) throw new Error('背侧摆位格被占用');
+    const foe = { id: 'duB', name: '木桩五', side: 'enemy', charId: null, hp: 999, x: 1, y: 0, facing: 1,
+      stats: { hp: 999, str: 1, mag: 0, skl: 0, spd: 0, lck: 0, def: 1, res: 1 },
+      items: [], weaponIndex: -1, ranks: {}, statuses: {}, tags: ['human'],
+      hasMoved: false, movedDist: 0, moveUsed: 0, attacked: false };
+    B.units.push(foe);
+    const oldX = atk.x, oldY = atk.y, oldItems = atk.items, oldIdx = atk.weaponIndex;
+    atk.items = [{ key: 'iron_sword', uses: 20 }]; atk.weaponIndex = 0;
+    atk.x = 0; atk.y = 0;
+    const ctx0 = Battle.combatCtx();
+    const fBack = Combat.forecast(atk, foe, ctx0);
+    console.log('背刺预测：backstab =', fBack.backstab.text || fBack.backstab.state,
+      '；命中', fBack.attacker.hit, '/ 暴击', fBack.attacker.crit);
+    if (fBack.backstab.state !== 'back' || fBack.backstab.hit !== 15 || fBack.backstab.crit !== 20) {
+      throw new Error('背刺修正未进预测');
+    }
+    /* 守方面向西 = 正面：暴击差应为背刺的 +20（命中可能撞 100 钳顶，不比） */
+    const critBack = Combat.critChance(atk, foe, ctx0, true);
+    foe.facing = 3;
+    const critFront = Combat.critChance(atk, foe, ctx0, true);
+    console.log('暴击：正面', critFront, '→ 背刺', critBack, '（差', critBack - critFront + '）');
+    if (critBack - critFront !== 20) throw new Error('背刺暴击 +20 未生效');
+    /* faceToward：攻方出手后应面向目标（朝东） */
+    Battle.faceToward(atk, foe.x, foe.y);
+    if (atk.facing !== 1) throw new Error('faceToward 未把攻方转向目标');
+    /* 还原现场 */
+    atk.x = oldX; atk.y = oldY; atk.items = oldItems; atk.weaponIndex = oldIdx;
+    B.units = B.units.filter(u => u.id !== 'duB');
+    console.log('背侧判定：默认朝向 / 四向换算 / 出手转向 / 背刺修正，均通过');
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

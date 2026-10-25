@@ -200,6 +200,7 @@ const Battle = {
       movedDist: 0,
       moveUsed: 0,
       attacked: false,
+      facing: 0,               // 二期背侧判定：我军默认朝北（面向敌军来向）
       statuses: {},
       escaped: false,
       recruitable: false,
@@ -242,6 +243,7 @@ const Battle = {
         movedDist: 0,
         moveUsed: 0,
         attacked: false,
+        facing: 2,             // 二期背侧判定：敌军默认朝南（面向玩家来向）
         statuses: {},
         escaped: false,
         recruitable: !!spec.recruitable,
@@ -288,6 +290,7 @@ const Battle = {
       movedDist: 0,
       moveUsed: 0,
       attacked: false,
+      facing: 2,               // 二期背侧判定：敌军默认朝南（面向玩家来向）
       statuses: {},
       escaped: false,
       recruitable: false,
@@ -390,6 +393,22 @@ const Battle = {
   heightAt(x, y) {
     if (!this.B || !this.B.height || y < 0 || y >= 8 || x < 0 || x >= 16) return 0;
     return this.B.height[y][x] || 0;
+  },
+
+  /* 朝向（二期背侧判定）：位移向量 → facing（0 上 / 1 右 / 2 下 / 3 左）。
+   * 斜向移动按主轴取（先横后竖的平局规则固定，保证可复现）。 */
+  facingFromDelta(dx, dy) {
+    if (dx > 0) return 1;
+    if (dx < 0) return 3;
+    if (dy > 0) return 2;
+    if (dy < 0) return 0;
+    return 2;   // 无位移：默认朝下
+  },
+
+  /* 出手时面向目标（背刺判定的防守方朝向由此自然形成） */
+  faceToward(unit, tx, ty) {
+    if (!unit) return;
+    unit.facing = this.facingFromDelta(tx - unit.x, ty - unit.y);
   },
 
   /* 武器射程判定（含高低差）：高打低射程上限 +1。攻击/连携候选筛选统一走这里。 */
@@ -1444,6 +1463,12 @@ const Battle = {
     B.busy = true;
     UI.hideActionBar();
     B.mode = 'action';
+    /* 朝向（二期背侧判定）：按移动最后一步转向；原地不动不改朝向 */
+    const finalPath = slide ? slide.path : path;
+    if (finalPath.length >= 2) {
+      const a = finalPath[finalPath.length - 2], b2 = finalPath[finalPath.length - 1];
+      u.facing = this.facingFromDelta(b2.x - a.x, b2.y - a.y);
+    }
     u.x = slide ? slide.x : x;
     u.y = slide ? slide.y : y;
     u.hasMoved = path.length > 1 || u.x !== B.origin.x || u.y !== B.origin.y;
@@ -1803,6 +1828,8 @@ const Battle = {
     if (!w) return false;
     B.busy = true;
     UI.hideActionBar();
+    /* 出手时面向目标（二期背侧判定：连携一击同样转向） */
+    this.faceToward(ally, target.x, target.y);
     const hitRate = Combat.hitChance(ally, target, ctx, true);
     const critRate = Combat.critChance(ally, target, ctx, true);
     const roll = (ctx.rng && ctx.rng.hitRoll) ? ctx.rng.hitRoll() : 0;
@@ -2507,6 +2534,8 @@ const Battle = {
         : (aw0.w.type === 'dagger') ? 'swing_sharp' : 'swing_light';
       Audio.sfx(swing);
     }
+    /* 出手时面向目标（二期背侧判定）：攻击方转向，防守方朝向不变 */
+    this.faceToward(attacker, defender.x, defender.y);
     const events = Combat.resolve(attacker, defender, ctx);
     /* 横版战斗演出（P4.4）：有立绘/图标且设置开着就切横版画面，
      * 否则走原来的棋盘冲斩。公式不进来——ev 全是结算结果。 */
