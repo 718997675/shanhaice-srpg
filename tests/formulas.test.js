@@ -1421,6 +1421,141 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     ok('坚守消耗指挥次数', fakeK.B.commandUsed === true);
   }
 
+  console.log('\n== 23. 转职分支（P2.1） ==');
+  {
+    const { CLASSES, RANK_ORDER } = vm.runInContext('({ CLASSES, RANK_ORDER })', ctx);
+    const { Battle } = vm.runInContext('({ Battle })', ctx);
+    const bases = Object.keys(CLASSES).filter(k => CLASSES[k].tier === 1);
+    eq('基础职业 12 个', bases.length, 12);
+    const noBranch = bases.filter(k => !(Array.isArray(CLASSES[k].promotes) && CLASSES[k].promotes.length === 2));
+    eq('每个基础职业都有 2 条转职线', noBranch.join(',') || '无', '无');
+    const badTarget = [];
+    const seen = new Set();
+    const dup = [];
+    for (const k of bases) {
+      for (const t of CLASSES[k].promotes || []) {
+        const c = CLASSES[t];
+        if (!c || c.tier !== 2 || !c.name || !c.skill || !c.skill.name || !c.skill.desc) badTarget.push(k + '→' + t);
+        if (seen.has(t)) dup.push(t);
+        seen.add(t);
+      }
+      if (CLASSES[k].promote !== CLASSES[k].promotes[0]) badTarget.push(k + ' promote 与 promotes[0] 不一致');
+    }
+    eq('转职目标都是合法二阶职业', badTarget.join(',') || '无', '无');
+    eq('二阶职业不重复挂两条线', dup.join(',') || '无', '无');
+    eq('二阶职业总数 24', Object.keys(CLASSES).filter(k => CLASSES[k].tier === 2).length, 24);
+
+    /* 新分支的职业技必须真进 modsFor */
+    const fake = Object.create(Battle);
+    const armorFoe = mkUnit({ id: 'fa', side: 'enemy', x: 1, y: 0, tags: ['human', 'armor'] });
+    const flyFoe = mkUnit({ id: 'ff', side: 'enemy', x: 1, y: 0, tags: ['flying'] });
+    const plainFoe = mkUnit({ id: 'fp', side: 'enemy', x: 1, y: 0 });
+    const mk = (cls, extra) => mkUnit(Object.assign({ cls: cls }, extra || {}));
+    const only = u => { fake.B = { units: [u], nodes: [], supports: {} }; return u; };
+
+    const rift = only(mk('riftblade'));
+    eq('裂阵剑士：对披甲命中 +15', Battle.modsFor.call(fake, rift, armorFoe).hit, 15);
+    eq('裂阵剑士：威力 +2', Battle.modsFor.call(fake, rift, plainFoe).dmg, 2);
+
+    const breaker = only(mk('mountainbreaker', { hp: 10 }));
+    eq('裂山斧王：半血护甲 +3', Battle.modsFor.call(fake, breaker, plainFoe).def, 3);
+    eq('裂山斧王：威力 +3', Battle.modsFor.call(fake, breaker, plainFoe).dmg, 3);
+
+    const needler = mk('needler', { x: 3, y: 3 });
+    const buddy = mk('zzz', { id: 'bud', x: 4, y: 3 });
+    fake.B = { units: [needler, buddy], nodes: [], supports: {} };
+    eq('金针医：相邻友军命中 +8', Battle.modsFor.call(fake, buddy, null).hit, 8);
+    eq('金针医：自身治疗 +4', Battle.modsFor.call(fake, needler, null).healBonus, 4);
+
+    const volley = only(mk('volleyarcher'));
+    eq('连珠射手：暴击 +12', Battle.modsFor.call(fake, volley, plainFoe).crit, 12);
+    eq('连珠射手：对飞行命中 +15', Battle.modsFor.call(fake, volley, flyFoe).hit, 15);
+
+    const bulwark = mk('bulwark', { x: 2, y: 2 });
+    fake.B = { units: [bulwark], nodes: [{ id: 'n', x: 2, y: 2, type: 'life', owner: 'player', active: true, tier: 1 }], supports: {} };
+    eq('铁壁枪卫：护甲 +3', Battle.modsFor.call(fake, bulwark, null).def, 3);
+    eq('铁壁枪卫：站阵眼回避 +10（+节点 10）', Battle.modsFor.call(fake, bulwark, null).avoid, 20);
+
+    const pyro = only(mk('pyromancer'));
+    eq('焚天术士：威力 +3', Battle.modsFor.call(fake, pyro, plainFoe).dmg, 3);
+    eq('焚天术士：对披甲命中 +10', Battle.modsFor.call(fake, pyro, armorFoe).hit, 10);
+
+    const face = only(mk('facestealer'));
+    eq('千面刺客：孤身回避 10+10', Battle.modsFor.call(fake, face, null).avoid, 20);
+
+    const ward = mk('wardmaster', { x: 3, y: 3 });
+    const wardBuddy = mk('zzz', { id: 'wb', x: 3, y: 4 });
+    fake.B = { units: [ward, wardBuddy], nodes: [], supports: {} };
+    eq('镇煞符师：魔抗 +3', Battle.modsFor.call(fake, ward, null).res, 3);
+    eq('镇煞符师：相邻友军回避 +8', Battle.modsFor.call(fake, wardBuddy, null).avoid, 8);
+
+    const whisper = mk('beastwhisperer', { x: 3, y: 3 });
+    const pet = { id: 'pet', side: 'player', summoned: true, hp: 10, x: 4, y: 3, stats: {}, statuses: {} };
+    fake.B = { units: [whisper, pet], nodes: [], supports: {} };
+    eq('兽语者：有召唤兽时威力 +1', Battle.modsFor.call(fake, whisper, plainFoe).dmg, 1);
+    eq('兽语者：每章召唤 3 次', whisper.cls === 'beastwhisperer' ? CLASSES.beastwhisperer.skill.summonUses : 0, 3);
+
+    const plume = mk('plumeguard', { x: 3, y: 3 });
+    const plumeBuddy = mk('zzz', { id: 'pb', x: 4, y: 3 });
+    fake.B = { units: [plume, plumeBuddy], nodes: [], supports: {} };
+    eq('翎羽卫：自身回避 +10', Battle.modsFor.call(fake, plume, null).avoid, 10);
+    eq('翎羽卫：相邻友军回避 +8', Battle.modsFor.call(fake, plumeBuddy, null).avoid, 8);
+  }
+
+  console.log('\n== 24. 武器进化树（P2.3） ==');
+  {
+    const { WEAPONS, ITEMS, WEAPON_EVOLUTIONS, RANK_ORDER, Smith } = vm.runInContext('({ WEAPONS, ITEMS, WEAPON_EVOLUTIONS, RANK_ORDER, Smith })', ctx);
+    const keys = Object.keys(WEAPON_EVOLUTIONS);
+    eq('进化树 13 条', keys.length, 13);
+    const bad = [];
+    const score = w => (w.mt || 0) * 5 + (w.hit || 0) + (w.heal || 0) * 2 + (w.crit || 0);
+    for (const k of keys) {
+      const spec = WEAPON_EVOLUTIONS[k], a = WEAPONS[k], b = WEAPONS[spec.to];
+      if (!a) { bad.push(k + ' 不存在'); continue; }
+      if (!b) { bad.push(k + '→' + spec.to + ' 不存在'); continue; }
+      if (a.type !== b.type) bad.push(k + ' 类型不同');
+      /* 阶级只降不升才算错（同阶换装允许，如骨笛→潮声这类专属线本就不进表） */
+      if (RANK_ORDER[b.rank] < RANK_ORDER[a.rank]) bad.push(k + ' 阶级下降');
+      if (score(b) <= score(a)) bad.push(k + ' 综合性能未提升');
+      if ((b.price || 0) <= (a.price || 0)) bad.push(k + ' 价格未提升');
+      if (!ITEMS[spec.mat] || ITEMS[spec.mat].kind !== 'mat') bad.push(k + ' 材料非法');
+      if (!(spec.gold > 0 && spec.n > 0)) bad.push(k + ' 费用非法');
+      if (spec.to === k) bad.push(k + ' 自环');
+      if (WEAPON_EVOLUTIONS[spec.to] && WEAPON_EVOLUTIONS[spec.to].to === k) bad.push(k + ' 双环');
+    }
+    eq('进化树数据合法', bad.join(' | ') || '无', '无');
+    ok('传说不在进化树', !keys.some(k => LEGENDARY_WEAPONS[k]));
+    ok('Boss 专属不在进化树', !keys.some(k => (WEAPONS[k].price || 0) === 0));
+    ok('角色专属不在进化树', !keys.some(k => WEAPONS[k].unique));
+
+    /* 资格：完好可进化、损坏/传说/终点不可 */
+    ok('完好兵装可进化', Smith.canEvolve('iron_sword', { key: 'iron_sword', uses: 10 }));
+    ok('损坏不可进化', !Smith.canEvolve('iron_sword', { key: 'iron_sword', uses: 0 }));
+    ok('传说不可进化', !Smith.canEvolve('lw_yunque', { key: 'lw_yunque', uses: 20 }));
+    ok('终点兵装不可进化', !Smith.canEvolve('silver_sword', { key: 'silver_sword', uses: 20 }));
+
+    /* 全流程：扣款扣料、换 key、耐久刷满、强化保留 */
+    const camp = { gold: 5000, convoy: [{ key: 'mat_iron', uses: 3 }, { key: 'mat_steel', uses: 1 }] };
+    const sword = { key: 'iron_sword', uses: 10, plus: 2 };
+    const r = Smith.evolve(camp, sword);
+    ok('进化成功', r.ok);
+    eq('进化后是钢剑', sword.key, 'steel_sword');
+    eq('耐久刷满', sword.uses, WEAPONS.steel_sword.uses);
+    eq('强化等级保留', sword.plus, 2);
+    eq('扣盘缠 400', camp.gold, 4600);
+    eq('铁髓扣 2（剩 1）', Smith.matCount(camp, 'mat_iron'), 1);
+    ok('进化结果带名称', r.name === WEAPONS.steel_sword.name && r.fromName === WEAPONS.iron_sword.name);
+
+    /* 失败分支 */
+    eq('盘缠不足', Smith.evolve({ gold: 10, convoy: [{ key: 'mat_iron', uses: 5 }] }, { key: 'iron_sword', uses: 10 }).why, 'gold');
+    eq('材料不足', Smith.evolve({ gold: 5000, convoy: [] }, { key: 'iron_sword', uses: 10 }).why, 'mat');
+    eq('损坏不可进化', Smith.evolve(camp, { key: 'steel_sword', uses: 0 }).why, 'broken');
+    eq('无下一阶', Smith.evolve(camp, { key: 'silver_sword', uses: 20 }).why, 'bad');
+    const txt = Smith.evolveText('iron_sword', 2);
+    ok('预览含箭头', txt.indexOf('→') > 0, txt);
+    ok('预览含保留强化', txt.indexOf('保留 +2') > 0, txt);
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

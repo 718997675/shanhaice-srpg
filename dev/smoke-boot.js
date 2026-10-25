@@ -490,5 +490,56 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     B.targetTiles = null; B.attackRange = null;
   }
 
+  /* P2.1 转职分支 + P2.3 武器进化 */
+  {
+    const { Smith, Camp, CLASSES, Combat } = vm.runInContext('({ Smith, Camp, CLASSES, Combat })', ctx);
+    const rec = camp.roster.find(x => x.id === 'yunce');
+    /* 12 个基础职业都应有两条转职线 */
+    const bases = Object.keys(CLASSES).filter(k => CLASSES[k].tier === 1);
+    const oneLine = bases.filter(k => (CLASSES[k].promotes || []).length !== 2);
+    console.log('基础职业', bases.length, '个；双线', bases.length - oneLine.length, '个');
+    if (bases.length !== 12 || oneLine.length) throw new Error('转职分支缺失：' + oneLine.join(','));
+    /* 云策（剑客）转职按钮应列出两条线 */
+    rec.cls = 'swordsman';
+    rec.level = 20;
+    camp.seals = Math.max(1, camp.seals || 0);
+    const branches = Camp.promoteBranches(CLASSES.swordsman);
+    console.log('剑客分支：', branches.map(b => b.name).join(' / '));
+    if (branches.length !== 2) throw new Error('剑客分支数异常');
+    const promoHTML = Camp.unitDetail(rec);
+    if (promoHTML.indexOf('剑圣 / 裂阵剑士') < 0) throw new Error('转职按钮未展示双分支');
+    console.log('转职按钮含双分支 =', true);
+    /* 武器进化：兵装行钮 → 扣费扣料 → 换 key / 刷耐久 / 留强化 */
+    camp.gold = 3000;
+    camp.convoy = [{ key: 'mat_iron', uses: 4 }];
+    rec.items = [{ key: 'iron_sword', uses: 6, plus: 2 }];
+    rec.weaponIndex = 0;
+    const evRow = Camp.itemRow.call(Camp, rec, rec.items[0], 0);
+    console.log('兵装行：含进化钮 =', evRow.indexOf('data-act="evolve"') >= 0);
+    if (evRow.indexOf('data-act="evolve"') < 0) throw new Error('兵装行缺进化钮');
+    const er = Smith.evolve(camp, rec.items[0]);
+    console.log('铁剑进化：', er.ok ? er.fromName + ' → ' + er.name : '失败 ' + er.why,
+                '；耐久', rec.items[0].uses, '；强化 +' + rec.items[0].plus,
+                '；余金', camp.gold, '；余材', Smith.matCount(camp, 'mat_iron'));
+    if (!er.ok) throw new Error('进化失败：' + er.why);
+    if (rec.items[0].key !== 'steel_sword') throw new Error('进化后 key 异常');
+    if (rec.items[0].uses !== 25) throw new Error('进化后耐久未刷满');
+    if (rec.items[0].plus !== 2) throw new Error('进化未保留强化等级');
+    if (camp.gold !== 2600 || Smith.matCount(camp, 'mat_iron') !== 2) throw new Error('进化扣费异常');
+    if (!Combat.canEquipKey(rec, 'steel_sword')) throw new Error('进化后无法装备');
+    /* 行囊行进化钮 + 三类不可进化不出钮 */
+    camp.convoy = [{ key: 'iron_bow', uses: 20, plus: 0 }, { key: 'mat_iron', uses: 2 }];
+    const detail2 = Camp.unitDetail(rec);
+    if (detail2.indexOf('data-act="evolve" data-where="convoy"') < 0) throw new Error('行囊行缺进化钮');
+    const legendRow2 = Camp.itemRow.call(Camp, rec, { key: 'lw_yunque', uses: 20 }, 0);
+    if (legendRow2.indexOf('data-act="evolve"') >= 0) throw new Error('传说兵装不应有进化钮');
+    const endRow = Camp.itemRow.call(Camp, rec, { key: 'silver_sword', uses: 20 }, 0);
+    if (endRow.indexOf('data-act="evolve"') >= 0) throw new Error('终点兵装不应有进化钮');
+    const brokenRow = Camp.itemRow.call(Camp, rec, { key: 'iron_sword', uses: 0 }, 0);
+    if (brokenRow.indexOf('data-act="evolve"') >= 0) throw new Error('损坏兵装不应有进化钮');
+    console.log('传说/终点/损坏均无进化钮 =', true);
+    camp.convoy = [];
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

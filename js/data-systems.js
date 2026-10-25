@@ -351,3 +351,26 @@ const COMMAND_SKILLS = {
 const COMMAND_VOLLEY_HIT = 15;   // 集火命中加成
 const COMMAND_HOLD_MUL = 0.8;    // 坚守减伤
 const CHAIN_RANGE = 2;           // 连携：与攻击者相距 ≤2 格
+
+/* ---------------- 武器进化树（P2.3） ----------------
+ * 同型兵装逐级进化：铁 → 钢 → 银/名器。规则在 systems/smith.js：
+ *   进化后保留强化等级（+N 随兵装走）、耐久刷满、装备位不变；
+ *   消耗盘缠 + 材料（铁髓/钢核）；传说、Boss 专属与角色专属（unique）不进表，
+ *   天然不可进化。 */
+const WEAPON_EVOLUTIONS = {
+  iron_sword: { to: 'steel_sword', gold: 400, mat: 'mat_iron', n: 2 },
+  steel_sword: { to: 'silver_sword', gold: 900, mat: 'mat_steel', n: 2 },
+  iron_blade: { to: 'steel_blade', gold: 450, mat: 'mat_iron', n: 2 },
+  steel_blade: { to: 'silver_blade', gold: 950, mat: 'mat_steel', n: 2 },
+  iron_lance: { to: 'steel_lance', gold: 420, mat: 'mat_iron', n: 2 },
+  steel_lance: { to: 'silver_lance', gold: 900, mat: 'mat_steel', n: 2 },
+  iron_bow: { to: 'steel_bow', gold: 500, mat: 'mat_iron', n: 2 },
+  steel_bow: { to: 'wind_bow', gold: 1000, mat: 'mat_steel', n: 2 },
+  ice_tome: { to: 'thunder_tome', gold: 550, mat: 'mat_iron', n: 2 },
+  thunder_tome: { to: 'frost_tome', gold: 1000, mat: 'mat_steel', n: 2 },
+  spirit_talisman: { to: 'greater_talisman', gold: 520, mat: 'mat_iron', n: 2 },
+  dagger: { to: 'shadow_dagger', gold: 800, mat: 'mat_steel', n: 2 },
+  heal_staff: { to: 'greater_heal_staff', gold: 550, mat: 'mat_iron', n: 2 }
+};
+
+if (typeof window !== 'undefined') window.WEAPON_EVOLUTIONS = WEAPON_EVOLUTIONS;

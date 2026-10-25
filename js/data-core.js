@@ -153,7 +153,8 @@ const CLASSES = {
   swordsman: {
     name: '剑客', tier: 1, moveType: 'foot', move: 5, weapons: ['sword'],
     skill: { name: '剑术精通', desc: '装备剑时命中 +10。', hit: 10, weapon: 'sword' },
-    promote: 'swordmaster', promoGain: { hp: 4, str: 2, skl: 3, spd: 3, def: 2, res: 1 },
+    promote: 'swordmaster', promotes: ['swordmaster', 'riftblade'],
+    promoGain: { hp: 4, str: 2, skl: 3, spd: 3, def: 2, res: 1 },
     promoRanks: { sword: 1 }, desc: '以快制慢，剑走轻灵。'
   },
   swordmaster: {
@@ -161,10 +162,17 @@ const CLASSES = {
     skill: { name: '剑心通明', desc: '装备剑时命中 +15、暴击 +5。', hit: 15, weapon: 'sword', crit: 5 },
     desc: '剑与心合，落叶可斩。'
   },
+  /* 剑客第二线：重击破阵 */
+  riftblade: {
+    name: '裂阵剑士', tier: 2, moveType: 'foot', move: 5, weapons: ['sword'],
+    skill: { name: '破阵', desc: '威力 +2；对披甲目标命中 +15。', dmg: 2, hitVsArmor: 15 },
+    desc: '不求快，只求一剑劈开阵脚。'
+  },
   axeman: {
     name: '重刃', tier: 1, moveType: 'armor', move: 4, weapons: ['axe'], tags: ['armor'],
     skill: { name: '坚壁', desc: '护甲 +2。', def: 2 },
-    promote: 'mountainwarden', promoGain: { hp: 6, str: 3, skl: 2, spd: 1, def: 4, res: 2 },
+    promote: 'mountainwarden', promotes: ['mountainwarden', 'mountainbreaker'],
+    promoGain: { hp: 6, str: 3, skl: 2, spd: 1, def: 4, res: 2 },
     promoRanks: { axe: 1 }, desc: '一步一山，重刃无锋。'
   },
   mountainwarden: {
@@ -172,10 +180,17 @@ const CLASSES = {
     skill: { name: '不动如山', desc: '护甲 +4，生命上限额外成长。', def: 4 },
     desc: '身受千刃，仍立于关口。'
   },
+  /* 重刃第二线：攻势 */
+  mountainbreaker: {
+    name: '裂山斧王', tier: 2, moveType: 'armor', move: 4, weapons: ['axe'], tags: ['armor'],
+    skill: { name: '裂山', desc: '威力 +3；生命低于一半时护甲 +3。', dmg: 3, defIfWounded: 3 },
+    desc: '一斧下去，山也要让路。'
+  },
   physician: {
     name: '医师', tier: 1, moveType: 'foot', move: 5, weapons: ['staff'],
     skill: { name: '仁心', desc: '杖治疗量 +5。', healBonus: 5 },
-    promote: 'sagephysician', promoGain: { hp: 3, mag: 3, skl: 2, spd: 2, def: 1, res: 3 },
+    promote: 'sagephysician', promotes: ['sagephysician', 'needler'],
+    promoGain: { hp: 3, mag: 3, skl: 2, spd: 2, def: 1, res: 3 },
     promoRanks: { staff: 1 }, desc: '一杖草木，生死之间。'
   },
   sagephysician: {
@@ -183,10 +198,17 @@ const CLASSES = {
     skill: { name: '回春妙手', desc: '杖治疗量 +8，邻近友军回避 +8。', healBonus: 8, adjacentAllyAvoid: 8 },
     desc: '针落灵枢，枯木回春。'
   },
+  /* 医师第二线：针法与助攻 */
+  needler: {
+    name: '金针医', tier: 2, moveType: 'foot', move: 5, weapons: ['staff'],
+    skill: { name: '针脉', desc: '杖治疗量 +4；相邻友军命中 +8。', healBonus: 4, adjacentAllyHit: 8 },
+    desc: '针比刀快，救人也比杀人难。'
+  },
   archer: {
     name: '弓手', tier: 1, moveType: 'foot', move: 5, weapons: ['bow'],
     skill: { name: '狙神', desc: '未移动时命中 +15。', hitIfNoMove: 15 },
-    promote: 'windranger', promoGain: { hp: 3, str: 2, skl: 3, spd: 3, def: 1, res: 2 },
+    promote: 'windranger', promotes: ['windranger', 'volleyarcher'],
+    promoGain: { hp: 3, str: 2, skl: 3, spd: 3, def: 1, res: 2 },
     promoRanks: { bow: 1 }, desc: '静如岩，发如风。'
   },
   windranger: {
@@ -194,10 +216,17 @@ const CLASSES = {
     skill: { name: '穿云', desc: '未移动时命中 +20、暴击 +10；对飞行伤害不减。', hitIfNoMove: 20, critIfNoMove: 10, hitVsFlying: 15 },
     desc: '箭出无回，云开见月。'
   },
+  /* 弓手第二线：连珠快射 */
+  volleyarcher: {
+    name: '连珠射手', tier: 2, moveType: 'foot', move: 5, weapons: ['bow'],
+    skill: { name: '连珠', desc: '暴击 +12；对飞行目标命中 +15。', crit: 12, hitVsFlying: 15 },
+    desc: '一箭未尽，第二箭已在弦上。'
+  },
   lancer: {
     name: '枪骑', tier: 1, moveType: 'horse', move: 7, weapons: ['lance'],
     skill: { name: '冲锋', desc: '移动 +1。', move: 1 },
-    promote: 'dragonrider', promoGain: { hp: 4, str: 2, skl: 2, spd: 3, def: 2, res: 2 },
+    promote: 'dragonrider', promotes: ['dragonrider', 'bulwark'],
+    promoGain: { hp: 4, str: 2, skl: 2, spd: 3, def: 2, res: 2 },
     promoRanks: { lance: 1 }, desc: '马蹄如鼓，一枪破阵。'
   },
   dragonrider: {
@@ -205,10 +234,17 @@ const CLASSES = {
     skill: { name: '游龙', desc: '移动 +1，移动 4 格以上时命中 +10。', move: 1, hitIfMoved4: 10 },
     desc: '枪走游龙，来去如潮。'
   },
+  /* 枪骑第二线：守口铁壁 */
+  bulwark: {
+    name: '铁壁枪卫', tier: 2, moveType: 'horse', move: 6, weapons: ['lance'],
+    skill: { name: '铁壁', desc: '护甲 +3；站在阵眼上时回避 +10。', def: 3, avoidOnNode: 10 },
+    desc: '枪不为攻，为的是把路堵死。'
+  },
   mage: {
     name: '术士', tier: 1, moveType: 'foot', move: 5, weapons: ['tome'],
     skill: { name: '霜寒领域', desc: '两格内敌军命中 -10。', enemyAuraHit: 10 },
-    promote: 'frostweaver', promoGain: { hp: 3, mag: 3, skl: 2, spd: 2, def: 1, res: 4 },
+    promote: 'frostweaver', promotes: ['frostweaver', 'pyromancer'],
+    promoGain: { hp: 3, mag: 3, skl: 2, spd: 2, def: 1, res: 4 },
     promoRanks: { tome: 1 }, desc: '一纸咒文，寒暑倒转。'
   },
   frostweaver: {
@@ -216,10 +252,17 @@ const CLASSES = {
     skill: { name: '寒川', desc: '两格内敌军命中 -15，命中后使其移动 -1。', enemyAuraHit: 15, movePenaltyOnHit: 1 },
     desc: '挥手成冰，河川止流。'
   },
+  /* 术士第二线：焚天重术 */
+  pyromancer: {
+    name: '焚天术士', tier: 2, moveType: 'foot', move: 5, weapons: ['tome'],
+    skill: { name: '焚天', desc: '威力 +3；对披甲目标命中 +10。', dmg: 3, hitVsArmor: 10 },
+    desc: '符纸未落，风已烫手。'
+  },
   rogue: {
     name: '刺客', tier: 1, moveType: 'foot', move: 6, weapons: ['dagger'],
     skill: { name: '致命', desc: '暴击 +10。', crit: 10 },
-    promote: 'nightblade', promoGain: { hp: 3, str: 2, skl: 3, spd: 4, def: 1, res: 2 },
+    promote: 'nightblade', promotes: ['nightblade', 'facestealer'],
+    promoGain: { hp: 3, str: 2, skl: 3, spd: 4, def: 1, res: 2 },
     promoRanks: { dagger: 1 }, desc: '影里来，影里去。'
   },
   nightblade: {
@@ -227,10 +270,17 @@ const CLASSES = {
     skill: { name: '无光', desc: '暴击 +15，回避 +5。', crit: 15, avoidFlat: 5 },
     desc: '刃不见光，命不见影。'
   },
+  /* 刺客第二线：独行游斗 */
+  facestealer: {
+    name: '千面刺客', tier: 2, moveType: 'foot', move: 7, weapons: ['dagger'],
+    skill: { name: '千面', desc: '回避 +10；周围无友军时再 +10。', avoidFlat: 10, avoidIfLone: 10 },
+    desc: '见过她脸的人，都以为是另一个人。'
+  },
   talisman: {
     name: '符师', tier: 1, moveType: 'foot', move: 5, weapons: ['talisman'],
     skill: { name: '破甲', desc: '对披甲目标命中 +20。', hitVsArmor: 20 },
-    promote: 'thundermaster', promoGain: { hp: 3, mag: 3, skl: 3, spd: 2, def: 1, res: 3 },
+    promote: 'thundermaster', promotes: ['thundermaster', 'wardmaster'],
+    promoGain: { hp: 3, mag: 3, skl: 3, spd: 2, def: 1, res: 3 },
     promoRanks: { talisman: 1 }, desc: '朱砂落纸，雷火听令。'
   },
   thundermaster: {
@@ -238,10 +288,17 @@ const CLASSES = {
     skill: { name: '五雷正法', desc: '对披甲目标命中 +20、暴击 +10。', hitVsArmor: 20, critVsArmor: 10 },
     desc: '五雷齐落，山石皆开。'
   },
+  /* 符师第二线：护符镇场 */
+  wardmaster: {
+    name: '镇煞符师', tier: 2, moveType: 'foot', move: 5, weapons: ['talisman'],
+    skill: { name: '镇煞', desc: '魔抗 +3；相邻友军回避 +8。', res: 3, adjacentAllyAvoid: 8 },
+    desc: '符不杀生，只把邪祟按在原地。'
+  },
   beastcaller: {
     name: '兽使', tier: 1, moveType: 'foot', move: 5, weapons: ['beast'],
     skill: { name: '兽群', desc: '每章一次，可召唤一只山灵狼。', summon: true },
-    promote: 'beastking', promoGain: { hp: 5, str: 3, skl: 2, spd: 2, def: 3, res: 2 },
+    promote: 'beastking', promotes: ['beastking', 'beastwhisperer'],
+    promoGain: { hp: 5, str: 3, skl: 2, spd: 2, def: 3, res: 2 },
     promoRanks: { beast: 1 }, desc: '与兽同息，山林皆友。'
   },
   beastking: {
@@ -249,16 +306,29 @@ const CLASSES = {
     skill: { name: '万兽来朝', desc: '每章一次召唤更强的山灵狼，自身护甲 +2。', summon: 2, def: 2 },
     desc: '一声长啸，群山回应。'
   },
+  /* 兽使第二线：群兽共鸣 */
+  beastwhisperer: {
+    name: '兽语者', tier: 2, moveType: 'foot', move: 5, weapons: ['beast'],
+    skill: { name: '兽语', desc: '每章三次召唤；场上每有一只召唤兽，自身伤害 +1。', summon: 1, summonUses: 3, dmgPerSummon: 1 },
+    desc: '她说话时，兽会停下来听。'
+  },
   wingman: {
     name: '羽人', tier: 1, moveType: 'flying', move: 6, weapons: ['bow', 'lance'], tags: ['flying'],
     skill: { name: '天羽', desc: '移动 +1。', move: 1 },
-    promote: 'skyranger', promoGain: { hp: 3, str: 2, skl: 3, spd: 3, def: 1, res: 2 },
+    promote: 'skyranger', promotes: ['skyranger', 'plumeguard'],
+    promoGain: { hp: 3, str: 2, skl: 3, spd: 3, def: 1, res: 2 },
     promoRanks: { bow: 1, lance: 1 }, desc: '羽落无声，越岭如风。'
   },
   skyranger: {
     name: '天羽游侠', tier: 2, moveType: 'flying', move: 7, weapons: ['bow', 'lance'], tags: ['flying'],
     skill: { name: '凌风', desc: '移动 +1，回避 +10，对飞行目标命中 +15。', move: 1, avoidFlat: 10, hitVsFlying: 15 },
     desc: '云上是她的归路。'
+  },
+  /* 羽人第二线：翎羽掩护 */
+  plumeguard: {
+    name: '翎羽卫', tier: 2, moveType: 'flying', move: 6, weapons: ['bow', 'lance'], tags: ['flying'],
+    skill: { name: '翎羽', desc: '回避 +10；相邻友军回避 +8。', avoidFlat: 10, adjacentAllyAvoid: 8 },
+    desc: '她落下时，身后的人都还站着。'
   },
   /* 召唤师线（姜姒）：武器兽骨笛只是触媒，输出靠召唤兽 */
   summoner: {

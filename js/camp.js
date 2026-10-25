@@ -116,12 +116,15 @@ const Camp = {
       const full = rec.items.length >= 5;
       const plus = WEAPONS[it.key] ? (it.plus || 0) : 0;
       const sc = Smith.canStrengthen(it.key, it) ? Smith.cost(it) : null;
+      const ev = Smith.canEvolve(it.key, it) ? Smith.evolveInfo(it.key) : null;
       return '<div class="convoy-item">' + this.weaponIconHTML(it.key, 'inv-icon sm') +
         '<span class="inv-name">' + UI.escape(def.name) +
         (plus ? ' <span class="plus-badge">+' + plus + '</span>' : '') +
         '<small style="color:#83795f;margin-left:6px;">' + (WEAPONS[it.key] ? '耐久 ' + it.uses + '/' + def.uses : '× ' + it.uses) + '</small></span>' +
         (sc ? '<button class="mini-btn" data-act="strengthen" data-where="convoy" data-i="' + i + '" title="' +
           UI.escape(ITEMS[sc.mat].name + ' ×' + sc.n + ' + ' + sc.gold + ' 盘缠') + '">强化</button>' : '') +
+        (ev ? '<button class="mini-btn gold" data-act="evolve" data-where="convoy" data-i="' + i + '" title="' +
+          UI.escape(Smith.evolveText(it.key, it.plus) + ' · ' + ITEMS[ev.mat].name + ' ×' + ev.n + ' + ' + ev.gold + ' 盘缠') + '">进化</button>' : '') +
         '<button class="mini-btn" data-act="take" data-i="' + i + '"' + (full ? ' disabled' : '') + '>携带</button></div>';
     }).join('') || '<div class="item-empty">行囊里没有多余兵装。</div>';
     const canLevel = rec.level >= PROMO_LEVEL;
@@ -164,6 +167,7 @@ const Camp = {
     const missing = w ? Math.max(0, max - it.uses) : 0;
     const cost = w ? this.repairCost(w, it) : 0;
     const sc = w && Smith.canStrengthen(it.key, it) ? Smith.cost(it) : null;
+    const ev = w && Smith.canEvolve(it.key, it) ? Smith.evolveInfo(it.key) : null;
     return '<div class="inv-item">' + this.weaponIconHTML(it.key) +
       '<span class="inv-name">' + UI.escape(w ? w.name : d.name) +
       (plus ? ' <span class="plus-badge">+' + plus + '</span>' : '') +
@@ -175,6 +179,8 @@ const Camp = {
       (w && missing > 0 ? '<button class="mini-btn" data-act="repair" data-i="' + i + '" title="修补 ' + cost + ' 盘缠">修 ' + cost + '</button>' : '') +
       (sc ? '<button class="mini-btn" data-act="strengthen" data-where="item" data-i="' + i + '" title="' +
         UI.escape(ITEMS[sc.mat].name + ' ×' + sc.n + ' + ' + sc.gold + ' 盘缠') + '">强化</button>' : '') +
+      (ev ? '<button class="mini-btn gold" data-act="evolve" data-where="item" data-i="' + i + '" title="' +
+        UI.escape(Smith.evolveText(it.key, it.plus) + ' · ' + ITEMS[ev.mat].name + ' ×' + ev.n + ' + ' + ev.gold + ' 盘缠') + '">进化</button>' : '') +
       (rec.items.length > 1 ? '<button class="mini-btn danger" data-act="store" data-i="' + i + '">存入</button>' : '') +
       '</div>';
   },
@@ -297,7 +303,7 @@ const Camp = {
       '<button data-act="shopTab" data-tab="item" class="' + (tab === 'item' ? 'active' : '') + '">药物</button>' +
       '<button data-act="shopTab" data-tab="mat" class="' + (tab === 'mat' ? 'active' : '') + '">材料</button></div>' +
       '<div class="shop-note">' + (tab === 'mat'
-        ? '强化材料堆叠进行囊。铁匠铺强化：耐久完好的兵装 +0 → +3，每级 +1 威力、+3 命中，+3 额外 +5 必杀；在「队伍」的兵装行或行囊行点击「强化」开炉。传说与损坏兵装不可强化。'
+        ? '强化材料堆叠进行囊。铁匠铺强化：耐久完好的兵装 +0 → +3，每级 +1 威力、+3 命中，+3 额外 +5 必杀；在「队伍」的兵装行或行囊行点击「强化」开炉。同型兵装可「进化」到下一阶（铁→钢→银/名器）：保留强化等级、耐久刷满。传说、角色专属与损坏兵装不可强化，也不可进化。'
         : '购入的兵装与药物进入行囊，在「队伍」中交给同伴。' + (tab === 'item' ? '脉印可直接向行商购得。' : '')) + '</div>' +
       rows + '</div>' +
       '<div class="shop-col"><h3>修 补</h3>' +
@@ -590,6 +596,45 @@ const Camp = {
         Audio.sfx('levelup');
         Game.saveCampaign();
         UI.toast(r.name + ' 强化至 +' + r.plus + '（' + Smith.effectText(r.plus) + '）');
+        this.render();
+      });
+      return;
+    }
+    if (act === 'evolve') {
+      const where = btn.dataset.where;
+      const idx = +btn.dataset.i;
+      const rec = this.currentUnit();
+      const item = where === 'convoy' ? c.convoy[idx] : (rec && rec.items[idx]);
+      if (!item) return;
+      const spec = Smith.evolveInfo(item.key);
+      if (!spec || !Smith.canEvolve(item.key, item)) { UI.toast('此兵装已无法进化'); return; }
+      /* 已装备的兵装：进化后若熟练度不够装备不了，先挡住 */
+      if (where !== 'convoy' && rec && rec.weaponIndex === idx && !Combat.canEquipKey(rec, spec.to)) {
+        UI.toast('熟练度不足，进化后将无法装备（先转职提升熟练度）');
+        return;
+      }
+      const mat = ITEMS[spec.mat];
+      const from = WEAPONS[item.key], to = WEAPONS[spec.to];
+      UI.modal({
+        title: '铁匠铺 · 进化',
+        sub: UI.escape(from.name) + (item.plus ? ' +' + item.plus : '') + ' → ' + UI.escape(to.name),
+        list: [{
+          label: '消耗：' + UI.escape(mat.name) + ' ×' + spec.n + '　盘缠 ' + spec.gold +
+                 '（现有 ' + Smith.matCount(c, spec.mat) + ' / ' + c.gold + '）',
+          meta: Smith.evolveText(item.key, item.plus),
+          value: 'go'
+        }],
+        buttons: [{ label: '再想想', value: null }, { label: '开炉', value: 'go' }]
+      }).then(v => {
+        if (v !== 'go' || !this.active || !Game.campaign) return;
+        const r = Smith.evolve(Game.campaign, item);
+        if (!r.ok) {
+          UI.toast(r.why === 'gold' ? '盘缠不足' : r.why === 'mat' ? '材料不足' : r.why === 'broken' ? '兵装已损坏，先修补' : '无法进化');
+          return;
+        }
+        Audio.sfx('levelup');
+        Game.saveCampaign();
+        UI.toast(r.fromName + ' 进化为 ' + r.name + (r.plus ? '（保留 +' + r.plus + '）' : ''));
         this.render();
       });
       return;

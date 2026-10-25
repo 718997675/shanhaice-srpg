@@ -452,6 +452,7 @@ const Battle = {
     if (skills.def) m.def += skills.def;
     if (skills.res) m.res += skills.res;
     if (skills.healBonus) m.healBonus += skills.healBonus;
+    if (skills.dmg) m.dmg += skills.dmg;              // 职业技直接加伤（裂阵/裂山/焚天等）
     if (skills.move) m.move += skills.move;
     if (skills.selfDamageOnNode && this.nodeAt(unit.x, unit.y)) m.dmg += skills.selfDamageOnNode;
     if (skills.selfDamageIfSummon && this.B.units.some(u => u.summoned && u.side === 'player' && u.hp > 0)) m.dmg += skills.selfDamageIfSummon;
