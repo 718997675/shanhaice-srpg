@@ -244,7 +244,8 @@ const UI = {
         '<div>护甲<b>' + unit.stats.def + '</b></div>' +
         '<div>魔抗<b>' + unit.stats.res + '</b></div>' +
       '</div>' +
-      (tags.length ? '<div class="uc-tags">' + tags.map(t => '<span>' + t + '</span>').join('') + '</div>' : '') +
+      (tags.length ? '<div class="uc-tags">' + tags.map(t =>
+        (typeof Icons !== 'undefined' ? Icons.tag(t) : '<span>' + this.escape(t) + '</span>')).join('') + '</div>' : '') +
       (hint ? '<div class="uc-hint">' + this.escape(hint) + '</div>' : '');
     this.el.unitCard.classList.remove('hidden');
   },

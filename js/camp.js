@@ -116,6 +116,7 @@ const Camp = {
     const kindLabel = { cls: '职业技', personal: '个人技', inherit: '继承技' };
     const skillHTML = skillList.map(s =>
       '<div class="unit-skillline' + (s.kind === 'inherit' ? ' inherited' : '') + '">' +
+      (typeof Icons !== 'undefined' ? Icons.skill(s, 'sk-ic') : '') +
       (kindLabel[s.kind] || '技能') + '：<b>' + UI.escape(s.name || '—') + '</b>　' + UI.escape(s.desc || '') + '</div>'
     ).join('');
     /* 熟练度进度（P2.2）：每类武器当前阶位与距下一阶的累计出手数 */

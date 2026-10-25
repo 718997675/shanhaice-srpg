@@ -883,6 +883,12 @@ img { display: block; }
 .uc-stats b { display: block; color: #363a2d; font-size: 11px; font-weight: 500; }
 .uc-tags { margin-top: 4px; font-size: 9px; color: #806b4d; display: flex; gap: 5px; flex-wrap: wrap; }
 .uc-tags span { border: 1px solid rgba(120, 95, 55, .25); padding: 0 4px; border-radius: 2px; }
+/* 图标小签（P4.5）：状态/词缀/指令态，图标 + 文字一行 */
+.tagchip { display: inline-flex; align-items: center; gap: 3px; line-height: 1.5; }
+.tagchip i { font-style: normal; }
+/* 内联 SVG 图标：随字高，继承当前颜色 */
+.ic { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
+.sk-ic { width: 13px; height: 13px; color: #8a6b3f; margin-right: 3px; vertical-align: -2px; }
 .uc-hint { font-size: 9px; color: #8b816a; margin-top: 4px; }
 
 #actionBar {

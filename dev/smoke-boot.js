@@ -53,7 +53,7 @@ sandboxWindow.globalThis = sandboxWindow;
 sandboxWindow.console = console;
 
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
-               'js/audio.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/battle.js',
+               'js/audio.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/ui-icons.js', 'js/battle.js',
                'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
                'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js',
                'js/camp.js', 'js/game.js'];
@@ -1133,6 +1133,74 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (!BV.enabled()) throw new Error('开设置后 enabled 应为 true');
 
     console.log('横版演出：立绘链 6 项 / usable 3 项 / 生命周期 / 绘制 / 资产 / 清场，均通过');
+  }
+
+  /* P4.5 图标化：SVG 图标库 / 技能图标字段解析 / 单位卡小签 / 技能行 */
+  {
+    const Icons = vm.runInContext('Icons', ctx);
+    const { CLASSES: IC, CHARS: ICCHARS } = vm.runInContext('({ CLASSES, CHARS })', ctx);
+
+    /* 1) 基础渲染：svg/tag 形态正确，未知键静默空串 */
+    const rootSvg = Icons.svg('root');
+    if (rootSvg.indexOf('<svg') < 0 || rootSvg.indexOf('viewBox="0 0 24 24"') < 0) throw new Error('SVG 形态不对');
+    if (Icons.svg('no_such_icon') !== '') throw new Error('未知图标应静默为空');
+    const chip = Icons.tag('定身');
+    if (chip.indexOf('tagchip') < 0 || chip.indexOf('<svg') < 0 || chip.indexOf('定身') < 0) throw new Error('小签形态不对');
+    /* 注入字符必须转义 */
+    if (Icons.tag('<b>').indexOf('&lt;b&gt;') < 0) throw new Error('小签未转义');
+
+    /* 2) 技能图标按效果字段解析：每条规则一个代表 */
+    const cases = [
+      [{ summon: 2 }, 'summon'], [{ healBonus: 4 }, 'heal'], [{ songPower: 3 }, 'song'],
+      [{ dmg: 2 }, 'blade'], [{ critVsArmor: 10 }, 'blade'], [{ crit: 12 }, 'spark'],
+      [{ hit: 5 }, 'hit'], [{ hitVsFlying: 15 }, 'hit'], [{ adjacentAllyHit: 5 }, 'hit'],
+      [{ avoidFlat: 5 }, 'feather'], [{ avoidOnNode: 10 }, 'feather'],
+      [{ def: 3 }, 'wall'], [{ res: 2 }, 'wall'], [{ move: 1 }, 'move'], [{ mag: 2 }, 'mag'],
+      [{ movePenaltyOnHit: 1 }, 'slow'], [{ weapon: 'sword' }, 'skill']
+    ];
+    for (const [skill, want] of cases) {
+      const got = Icons.skillKey(skill);
+      if (got !== want) throw new Error('技能图标解析 ' + JSON.stringify(skill) + ' → ' + got + '，应为 ' + want);
+      if (!Icons.has(got)) throw new Error('图标键不存在：' + got);
+    }
+    /* 全量：游戏里每个技能都必须解析到已存在的图标（防新增技能漏图标） */
+    const allSkills = [];
+    for (const c of Object.values(IC)) if (c.skill) allSkills.push(c.skill);
+    for (const ch of Object.values(ICCHARS)) { if (ch.personal) allSkills.push(ch.personal); if (ch.personal2) allSkills.push(ch.personal2); }
+    const badSkill = allSkills.find(s => !Icons.has(Icons.skillKey(s)));
+    if (badSkill) throw new Error('有技能解析到缺失图标：' + (badSkill.name || '?'));
+    console.log('图标库：', allSkills.length, '个技能全部有图标；规则', cases.length, '条全对');
+
+    /* 3) 单位卡小签带图标（状态 + 词缀 + 指令态） */
+    const { UI: UIv11 } = vm.runInContext('({ UI })', ctx);
+    const fakeU = {
+      id: 'ic1', name: '云策', side: 'player', charId: 'yunce', cls: 'swordsman', level: 5,
+      hp: 12, stats: { hp: 40, str: 10, mag: 0, skl: 8, spd: 8, lck: 5, def: 5, res: 5 },
+      items: [{ key: 'iron_sword', uses: 20 }], weaponIndex: 0, ranks: { sword: 'C' },
+      statuses: { def: { val: -3 }, avoid: { val: -10 }, root: { val: 1 }, movePenalty: { val: 1 } },
+      affixes: ['shield'], tags: ['human'], escaped: false
+    };
+    /* unitCard 直接写 DOM；用桩元素接住 innerHTML */
+    const cardEl = { classList: { add() {}, remove() {}, contains: () => false }, innerHTML: '', style: {} };
+    const savedCard = UIv11.el.unitCard;
+    UIv11.el.unitCard = cardEl;
+    UIv11.unitCard(fakeU, { phaseIndex: 3 });
+    UIv11.el.unitCard = savedCard;
+    const html = cardEl.innerHTML;
+    for (const t of ['破甲', '迷眼', '定身', '移速下降', '护盾']) {
+      if (html.indexOf(t) < 0) throw new Error('单位卡缺标签：' + t);
+    }
+    if ((html.match(/tagchip/g) || []).length < 5) throw new Error('单位卡小签未带图标');
+    if (html.indexOf('<svg') < 0) throw new Error('单位卡未渲染 SVG 图标');
+
+    /* 4) 营地技能行带图标（职业技/个人技/继承技三条都走） */
+    const { Camp: ICAMP } = vm.runInContext('({ Camp })', ctx);
+    const detail = ICAMP.unitDetail({ id: 'yunce', cls: 'swordsman', level: 5, exp: 0,
+      stats: { hp: 40, str: 10, mag: 0, skl: 8, spd: 8, lck: 5, def: 5, res: 5 },
+      ranks: {}, rankPts: {}, items: [], inherited: [] });
+    if (detail.indexOf('unit-skillline') < 0) throw new Error('技能行缺失');
+    if (detail.indexOf('<svg') < 0) throw new Error('技能行未带图标');
+    console.log('单位卡小签带图标 / 营地技能行带图标，均通过');
   }
 
   console.log('\n冒烟通过：无引用错误');

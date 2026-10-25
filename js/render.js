@@ -873,8 +873,24 @@ const Render = {
       ctx.textBaseline = 'middle';
       ctx.fillText(NODE_INFO[node.type] ? NODE_INFO[node.type].name[0] : '脉', 0, 1);
       if ((node.tier || 1) > 1) {
-        ctx.font = `600 ${Math.max(8, Math.round(t * 0.17))}px "Songti SC", "STSong", serif`;
-        ctx.fillText(['', 'Ⅰ', 'Ⅱ', 'Ⅲ'][Math.min(node.tier || 1, 3)], 0, -t * 0.46);
+        /* 阶位徽章（P4.5）：金菱 + 阶数点，替代原来的 Ⅰ/Ⅱ/Ⅲ 文字 */
+        const tier = Math.min(3, Math.max(2, node.tier || 1));
+        const s = Math.max(5, t * 0.105);
+        ctx.save();
+        ctx.translate(0, -t * 0.47);
+        ctx.rotate(Math.PI / 4);
+        ctx.strokeStyle = 'rgba(240,209,137,.92)';
+        ctx.lineWidth = 1.1;
+        ctx.strokeRect(-s / 2, -s / 2, s, s);
+        ctx.restore();
+        ctx.fillStyle = 'rgba(240,209,137,.95)';
+        const dotR = Math.max(0.9, t * 0.028);
+        const gap = dotR * 2.6;
+        for (let i = 0; i < tier; i++) {
+          ctx.beginPath();
+          ctx.arc((i - (tier - 1) / 2) * gap, -t * 0.47, dotR, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       ctx.restore();
     }
@@ -971,11 +987,27 @@ const Render = {
     ctx.stroke();
 
     ctx.globalAlpha = u.acted && isPlayer ? 0.68 : 1;
-    ctx.fillStyle = '#f3e9d2';
-    ctx.font = `600 ${Math.max(12, Math.round(t * 0.32))}px "Songti SC", "STSong", serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(u.name.charAt(0), cx, cy + 0.5);
+    /* 单位图标（P4.5）：有美术就把图标裁进圆里，没有才落姓名首字。
+     * 解析链与横版演出共用 BattleView.iconOf（杂兵变体/Boss/召唤一张表）。 */
+    const iconPath = (typeof BattleView !== 'undefined') ? BattleView.iconOf(u) : null;
+    const iconImg = iconPath ? BattleView.img(iconPath) : null;
+    if (iconImg && iconImg._ok && iconImg.naturalWidth) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r - 2.5, 0, Math.PI * 2);
+      ctx.clip();
+      const iw = iconImg.naturalWidth, ih = iconImg.naturalHeight;
+      const scale = Math.max((r * 2) / iw, (r * 2) / ih);
+      const dw = iw * scale, dh = ih * scale;
+      ctx.drawImage(iconImg, cx - dw / 2, cy - dh / 2, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#f3e9d2';
+      ctx.font = `600 ${Math.max(12, Math.round(t * 0.32))}px "Songti SC", "STSong", serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(u.name.charAt(0), cx, cy + 0.5);
+    }
 
     // 兵种符号
     const w = Combat.weaponOf(u) || Combat.staffOf(u);
