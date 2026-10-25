@@ -738,29 +738,29 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
       (ch.villages || []).forEach(v => {
         if (v.recruit) {
           obtainable.add(v.recruit);
-          recruitSpots.push({ ch: i + 1, char: v.recruit, talk: v.talk, at: '村' });
+          recruitSpots.push({ ch: ch.no, char: v.recruit, talk: v.talk, at: '村' });
         }
       });
       (ch.enemies || []).forEach(e => {
         if (e.char && e.recruitable) {
           obtainable.add(e.char);
-          recruitSpots.push({ ch: i + 1, char: e.char, talk: e.talkKey, at: e.x + ',' + e.y });
+          recruitSpots.push({ ch: ch.no, char: e.char, talk: e.talkKey, at: e.x + ',' + e.y });
         }
       });
     });
-    // 章末保险网 autoJoins（data-maps.js）：姜姒第 5 章后、虞素秋第 6 章后
+    // 章末保险网 autoJoins（data-maps.js）：P3.1 起键为 chapterId（数字或 '5A' 这类路线章）
     for (const chId in AUTO_JOINS) {
-      ok('autoJoins 章 ' + chId + ' 存在', !!CHAPTERS[+chId - 1]);
+      ok('autoJoins 章 ' + chId + ' 存在', CHAPTERS.some(c => String(c.id) === chId));
       for (const id of AUTO_JOINS[chId]) {
         ok('autoJoins ' + id + ' 是有效角色', !!CHARS[id], id);
         obtainable.add(id);
       }
     }
-    eq('姜姒第 5 章后入队', (AUTO_JOINS[5] || []).includes('jiangsi'), true);
-    eq('虞素秋第 6 章后入队', (AUTO_JOINS[6] || []).includes('yusqiu'), true);
+    eq('姜姒两条线都能入队', ['6A', '5B'].every(k => (AUTO_JOINS[k] || []).includes('jiangsi')), true);
+    eq('虞素秋两条线都能入队', ['6A', '6B'].every(k => (AUTO_JOINS[k] || []).includes('yusqiu')), true);
     const missing = Object.keys(CHARS).filter(k => !obtainable.has(k));
     eq('全部角色都有入队路径', missing.join(',') || '无', '无');
-    eq('招募点共 7 处（2 村 + 5 图）', recruitSpots.length, 7);
+    eq('招募点共 8 处（2 村 + 6 图）', recruitSpots.length, 8);
     for (const s of recruitSpots) {
       ok('招募点 ' + s.char + '（第' + s.ch + '章）对话存在', !!s.talk && !!DIALOGUES[s.talk], s.talk);
       ok('招募点 ' + s.char + ' 是有效角色', !!CHARS[s.char]);
