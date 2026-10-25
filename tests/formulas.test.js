@@ -2116,6 +2116,41 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('演出行仍有说话人与文本', dirty.join(',') || '无', '无');
   }
 
+  console.log('\n== 33. 新手引导（P4） ==');
+  {
+    const { HINTS, HINT_TURNS } = vm.runInContext('({ HINTS, HINT_TURNS })', ctx);
+    const keys = Object.keys(HINTS || {});
+    ok('引导表存在', keys.length >= 5, String(keys.length));
+    eq('引导键无重复', new Set(keys).size, keys.length);
+
+    const badText = [];
+    for (const k of keys) {
+      const t = HINTS[k];
+      if (typeof t !== 'string' || !t.trim()) { badText.push(k + ' 空'); continue; }
+      if (t.length < 20) badText.push(k + ' 太短 ' + t.length);
+      if (t.length > 60) badText.push(k + ' 太长 ' + t.length);
+      if (t.indexOf('\n') >= 0) badText.push(k + ' 有换行');
+    }
+    eq('引导文案长度合规（20~60 字、单行）', badText.join(',') || '无', '无');
+    eq('引导文案不重复', new Set(keys.map(k => HINTS[k])).size, keys.length);
+
+    /* 点播表：值必须是真提示，键必须是合理的回合数，且每条提示都要有回合 */
+    const turns = Object.keys(HINT_TURNS || {}).map(Number);
+    ok('点播表存在', turns.length >= 5, String(turns.length));
+    eq('点播回合都是 1~10 的整数',
+      turns.filter(n => !(Number.isInteger(n) && n >= 1 && n <= 10)).join(',') || '无', '无');
+    const ghostHint = turns.filter(n => !HINTS[HINT_TURNS[n]]);
+    eq('点播的提示都存在', ghostHint.join(',') || '无', '无');
+    const unscheduled = keys.filter(k => !Object.values(HINT_TURNS).includes(k));
+    eq('每条提示都有回合点播', unscheduled.join(',') || '无', '无');
+    eq('第 1 回合不弹引导（让位给章节目标）', HINT_TURNS[1], undefined);
+
+    /* 引导只讲操作，不讲世界观——出现叙事词就是写错了 */
+    const storyWords = ['师父', '玄阙', '灵脉', '浊潮', '山海策'];
+    const leaky = keys.filter(k => storyWords.some(w => HINTS[k].indexOf(w) >= 0));
+    eq('引导文案不掺剧情', leaky.join(',') || '无', '无');
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

@@ -987,5 +987,27 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (!dimmed || !restored || !shook || !flashed) throw new Error('演出指令未生效');
   }
 
+  /* P4 新手引导：同一条只弹一次，未知键不弹，无存档不炸 */
+  {
+    const { Game: Gv2, UI: UIv8, HINTS } = vm.runInContext('({ Game, UI, HINTS })', ctx);
+    const origToast = UIv8.toast, origSave3 = Gv2.saveCampaign;
+    const toasts = [];
+    UIv8.toast = t => { toasts.push(t); };
+    Gv2.saveCampaign = () => {};
+    const savedCampaign = Gv2.campaign;
+    Gv2.campaign = { hintsSeen: {} };
+    const first = Gv2.hintOnce('move');
+    const again = Gv2.hintOnce('move');
+    const ghost2 = Gv2.hintOnce('no_such_hint');
+    Gv2.campaign = null;
+    const noSave = Gv2.hintOnce('node');
+    Gv2.campaign = savedCampaign;
+    UIv8.toast = origToast; Gv2.saveCampaign = origSave3;
+    console.log('引导：首次', first, '；重复', again, '；未知键', ghost2,
+      '；无存档', noSave, '；实际弹出', toasts.length, '次');
+    if (!first || again || ghost2 || noSave) throw new Error('引导去重逻辑不对');
+    if (toasts.length !== 1 || toasts[0] !== HINTS.move) throw new Error('引导文案不对');
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

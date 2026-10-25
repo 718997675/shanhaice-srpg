@@ -94,6 +94,7 @@ const Game = {
       convoy: [{ key: 'potion', uses: 3 }],
       sideCleared: {},
       introSeen: {},
+      hintsSeen: {},
       legendary: {},
       legendaryPity: {},
       cleared: false,
@@ -201,6 +202,7 @@ const Game = {
     c.convoy = c.convoy.filter(it => it && (WEAPONS[it.key] || ITEMS[it.key]));
     if (!c.sideCleared || typeof c.sideCleared !== 'object') c.sideCleared = {};
     if (!c.introSeen || typeof c.introSeen !== 'object') c.introSeen = {};
+    if (!c.hintsSeen || typeof c.hintsSeen !== 'object') c.hintsSeen = {};
     c.cleared = !!c.cleared || (c.chapter === Route.FINALE && !Route.nextId(c.route, c.chapter));
     if (!c.records) c.records = { chapters: {}, kills: 0, lost: 0, recruits: 0, turns: 0, levels: 0 };
     if (!c.records.chapters) c.records.chapters = {};
@@ -218,6 +220,20 @@ const Game = {
     this.campaign.savedAt = Date.now();
     this.campaign.settings = { music: this.settings.music, sfx: this.settings.sfx, speed: this.settings.speed };
     this.writeJSON(this.SAVE_KEY, this.campaign);
+  },
+
+  /* 新手引导（P4）：同一条提示整个战役只弹一次。
+   * 返回 true 表示这次真的弹了（测试与调试用）。 */
+  hintOnce(key) {
+    const c = this.campaign;
+    if (!c || !key) return false;
+    if (typeof HINTS === 'undefined' || !HINTS[key]) return false;
+    if (!c.hintsSeen || typeof c.hintsSeen !== 'object') c.hintsSeen = {};
+    if (c.hintsSeen[key]) return false;
+    c.hintsSeen[key] = true;
+    try { UI.toast(HINTS[key], 5200); } catch (e) { /* 无 DOM 时静默 */ }
+    try { this.saveCampaign(); } catch (e) { /* 存档失败不影响战斗 */ }
+    return true;
   },
 
   clearCampaign() {

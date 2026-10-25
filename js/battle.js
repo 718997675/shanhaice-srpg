@@ -783,6 +783,12 @@ const Battle = {
       setTimeout(() => UI.toast(this.chapter.tips || this.chapter.objective.text, 4200), 500);
     }
     B.busy = false;
+    /* 新手引导（P4）：第 2~6 回合各点播一条，整个战役只弹一次。
+     * 第 1 回合让位给章节目标提示，别抢它的位置。 */
+    if (typeof Game !== 'undefined' && Game.hintOnce && typeof HINT_TURNS !== 'undefined') {
+      const hk = HINT_TURNS[B.turn];
+      if (hk) setTimeout(() => { try { Game.hintOnce(hk); } catch (e) {} }, 600);
+    }
     /* 幕间对白（P3.5）：本章三幕结构的第二幕，按回合触发一次 */
     await this.playMidDialogues();
     const snap = this.serialize(false);
