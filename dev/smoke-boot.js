@@ -1379,6 +1379,16 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (!engaged) throw new Error('命中未触发打击感');
     J.clearAll();
     if (J.hitstop !== 0 || J.particles.length !== 0) throw new Error('clearAll 未清零');
+    /* 死亡定格：handleDeath 挂卡 + 阵亡簿记 */
+    const victim = BB.units.find(x => x.side === 'player' && x.charId && x.hp > 0 && x.charId !== 'yunce');
+    if (!victim) throw new Error('找不到可阵亡的我方单位');
+    const lostBefore = BB.stats.lost;
+    await Battle.handleDeath(victim, p);
+    console.log('死亡定格：', J.deathCard ? (J.deathCard.name + '——' + J.deathCard.line) : '未挂卡');
+    if (!J.deathCard || J.deathCard.name !== victim.name) throw new Error('死亡定格卡未挂');
+    if (J.deathCard.line !== vm.runInContext('EPITAPHS', ctx)[victim.charId]) throw new Error('遗言未取 EPITAPHS');
+    if (BB.stats.lost !== lostBefore + 1) throw new Error('阵亡簿记未加一');
+    J.clearAll();
     BB.units = BB.units.filter(u => u.id !== 'du2');
     console.log('打击感：冻结语义 / 倍速缩短 / reduced / 实战接入 / 跳过清零，均通过');
   }

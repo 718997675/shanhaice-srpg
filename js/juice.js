@@ -36,7 +36,11 @@ const Juice = {
   knock: Object.create(null),   // unitId -> {x 击退px, squash 挤压}
   falls: Object.create(null),   // unitId -> {t0 虚拟时钟ms} 倒地
   cutIn: null,         // {img, t0, dur, side, out} 必杀立绘切入
+  deathCard: null,     // {name, line, t0(真实ms), dur} 死亡定格
   clock: 0,            // 虚拟时钟 ms
+
+  /* 死亡定格时长（ms，×1）；倍速按比例缩，钳在 500~1500 */
+  DEATH_CARD_MS: 1200,
 
   /* 调参表（二期计划 G.8）：轻击 / 必杀 / 击杀 */
   TUNING: {
@@ -57,9 +61,14 @@ const Juice = {
 
   now() { return this.clock; },
 
+  /* 真实时钟（死亡定格的黑屏淡入淡出用——世界冻结但卡片要会演完） */
+  _realNow() { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); },
+
   /* ---------------- 主循环入口（main.js 每帧调用） ---------------- */
   update(rawDtMs) {
     const dt = Math.min(Math.max(rawDtMs || 0, 0), 50);
+    /* 死亡定格到点撤卡（真实时间） */
+    if (this.deathCard && this._realNow() - this.deathCard.t0 >= this.deathCard.dur) this.deathCard = null;
     if (this.hitstop > 0) {
       this.hitstop -= dt / 1000;
       if (this.hitstop < 0) this.hitstop = 0;
@@ -268,6 +277,26 @@ const Juice = {
 
   _sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
 
+  /* 死亡定格（二期 G 微改动 2）：黑屏 + 名字 + 一行动机文案。
+   * 返回定格毫秒数（0 = 没演），调用方 await 等量的 wait。
+   * 遗言取 EPITAPHS（英魂碑同源），没有就落通用句。 */
+  deathCardFor(unit, speed) {
+    const cfg = this._cfg();
+    if (!cfg.on || !unit) return 0;
+    const sp = Math.max(0.5, speed || 1);
+    const dur = Math.round(Math.min(1500, Math.max(500, this.DEATH_CARD_MS / sp)));
+    const ep = (typeof EPITAPHS !== 'undefined' && unit.charId) ? EPITAPHS[unit.charId] : null;
+    this.deathCard = {
+      name: unit.name || '？',
+      line: ep || '这一脉，就此断了。',
+      t0: this._realNow(), dur: dur
+    };
+    this.freeze(dur / 1000);
+    this.vignette = 0.9;
+    if (!cfg.reduced) this.shake(0.5);
+    return dur;
+  },
+
   /* 点击跳过 / 战斗结束：必须清零 hitstop/timeScale/flash，否则卡半帧 */
   clearAll() {
     this.hitstop = 0;
@@ -283,6 +312,7 @@ const Juice = {
     this.knock = Object.create(null);
     this.falls = Object.create(null);
     this.cutIn = null;
+    this.deathCard = null;
   },
   reset() { this.clearAll(); },
 
@@ -339,6 +369,39 @@ const Juice = {
       ctx.restore();
     }
     this._drawCutIn(ctx, geo);
+    this._drawDeathCard(ctx, geo);
+  },
+
+  /* 死亡定格卡：黑屏 + 名字 + 遗言。用真实时钟演淡入淡出，
+   * 并重置变换（否则会跟着震屏/推镜晃）。 */
+  _drawDeathCard(ctx, geo) {
+    const dc = this.deathCard;
+    if (!dc) return;
+    const e = (this._realNow() - dc.t0) / Math.max(1, dc.dur);
+    const a = e < 0.12 ? e / 0.12 : (e > 0.85 ? Math.max(0, (1 - e) / 0.15) : 1);
+    if (a <= 0.01) return;
+    const dpr = geo.dpr || 1;
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(5,8,6,.86)';
+    ctx.fillRect(0, 0, geo.W, geo.H);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const cx = geo.W / 2, cy = geo.H / 2;
+    ctx.font = '700 26px "Noto Serif SC", "Songti SC", serif';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(8,10,8,.9)';
+    ctx.strokeText(dc.name, cx, cy - 14);
+    ctx.fillStyle = '#e7d5b0';
+    ctx.fillText(dc.name, cx, cy - 14);
+    if (dc.line) {
+      ctx.font = '400 14px "Noto Serif SC", "Songti SC", serif';
+      ctx.strokeText(dc.line, cx, cy + 20);
+      ctx.fillStyle = '#cfc8b2';
+      ctx.fillText(dc.line, cx, cy + 20);
+    }
+    ctx.restore();
   },
 
   /* 必杀立绘切入（四段式的「蓄」）：侧滑 + 斜切底板，缺图静默跳过 */

@@ -1229,10 +1229,10 @@ const Render = {
       ctx.fillRect(this.ox, this.oy, this.boardW, this.boardH);
       ctx.restore();
     }
-    /* 打击感（二期 G）：粒子 / 冲击帧 / 闪白 / 暗角 / 必杀立绘切入 */
+    /* 打击感（二期 G）：粒子 / 冲击帧 / 闪白 / 暗角 / 必杀立绘 / 死亡定格 */
     if (typeof Juice !== 'undefined') {
       Juice.drawFx(ctx, {
-        ox: this.ox, oy: this.oy, tile: t, W: this.W, H: this.H,
+        ox: this.ox, oy: this.oy, tile: t, W: this.W, H: this.H, dpr: this.dpr,
         boardW: this.boardW, boardH: this.boardH
       });
     }

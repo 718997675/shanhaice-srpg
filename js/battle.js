@@ -2574,6 +2574,11 @@ const Battle = {
       UI.log(unit.name + '倒下了。', 'bad');
       Render.floatText('殁', unit.x, unit.y, '#df9b8c', 18);
       Render.shake(6);
+      /* 死亡定格（二期 G 微改动 2）：黑屏 + 名字 + 遗言，世界冻结到演完 */
+      if (typeof Juice !== 'undefined') {
+        const ms = Juice.deathCardFor(unit, this.B.speed);
+        if (ms) await this.wait(ms + 40);
+      }
       if (unit.charId === 'yunce') {
         this.B.flags.lordDead = true;
         UI.log('守脉人倒下了。', 'bad');

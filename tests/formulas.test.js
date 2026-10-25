@@ -2695,6 +2695,26 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     ok('reduced 必杀只留顿帧', J.hitstop > 0 && J.cutIn === null);
     G.settings.reducedMotion = false;
     J.clearAll();
+
+    /* ---- 死亡定格（微改动 2） ---- */
+    const ms = J.deathCardFor(mkUnit({ id: 'p1', name: '鹿鸣', charId: 'luming', side: 'player' }), 1);
+    ok('死亡定格时长在 0.8~1.5s', ms >= 800 && ms <= 1500, 'ms=' + ms);
+    ok('定格卡带名字与遗言', !!J.deathCard && J.deathCard.name === '鹿鸣' && J.deathCard.line.length > 0);
+    eq('遗言取 EPITAPHS（英魂碑同源）', J.deathCard.line, vm.runInContext('EPITAPHS', ctx).luming);
+    ok('定格期间世界冻结', J.hitstop >= ms / 1000 - 1e-9);
+    eq('倍速定格 600ms', J.deathCardFor(mkUnit({ id: 'p2', name: '岩隈', charId: 'yankui' }), 2), 600);
+    J.clearAll();
+    G.settings.juice = false;
+    eq('关设置不演定格', J.deathCardFor(mkUnit({ id: 'p3', name: '云策', charId: 'yunce' }), 1), 0);
+    G.settings.juice = true;
+    J.clearAll();
+    J.deathCardFor(mkUnit({ id: 'p4', name: '玄漪', charId: 'xuanyi' }), 1);
+    J.deathCard.t0 -= J.deathCard.dur + 10;
+    J.update(16);
+    eq('真实时间到点撤卡', J.deathCard, null);
+    J.deathCardFor(mkUnit({ id: 'p5', name: '赤桑', charId: 'chisang' }), 1);
+    J.clearAll();
+    eq('clearAll 清定格卡', J.deathCard, null);
   }
 
   console.log('\n----------------------------------------');
