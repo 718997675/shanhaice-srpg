@@ -1,7 +1,7 @@
 # 交接快照 · 山海策 · 灵脉
 
 > **给接手的人 / 另一个账号看的唯一入口。** 读完这份就能直接开工，不必翻聊天记录。
-> 最后更新：2026-10-25 22:20 · git HEAD `0e52f08` · **二期进行中**
+> 最后更新：2026-10-25 23:15 · git HEAD `34ae114` · **二期进行中**
 
 ---
 
@@ -70,6 +70,16 @@
 - **新增**：`foe_hit`（妖物受击嘶吼）/ `foe_death` / `boss_death` / `death_hero` 加重（披甲倒地闷响 + 远钟）/ 五路脚步 `step_foot·armor·beast·fly·horse`。
 - **分流**（`battle.js` 三个 helper）：`hitSfxFor`（妖物嘶吼 / 对披甲金铁 / 杖与木腔 / 肉身）、`deathSfxFor`（我军 / Boss / 妖物 / 人类敌军）、`stepSfxFor`（按 `moveType`：flying/beast·plant·amphibious/horse/armor tag/foot）。移动接线点由 UI 味的 `move` 音换成行进脚步（路程 ≥5 格半程补第二拍）。
 - 测试：test-logic 打击感静态断言 15 条；smoke WebAudio 桩行为测试（clang = 4 osc + 1 瞬态 buffer、growl = 1 osc + 1 buffer、三路分流全枚举）。**桩坑**：vm 缺 `setInterval`（此前 ctx=null 从未走到合成音乐路径）；`Audio.failed` 是终身标记，注入桩前必须复位；fake ctx 测完要撤掉并恢复无声态，否则后文 `Battle.start` 的 BGM 回退会真起 timer 挂住进程。
+- **修复 `0700589`**：实测反馈「行走音是新的、打斗没变」——首版 hit_flesh 的 `clang(150)` 只是借了瞬态结构，主体仍是 150Hz 低频闷响，与旧版 85Hz sine 下滑**听觉同路**；而冷兵器战斗绝大多数命中走 hit_flesh（人类敌军），所以整体听不出金属感。已改为 `hit` = clang(1700)+crunch+95Hz 闷响、`hit_flesh` = clang(1650)+clang(2400) 泛音延后 8ms+crunch+闷响。**教训：clang 的 base 低于 ~800Hz 就没有金属味，只是换个包络的闷响。**
+- **用户资产的采样接入路径**（用户在另一会话用音频专家生成了 `~/WorkBuddy AI/2026-10-25-18-02-01/game-audio-demo/assets/` 的 6 个 SFX wav + 1 首 BGM，规格 44.1k/16bit/mono 完全合规）：把 wav 复制进 `assets/audio/sfx/` 并**按 case 名命名**（如 `hit.wav`/`hit_crit.wav`/`swing_light.wav`）即被 SFX 池自动接管（文件优先、合成退居兜底），无需改代码。待用户拍板映射表后再动；BGM 尚需转 ogg+mp3 双份。
+
+### ✅ 大菜单古风 BGM（提交 `34ae114`，四连全绿：3626 / 1716 / 冒烟双变体）
+
+- `assets/audio/bgm/bgm_title.m4a`（921KB，44.1k 立体声 128k）：`dev/gen-bgm-title.py` 程序化合成——**D 宫五声 / 66 BPM / 16 小节无缝循环（59.4s）**。编制：洞箫主奏（A 段，颤音+气声）→ 古筝主奏（B 段，Karplus-Strong 拨弦）+ 箫长音对位；革胡低音长音、五度氛围垫、稀疏大堂鼓与木鱼；大厅混响偏湿，首尾淡入淡出与 loop 边界对齐。
+- **工具链入库**：`dev/audio_dsp.py`（合成/DSP 库：抗锯齿振荡器/折线包络/双二阶/扫频/IR 混响/延时）——素材生成脚本统一走它；wav 源 10.5MB 已 gitignore，只提交 m4a。
+- `audio-bgm.js`：`TRACKS` 加 `title: 'bgm_title'`（`game.js:314 BGM.play('title')` 即刻生效，调用方零改动）；source 列表 **m4a 优先**、mp3/ogg 兜底（afconvert 是当前无 ffmpeg 环境下的转码通道）。
+- 混音经验：**按 RMS 贡献配器**——Karplus-Strong 拨弦的 RMS 效率约为正弦 1/3，同 gain 下古筝比箫小声得多；A 段 RMS 0.143 / B 段 0.145、尾部衰减到 0.047 供 loop 呼吸。**坑**：Python 循环解包变量名写反（`for ch, mix in ((mixL,'L'),…)` 把字符串解给 mix）会让 fftconvolve 收到 0 维数组报 dimensionality 错。
+- 后续 BGM（营地/战斗/Boss/剧情）按 `dev/gen-bgm-title.py` 同套路各写一个生成器即可，命名 `bgm_{camp,battle,boss,story}.m4a` 落盘即挂上。
 
 ### 🔄 接下来：技能演出（任务 #8）
 
@@ -236,7 +246,7 @@ P5 平衡（三档难度实测 + 成长曲线）、P6 回归与文档终稿；�
 
 ## 8. 提交链（新 → 旧）
 
-`0e52f08`（打击感音效加厚）← `89a8bae`（背侧判定文档）← `d5da483`（背侧判定：facing + 背刺/侧击）← `44e2b72`（高低地形差文档）← `39680a8`（二期高低地形差）← `875dcc6`（音频架构）← `017c77f`（H-P1 物品图标）← `ff46190`（G 打击感）← `0a200c3`（死亡定格）← `165302c`（攻击不耗移动力）← `5397043`（P4.2 新手引导）← `dcc3ba5`（P4.1 对白演出指令）← `300b992`（P3.5 三幕剧情）← `3fa5c78`（P3.5 文档）← `a3bacd4`（P3.4 文档）← `f2b01f4`（P3.4 山海图鉴）← `630151a`（P3.4 多结局+勇者模式）← `56acdd2`（P3.3 替补援军+殉志传承+英魂碑）← `d8d4596`（HANDOFF 同步）← `b28d8c1`（P2.2 个人技×2+继承+熟练度）← `c130de8`（P3.2 心结+支援12组）← `02fc047`（smoke 转职端到端）← `8036e28`（P2.1 双转职线+P2.3 进化树）← `9e687ea`（formulas 路线化）← `401ffed`（文档迁入 docs/）← `e75b24d`（A/B 路线）← `5edc5c9`（连携+指挥）← `25fdc74`（敌方词缀）← `fb60d66`（传送武器）← `ef7f9b6`（强化 +3）← `1aa370c` ← `e89a36e` ← `813525f` ← `667d829` ← `e309688` ← `5c0fe76` ← `bc5eeb2` ← `9182c3a` ← `14cdcc5` ← `e00ca0b` ← `27eff28` ← `6fc0bb5` ← `aae6375`
+`34ae114`（大菜单古风 BGM）← `0700589`（打击金属感修复）← `89a8bae`（背侧判定文档）← `d5da483`（背侧判定：facing + 背刺/侧击）← `44e2b72`（高低地形差文档）← `39680a8`（二期高低地形差）← `875dcc6`（音频架构）← `017c77f`（H-P1 物品图标）← `ff46190`（G 打击感）← `0a200c3`（死亡定格）← `165302c`（攻击不耗移动力）← `5397043`（P4.2 新手引导）← `dcc3ba5`（P4.1 对白演出指令）← `300b992`（P3.5 三幕剧情）← `3fa5c78`（P3.5 文档）← `a3bacd4`（P3.4 文档）← `f2b01f4`（P3.4 山海图鉴）← `630151a`（P3.4 多结局+勇者模式）← `56acdd2`（P3.3 替补援军+殉志传承+英魂碑）← `d8d4596`（HANDOFF 同步）← `b28d8c1`（P2.2 个人技×2+继承+熟练度）← `c130de8`（P3.2 心结+支援12组）← `02fc047`（smoke 转职端到端）← `8036e28`（P2.1 双转职线+P2.3 进化树）← `9e687ea`（formulas 路线化）← `401ffed`（文档迁入 docs/）← `e75b24d`（A/B 路线）← `5edc5c9`（连携+指挥）← `25fdc74`（敌方词缀）← `fb60d66`（传送武器）← `ef7f9b6`（强化 +3）← `1aa370c` ← `e89a36e` ← `813525f` ← `667d829` ← `e309688` ← `5c0fe76` ← `bc5eeb2` ← `9182c3a` ← `14cdcc5` ← `e00ca0b` ← `27eff28` ← `6fc0bb5` ← `aae6375`
 
 ---
 
