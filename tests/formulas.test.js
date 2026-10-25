@@ -2449,6 +2449,104 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     ok('图例五种线型', sideHtml.indexOf('未同行（有人未入队）') >= 0 && sideHtml.indexOf('同行 · 未达 C') >= 0);
   }
 
+  /* ============================================================
+   * 37. 平衡不变量（P5）
+   * dev/balance.js 实测报告的数值锁：经验曲线、难度缩放、
+   * 敌情曲线单调性、特效兵器与双倍——调公式前先过这里。
+   * ============================================================ */
+  console.log('\n== 37. 平衡不变量（P5） ==');
+  {
+    /* 真实的造兵函数（第 11 节已加载 battle.js，这里直接借方法） */
+    const { Battle: BattleV, ENEMY_TYPES: ETYPES, DIFFICULTIES: DIFFS, diffOf: diffOfV, AUTO_JOINS: AJOINS, CHAPTERS: CHLIST, MAX_LEVEL: MAXLV } =
+      vm.runInContext('({ Battle, ENEMY_TYPES, DIFFICULTIES, diffOf, AUTO_JOINS, CHAPTERS, MAX_LEVEL })', ctx);
+    const spawner = { uid: 0, diff: DIFFS.normal };
+    spawner.makeEnemyUnit = BattleV.makeEnemyUnit;
+    const mkEnemy = (spec, key, heroic) => {
+      spawner.diff = diffOfV({ difficulty: key, heroic: !!heroic });
+      spawner.uid = 0;
+      return spawner.makeEnemyUnit(spec);
+    };
+
+    /* ---- 经验曲线 ---- */
+    eq('同级击杀 30 经验', Combat.killExp(10, 10, 1), 30);
+    eq('敌每高 1 级 +5 经验', Combat.killExp(10, 12, 1), 40);
+    eq('收益下限钳 6', Combat.killExp(20, 1, 1), 6);
+    eq('收益上限钳 60', Combat.killExp(1, 20, 1), 60);
+    eq('难度经验倍率生效（0.86）', Combat.killExp(10, 10, 0.86), 26);
+    eq('每级 100 经验', (() => {
+      const u = { level: 1, exp: 0, stats: { hp: 20 }, growth: { hp: 50 } };
+      Combat.levelUp(u, 100);
+      return u.level;
+    })(), 2);
+    ok('满级 20 封顶且经验清零', (() => {
+      const u = { level: MAXLV, exp: 0, stats: { hp: 20 }, growth: { hp: 50 } };
+      Combat.levelUp(u, 500);
+      return u.level === MAXLV && u.exp === 0;
+    })());
+    ok('升级保底涨 2 点属性', (() => {
+      const u = { level: 1, exp: 0, stats: { hp: 20, str: 5, mag: 0, skl: 5, spd: 5, lck: 5, def: 5, res: 5 }, growth: { hp: 50, str: 10 } };
+      for (let i = 0; i < 10; i++) {
+        const before = STAT_ORDER.reduce((s, k) => s + (u.stats[k] || 0), 0);
+        Combat.levelUp(u, 100);
+        if (STAT_ORDER.reduce((s, k) => s + (u.stats[k] || 0), 0) - before < 2) return false;
+      }
+      return true;
+    })());
+    ok('成长不越过属性上限帽', (() => {
+      const u = { level: 1, exp: 0, stats: { hp: 20, str: 5, mag: 0, skl: 5, spd: 5, lck: 5, def: 5, res: 5 }, growth: { hp: 90, str: 90, mag: 90, skl: 90, spd: 90, lck: 90, def: 90, res: 90 } };
+      for (let i = 0; i < 200; i++) Combat.levelUp(u, 100);
+      return STAT_ORDER.every(k => u.stats[k] <= STAT_CAPS[k]);
+    })());
+
+    /* ---- 难度缩放（同章同兵，只改缩放） ---- */
+    const spec = { type: 'bandit', lv: 9 };
+    const eE = mkEnemy(spec, 'easy', false), eN = mkEnemy(spec, 'normal', false);
+    const eH = mkEnemy(spec, 'hard', false), eHH = mkEnemy(spec, 'hard', true), eNH = mkEnemy(spec, 'normal', true);
+    eq('轻松：等级 -1', eE.level, 8);
+    eq('标准：等级不变', eN.level, 9);
+    eq('修罗：等级 +1', eH.level, 10);
+    eq('轻松：属性 ×0.9', eE.stats.hp, Math.max(1, Math.round((ETYPES.bandit.base.hp + ETYPES.bandit.growth.hp * (eE.level - 1)) * 0.9)));
+    eq('修罗：属性 ×1.15', eH.stats.hp, Math.max(1, Math.round((ETYPES.bandit.base.hp + ETYPES.bandit.growth.hp * (eH.level - 1)) * 1.15)));
+    ok('难度生命值严格递增', eE.stats.hp < eN.stats.hp && eN.stats.hp < eH.stats.hp && eH.stats.hp < eHH.stats.hp,
+      eE.stats.hp + ' < ' + eN.stats.hp + ' < ' + eH.stats.hp + ' < ' + eHH.stats.hp);
+    eq('标准+勇者：属性 ×1.15（等级不变）', eNH.stats.hp,
+      Math.max(1, Math.round((ETYPES.bandit.base.hp + ETYPES.bandit.growth.hp * (eNH.level - 1)) * 1.15)));
+    eq('修罗+勇者 = ×1.32', eHH.stats.hp, Math.max(1, Math.round((ETYPES.bandit.base.hp + ETYPES.bandit.growth.hp * (eHH.level - 1)) * 1.32)));
+
+    /* ---- 敌情曲线沿 A 线单调不降 ---- */
+    const ROUTE_A = [1, 2, 3, 4, '5A', '6A', '7A', 8, 9];
+    const byId = {};
+    for (const c of CHLIST) byId[c.id] = c;
+    let mono = true, prev = 0;
+    for (const id of ROUTE_A) {
+      const ch = byId[id];
+      const lvs = [...ch.enemies, ...(ch.reinforcements || []).flatMap(r => r.units || [])].map(e => e.lv || 1);
+      const a = lvs.reduce((x, y) => x + y, 0) / lvs.length;
+      if (a < prev - 0.001) mono = false;
+      prev = a;
+    }
+    ok('敌情曲线沿 A 线单调不降', mono);
+    ok('援军补位都是已定义角色', Object.keys(AJOINS).every(id => byId[id]) &&
+      Object.values(AJOINS).flat().every(cid => CHARS[cid]));
+    /* ---- 特效兵器与双倍（后期排兵的核心机制） ---- */
+    ok('符对甲胄特效（后期核心解）', (() => {
+      const u = mkUnit({ cls: 'talisman', ranks: { talisman: 'A' }, stats: { hp: 30, str: 5, mag: 15, skl: 10, spd: 8, lck: 5, def: 5, res: 5 } });
+      give(u, 'greater_talisman');
+      const d = mkUnit({ side: 'enemy', tags: ['armor'], stats: { hp: 50, str: 10, mag: 0, skl: 5, spd: 5, lck: 5, def: 10, res: 7 } });
+      d.x = 1;
+      const w = Combat.weaponOf(u);
+      if (!w || !w.w.effective || w.w.effective.indexOf('armor') < 0) return false;
+      const raw = 15 + (w.w.mt || 0) - 7;   // 灵力 + 威力 - 敌魔抗
+      return Combat.isEffective(u, d) && Combat.damage(u, d, FLAT, true) === raw * 2;
+    })());
+    ok('双倍阈值 = 攻速领先 4', (() => {
+      const a = mkUnit({ stats: { hp: 30, str: 10, mag: 0, skl: 5, spd: 14, lck: 5, def: 5, res: 5 } });
+      const b = mkUnit({ side: 'enemy', stats: { hp: 30, str: 10, mag: 0, skl: 5, spd: 10, lck: 5, def: 5, res: 5 } });
+      give(a, 'iron_sword'); give(b, 'iron_sword');
+      return Combat.doubles(a, b) === true && Combat.doubles(b, a) === false;
+    })());
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);
