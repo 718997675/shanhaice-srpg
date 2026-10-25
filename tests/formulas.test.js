@@ -2059,6 +2059,63 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('全部对白说话人合法', strayBad.join(',') || '无', '无');
   }
 
+  console.log('\n== 32. 对白演出指令（P4） ==');
+  {
+    const { DIALOGUES, DIALOGUE_FX, DIALOGUE_SFX } =
+      vm.runInContext('({ DIALOGUES, DIALOGUE_FX, DIALOGUE_SFX })', ctx);
+
+    ok('演出指令表存在', Array.isArray(DIALOGUE_FX) && DIALOGUE_FX.length >= 4);
+    eq('四种动效齐全',
+      ['shake', 'flash', 'dim', 'lit'].filter(k => DIALOGUE_FX.includes(k)).length, 4);
+    eq('动效无重复', new Set(DIALOGUE_FX).size, DIALOGUE_FX.length);
+    eq('音效表无重复', new Set(DIALOGUE_SFX).size, DIALOGUE_SFX.length);
+
+    /* 音效键必须在 audio.js 里有对应 case，否则点了没声音且不报错 */
+    const audioSrc = fs.readFileSync(path.join(ROOT, 'js/audio.js'), 'utf8');
+    const missingSfx = DIALOGUE_SFX.filter(n => audioSrc.indexOf("case '" + n + "':") < 0);
+    eq('音效键都在 audio.js 里', missingSfx.join(',') || '无', '无');
+
+    /* 逐行校验 */
+    const badFx = [], badSfx = [], badWait = [];
+    let fxCount = 0, sfxCount = 0, waitCount = 0;
+    const fxKinds = new Set();
+    for (const key of Object.keys(DIALOGUES)) {
+      for (const l of DIALOGUES[key] || []) {
+        if (!l) continue;
+        if (l.fx !== undefined) {
+          if (!DIALOGUE_FX.includes(l.fx)) badFx.push(key + ':' + l.fx);
+          else { fxCount++; fxKinds.add(l.fx); }
+        }
+        if (l.sfx !== undefined) {
+          if (!DIALOGUE_SFX.includes(l.sfx)) badSfx.push(key + ':' + l.sfx);
+          else sfxCount++;
+        }
+        if (l.wait !== undefined) {
+          if (typeof l.wait !== 'number' || !(l.wait >= 0 && l.wait <= 2000)) badWait.push(key + ':' + l.wait);
+          else waitCount++;
+        }
+      }
+    }
+    eq('fx 取值合法', badFx.join(',') || '无', '无');
+    eq('sfx 取值合法', badSfx.join(',') || '无', '无');
+    eq('wait 在 0~2000 毫秒内', badWait.join(',') || '无', '无');
+
+    /* 覆盖率：演出是点缀不是标配，但关键戏眼要有 */
+    ok('动效至少 15 处', fxCount >= 15, String(fxCount));
+    ok('音效至少 8 处', sfxCount >= 8, String(sfxCount));
+    ok('停顿至少 2 处', waitCount >= 2, String(waitCount));
+    eq('四类动效都用到了', fxKinds.size, 4);
+
+    /* 演出指令不污染文本：带 fx 的行仍要有 who/text（第 31 节也查，这里再守一次） */
+    const dirty = [];
+    for (const key of Object.keys(DIALOGUES)) {
+      for (const l of DIALOGUES[key] || []) {
+        if (l && (l.fx || l.sfx || l.wait !== undefined) && (!l.who || !l.text)) dirty.push(key);
+      }
+    }
+    eq('演出行仍有说话人与文本', dirty.join(',') || '无', '无');
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

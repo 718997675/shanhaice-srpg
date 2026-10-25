@@ -958,5 +958,34 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (!Battle.B.midsPlayed.ch1_mid) throw new Error('快照未保留幕间记录');
   }
 
+  /* P4 对白演出指令：_dialogFx 只动 CSS 类，未知值静默不炸 */
+  {
+    const { UI: UIv7 } = vm.runInContext('({ UI })', ctx);
+    const cls = new Set();
+    const mkList = prefix => ({
+      add: c => cls.add(prefix + c),
+      remove: c => cls.delete(prefix + c),
+      contains: c => cls.has(prefix + c),
+      toggle: () => {}
+    });
+    const stage = { classList: mkList('stage:'), offsetWidth: 0 };
+    const overlay = { classList: mkList(''), querySelector: () => stage };
+    const fxUi = Object.create(UIv7);
+    fxUi.el = { dialog: overlay };
+
+    UIv7._dialogFx.call(fxUi, 'dim');
+    const dimmed = cls.has('fx-dim');
+    UIv7._dialogFx.call(fxUi, 'lit');
+    const restored = !cls.has('fx-dim');
+    UIv7._dialogFx.call(fxUi, 'shake');
+    const shook = cls.has('stage:fx-shake');
+    UIv7._dialogFx.call(fxUi, 'flash');
+    const flashed = cls.has('fx-flash');
+    UIv7._dialogFx.call(fxUi, 'no_such_fx');   // 未知值应静默
+    console.log('演出指令：dim', dimmed, '；lit 复原', restored,
+      '；shake', shook, '；flash', flashed, '；未知值不炸', true);
+    if (!dimmed || !restored || !shook || !flashed) throw new Error('演出指令未生效');
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

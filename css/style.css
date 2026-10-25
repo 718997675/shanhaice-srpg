@@ -1050,6 +1050,31 @@ img { display: block; }
   animation: dialogIn .22s ease both;
 }
 @keyframes dialogIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* 对白演出指令（P4）：行上写 fx: 'shake' | 'flash' | 'dim' | 'lit' 即可 */
+@keyframes fxShake {
+  0%, 100% { transform: translate(0, 0); }
+  18% { transform: translate(-6px, 2px); }
+  36% { transform: translate(5px, -3px); }
+  54% { transform: translate(-4px, -1px); }
+  72% { transform: translate(3px, 2px); }
+  88% { transform: translate(-1px, -1px); }
+}
+.dialog-stage.fx-shake { animation: fxShake .42s cubic-bezier(.36, .07, .19, .97); }
+@keyframes fxFlash { 0% { opacity: 0; } 14% { opacity: .9; } 100% { opacity: 0; } }
+#dialogOverlay.fx-flash::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #f6efdd;
+  pointer-events: none;
+  z-index: 8;
+  animation: fxFlash .52s ease-out;
+}
+#dialogOverlay.fx-dim .dialog-stage {
+  filter: brightness(.68) saturate(.78);
+  transition: filter .28s ease;
+}
 .dialog-portrait {
   width: clamp(120px, 22vh, 210px);
   height: clamp(150px, 40vh, 300px);

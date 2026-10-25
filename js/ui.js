@@ -451,6 +451,7 @@ const UI = {
       const renderLine = () => {
         const line = lines[state.index];
         if (!line) { this._finishDialogue(); return; }
+        const idx = state.index;
         const who = line.who || '旁白';
         const isNarration = who === '旁白' || who === '旁白。';
         this.el.dialog.classList.toggle('narration', isNarration);
@@ -492,15 +493,25 @@ const UI = {
           }
         }
         clearInterval(state.timer);
-        state.timer = setInterval(() => {
-          state.char++;
-          this.el.dialogText.textContent = state.text.slice(0, state.char);
-          if (state.char >= state.text.length) {
-            clearInterval(state.timer);
-            state.timer = 0;
-            state.typing = false;
-          }
-        }, 18);
+        /* 演出指令（P4）：fx 一次性动效 / sfx 音效 / wait 停顿后再打字 */
+        if (line.sfx) Audio.sfx(line.sfx);
+        if (line.fx) this._dialogFx(line.fx);
+        const beginTyping = () => {
+          if (this._dlg !== state || state.index !== idx) return;
+          if (!state.typing) return;   // 停顿期间被点击跳过
+          state.timer = setInterval(() => {
+            state.char++;
+            this.el.dialogText.textContent = state.text.slice(0, state.char);
+            if (state.char >= state.text.length) {
+              clearInterval(state.timer);
+              state.timer = 0;
+              state.typing = false;
+            }
+          }, 18);
+        };
+        const beat = Math.max(0, Math.min(2000, Number(line.wait) || 0));
+        if (beat) setTimeout(beginTyping, beat);
+        else beginTyping();
       };
       this._renderDialogueLine = renderLine;
       renderLine();
@@ -534,6 +545,25 @@ const UI = {
     this._finishDialogue();
   },
 
+  /* 对白演出指令（P4）：shake 震 / flash 闪 / dim 压暗 / lit 复原。
+   * 只动 CSS 类，不改数据；没有 fx 的行行为与以前完全一致。 */
+  _dialogFx(kind) {
+    const overlay = this.el.dialog;
+    if (!overlay) return;
+    const stage = overlay.querySelector('.dialog-stage');
+    const retrigger = (el, cls, ms) => {
+      if (!el) return;
+      el.classList.remove(cls);
+      void el.offsetWidth;          // 强制回流，同一动效连播两次也能重放
+      el.classList.add(cls);
+      setTimeout(() => el.classList.remove(cls), ms);
+    };
+    if (kind === 'shake') retrigger(stage, 'fx-shake', 460);
+    else if (kind === 'flash') retrigger(overlay, 'fx-flash', 560);
+    else if (kind === 'dim') overlay.classList.add('fx-dim');
+    else if (kind === 'lit') overlay.classList.remove('fx-dim');
+  },
+
   _finishDialogue() {
     const s = this._dlg;
     if (!s) return;
@@ -541,6 +571,7 @@ const UI = {
     clearInterval(s.timer);
     this.el.dialog.classList.add('hidden');
     this.el.dialog.classList.remove('narration');
+    this.el.dialog.classList.remove('fx-dim', 'fx-flash');
     this.el.dialogText.textContent = '';
     this.el.dialogImg.style.display = 'none';
     s.resolve();
