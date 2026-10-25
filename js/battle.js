@@ -2387,19 +2387,27 @@ const Battle = {
     UI.log(attacker.name + ' 与 ' + defender.name + ' 交战。', '');
     Audio.sfx('select');
     const events = Combat.resolve(attacker, defender, ctx);
+    /* 横版战斗演出（P4.4）：有立绘/图标且设置开着就切横版画面，
+     * 否则走原来的棋盘冲斩。公式不进来——ev 全是结算结果。 */
+    const useView = typeof BattleView !== 'undefined' && BattleView.enabled() &&
+      BattleView.usable(attacker, defender);
+    if (useView) BattleView.begin(attacker, defender, ctx);
     for (const ev of events) {
       if (ev.type === 'strike') {
         const striker = this.unitById(ev.attacker);
         const foe = this.unitById(ev.defender);
         if (!striker || !foe) continue;
         if (striker.hp <= 0) continue;
-        await Render.lunge(striker, foe.x, foe.y, B.speed);
+        if (useView) await BattleView.strike(ev, B.speed);
+        else await Render.lunge(striker, foe.x, foe.y, B.speed);
         if (ev.hit) {
           Render.hpView[foe.id] = ev.hpAfter;
-          Render.slash(foe.x, foe.y, ev.crit ? 'crit' : 'hit');
-          Render.shake(ev.crit ? 8 : 3);
-          Render.floatText((ev.crit ? '必杀 ' : '') + '-' + ev.dmg, foe.x, foe.y, ev.crit ? '#f1cd7a' : '#f0b8a7', ev.crit ? 19 : 15);
-          Render.flash(ev.crit ? '#f4d79a' : '#f0e8d4', ev.crit ? 0.3 : 0.12);
+          if (!useView) {
+            Render.slash(foe.x, foe.y, ev.crit ? 'crit' : 'hit');
+            Render.shake(ev.crit ? 8 : 3);
+            Render.floatText((ev.crit ? '必杀 ' : '') + '-' + ev.dmg, foe.x, foe.y, ev.crit ? '#f1cd7a' : '#f0b8a7', ev.crit ? 19 : 15);
+            Render.flash(ev.crit ? '#f4d79a' : '#f0e8d4', ev.crit ? 0.3 : 0.12);
+          }
           Audio.sfx(ev.crit ? 'crit' : 'hit');
           UI.log(ev.attackerName + '命中' + ev.defenderName + (ev.crit ? '，必杀' : '') + '，造成 ' + ev.dmg + ' 伤害。', striker.side === 'player' ? 'good' : 'bad');
           if (ev.effective) UI.log('特效克制！', 'gold');
@@ -2442,8 +2450,10 @@ const Battle = {
             }
           }
         } else {
-          Render.slash(foe.x, foe.y, 'miss');
-          Render.floatText('闪避', foe.x, foe.y, '#dfe6d7', 14);
+          if (!useView) {
+            Render.slash(foe.x, foe.y, 'miss');
+            Render.floatText('闪避', foe.x, foe.y, '#dfe6d7', 14);
+          }
           Audio.sfx('miss');
           UI.log(ev.attackerName + '的攻击被' + ev.defenderName + '避开。', striker.side === 'player' ? 'bad' : 'good');
         }
@@ -2453,6 +2463,11 @@ const Battle = {
         UI.log(ev.unitName + '的' + ev.weapon + '损毁了。', 'bad');
         Audio.sfx('cancel');
       }
+    }
+    /* 横版演出收幕：淡出（BV_OUT_MS）后再回到棋盘（阵亡通报压在淡出上，可接受） */
+    if (useView && BattleView.active()) {
+      BattleView.end();
+      await this.wait(BV_OUT_MS + 20);
     }
     const deaths = events.filter(e => e.type === 'death');
     for (const d of deaths) {

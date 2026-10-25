@@ -53,7 +53,7 @@ sandboxWindow.globalThis = sandboxWindow;
 sandboxWindow.console = console;
 
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
-               'js/audio.js', 'js/render.js', 'js/ui.js', 'js/battle.js',
+               'js/audio.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/battle.js',
                'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
                'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js',
                'js/camp.js', 'js/game.js'];
@@ -1028,6 +1028,111 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (heroHtml.indexOf('yunce.jpg') < 0) throw new Error('角色立绘未用 JPG');
     if (bossHtml.indexOf('shanxiao.jpg') < 0) throw new Error('Boss 立绘未用 JPG');
     if (npcHtml.indexOf('<img') >= 0) throw new Error('无立绘 NPC 不该出 img');
+  }
+
+  /* P4.4 横版战斗演出：立绘链解析 / 生命周期 / 克制条 / 绘制不炸 */
+  {
+    const BV = vm.runInContext('BattleView', ctx);
+    const { CHARS: BVCHARS, ENEMY_TYPES: BVETS, Render: BVRender } = vm.runInContext('({ CHARS, ENEMY_TYPES, Render })', ctx);
+    const BV_FULL_IDS = vm.runInContext('BV_FULL_IDS', ctx);
+    const BV_BUST_IDS = vm.runInContext('BV_BUST_IDS', ctx);
+    const BV_VARIANT_ICON = vm.runInContext('BV_VARIANT_ICON', ctx);
+    const BV_SUMMON_ICON = vm.runInContext('BV_SUMMON_ICON', ctx);
+    const eqPath = (label, got, want) => {
+      console.log('  ' + label + ' → ' + got);
+      if (got !== want) throw new Error(label + ' 应为 ' + want + '，实际 ' + got);
+    };
+
+    /* 1) 立绘链：角色→全身、Boss→胸像、玄阙→全身、杂兵→变体剪影、无美术→null */
+    const mkFake = (id, over) => Object.assign({
+      id: id, name: '假', side: 'player', hp: 20, x: 1, y: 1,
+      stats: { hp: 40, str: 10, mag: 0, skl: 8, spd: 8, lck: 5, def: 5, res: 5 },
+      items: [], ranks: {}, statuses: {}, tags: []
+    }, over || {});
+    const hero = mkFake('bvH', { charId: 'yunce', name: '云策' });
+    const boss = mkFake('bvB', { side: 'enemy', name: '山魈王', rawType: 'shanxiao', boss: true, affixes: ['shield'], tags: ['beast'] });
+    const xq = mkFake('bvX', { side: 'enemy', name: '玄阙', rawType: 'xuanque', boss: true });
+    const wolf = mkFake('bvW', { side: 'enemy', name: '妖狼', rawType: 'wolf', tags: ['beast'] });
+    const summon = mkFake('bvS', { side: 'player', name: '山灵狼', rawType: 'ally_wolf', summoned: true });
+    const bandit = mkFake('bvN', { side: 'enemy', name: '山贼', rawType: 'bandit', tags: ['human'] });
+    eqPath('角色走全身', BV.portraitOf(hero), 'assets/portraits/full/yunce.jpg');
+    eqPath('Boss 走胸像', BV.portraitOf(boss), 'assets/portraits/shanxiao.jpg');
+    eqPath('玄阙有全身', BV.portraitOf(xq), 'assets/portraits/full/xuanque.jpg');
+    eqPath('妖狼走变体剪影', BV.iconOf(wolf), 'assets/icons/units/variant/yaoshou_v1.png');
+    eqPath('山灵狼走召唤剪影', BV.iconOf(summon), 'assets/icons/units/summon/jiyinglang.png');
+    if (BV.iconOf(bandit) !== null) throw new Error('山贼无变体美术，不该有图标');
+    if (BV.portraitOf(bandit) !== null) throw new Error('山贼无立绘，不该有路径');
+
+    /* 2) usable：有美术才开演；双方都只有剪影兜底时留在棋盘 */
+    if (!BV.usable(hero, boss)) throw new Error('角色 vs Boss 应开横版');
+    if (!BV.usable(hero, wolf)) throw new Error('角色 vs 妖狼（有剪影）应开横版');
+    if (BV.usable(bandit, mkFake('bvN2', { side: 'enemy', name: '匪', rawType: 'bandit', tags: ['human'] }))) throw new Error('双方都无美术不该开横版');
+
+    /* 3) 生命周期：begin → strike（承诺会 resolve）→ end → 自动清场 */
+    if (!BV.enabled()) throw new Error('横版演出默认应开');
+    BV.begin(hero, boss, null);
+    if (!BV.active()) throw new Error('begin 后应处于演出中');
+    const sc = BV.scene;
+    if (sc.atk.name !== '云策' || sc.def.name !== '山魈王') throw new Error('两侧 fighter 快照不对');
+    const evHit = { type: 'strike', attacker: hero.id, defender: boss.id, attackerName: '云策', defenderName: '山魈王',
+      hit: true, crit: true, dmg: 21, hpAfter: 17, lethal: false, triangle: 'good', effective: true };
+    await BV.strike(evHit, 4);   // speed 4 加速，冒烟不拖时间
+    if (sc.bar.tri !== '克制') throw new Error('克制条状态不对：' + sc.bar.tri);
+    if (!sc.bar.effective) throw new Error('特效徽章未标记');
+    if (sc.bar.affixes.indexOf('护盾') < 0) throw new Error('守方护盾词缀未进徽章');
+    if (sc.def.hp !== 17) throw new Error('受击方数据未跟进 hpAfter：' + sc.def.hp);
+    if (sc.def.down) throw new Error('非致死打击不该标记倒地');
+    const evMiss = { type: 'strike', attacker: boss.id, defender: hero.id, hit: false, crit: false, dmg: 0,
+      hpAfter: hero.hp, triangle: 'bad', effective: false };
+    await BV.strike(evMiss, 4);
+    BV.end();
+    if (!BV.fading()) throw new Error('end 后应进入淡出');
+    await new Promise(r => setTimeout(r, 400));
+    if (BV.scene) throw new Error('淡出后场景未清');
+
+    /* 4) 绘制全路径不炸（vm 的 2d 桩吞掉所有 Canvas 调用）：
+     *    有立绘（Image 桩不触发 onload → 自动走剪影）、有图标、有特效 */
+    BV.begin(hero, boss, null);
+    BV.scene.fx = { ev: evHit, t0: Date.now(), dur: 500 };
+    BV.scene.bar = BV.barOf(BV.scene, evHit);
+    BVRender.draw();
+    BV.scene.fx = { ev: evMiss, t0: Date.now(), dur: 500 };
+    BVRender.draw();
+    BV.scene.closing = true; BV.scene.t1 = Date.now();
+    BVRender.draw();
+    BV.end();
+    await new Promise(r => setTimeout(r, 400));
+
+    /* 5) 资产就位：清单里的每个文件都必须存在（防改名单漏文件） */
+    const hasFile = p => fs.existsSync(path.join(ROOT, p));
+    const missFull = BV_FULL_IDS.filter(id => !hasFile('assets/portraits/full/' + id + '.jpg'));
+    if (missFull.length) throw new Error('全身立绘缺失：' + missFull.join(','));
+    const missBust = BV_BUST_IDS.filter(id => !hasFile('assets/portraits/' + id + '.jpg'));
+    if (missBust.length) throw new Error('胸像缺失：' + missBust.join(','));
+    const iconMiss = [];
+    for (const k of Object.keys(BV_VARIANT_ICON)) {
+      if (!BVETS[k]) iconMiss.push('敌型 ' + k);
+      if (!hasFile('assets/icons/units/variant/' + BV_VARIANT_ICON[k] + '.png')) iconMiss.push(BV_VARIANT_ICON[k]);
+    }
+    for (const k of Object.keys(BV_SUMMON_ICON)) {
+      if (!BVETS[k]) iconMiss.push('敌型 ' + k);
+      if (!hasFile('assets/icons/units/summon/' + BV_SUMMON_ICON[k] + '.png')) iconMiss.push(BV_SUMMON_ICON[k]);
+    }
+    if (iconMiss.length) throw new Error('图标映射缺资产：' + iconMiss.join(','));
+
+    /* 6) 演出中结束战斗：clearBattle 必须清场，防止淡出跨到营地 */
+    BV.begin(hero, boss, null);
+    BVRender.clearBattle();
+    if (BV.scene) throw new Error('clearBattle 未清横版场景');
+
+    /* 7) 关设置后 performCombat 走回棋盘冲斩（不卡流程） */
+    const { Game: Gv10 } = vm.runInContext('({ Game })', ctx);
+    Gv10.settings.battleShow = false;
+    if (BV.enabled()) throw new Error('关设置后 enabled 应为 false');
+    Gv10.settings.battleShow = true;
+    if (!BV.enabled()) throw new Error('开设置后 enabled 应为 true');
+
+    console.log('横版演出：立绘链 6 项 / usable 3 项 / 生命周期 / 绘制 / 资产 / 清场，均通过');
   }
 
   console.log('\n冒烟通过：无引用错误');

@@ -6,7 +6,7 @@ const Game = {
   SUSPEND_KEY: 'shanhaice.suspend.v4',
   SETTINGS_KEY: 'shanhaice.settings.v4',
   campaign: null,
-  settings: { music: true, sfx: true, speed: 1 },
+  settings: { music: true, sfx: true, speed: 1, battleShow: true },
   lastDeploy: null,
   currentChapter: 0,
   busy: false,
@@ -44,7 +44,8 @@ const Game = {
     return {
       music: !s || s.music !== false,
       sfx: !s || s.sfx !== false,
-      speed: s && s.speed === 2 ? 2 : 1
+      speed: s && s.speed === 2 ? 2 : 1,
+      battleShow: !s || s.battleShow !== false
     };
   },
 
@@ -100,7 +101,7 @@ const Game = {
       cleared: false,
       startedAt: Date.now(),
       savedAt: Date.now(),
-      settings: { music: this.settings.music, sfx: this.settings.sfx, speed: this.settings.speed },
+      settings: { music: this.settings.music, sfx: this.settings.sfx, speed: this.settings.speed, battleShow: this.settings.battleShow !== false },
       records: { chapters: {}, kills: 0, lost: 0, recruits: 0, turns: 0, levels: 0 }
     };
   },
@@ -218,7 +219,7 @@ const Game = {
     if (!this.campaign) return;
     this.campaign.version = SAVE_VERSION;
     this.campaign.savedAt = Date.now();
-    this.campaign.settings = { music: this.settings.music, sfx: this.settings.sfx, speed: this.settings.speed };
+    this.campaign.settings = { music: this.settings.music, sfx: this.settings.sfx, speed: this.settings.speed, battleShow: this.settings.battleShow !== false };
     this.writeJSON(this.SAVE_KEY, this.campaign);
   },
 
@@ -843,6 +844,7 @@ const Game = {
       this.settingRow('music', '音乐', '山间五声音阶与战斗脉动') +
       this.settingRow('sfx', '音效', '刀兵、脚步、界面与升级') +
       this.settingRow('speed', '战斗速度', '地图移动与交战的演出节奏') +
+      this.settingRow('battleShow', '横版演出', '攻击时切换全身立绘对峙画面，底部显示克制与弱点') +
       '</div>' +
       '<div style="margin-top:12px;font-size:10px;color:#8a806a;line-height:1.7;">设置会立即生效，并存入行旅存档。音频需一次点击后才会启动。</div>';
     return UI.modal({
@@ -855,15 +857,18 @@ const Game = {
           const mb = box.querySelector('[data-setting="music"]');
           const sb = box.querySelector('[data-setting="sfx"]');
           const pb = box.querySelector('[data-setting="speed"]');
+          const vb = box.querySelector('[data-setting="battleShow"]');
           if (mb) mb.textContent = this.settings.music ? '开' : '关';
           if (sb) sb.textContent = this.settings.sfx ? '开' : '关';
           if (pb) pb.textContent = '×' + this.settings.speed;
+          if (vb) vb.textContent = this.settings.battleShow !== false ? '开' : '关';
         };
         box.querySelectorAll('[data-setting]').forEach(btn => {
           btn.addEventListener('click', () => {
             const key = btn.dataset.setting;
             if (key === 'music') this.settings.music = !this.settings.music;
             else if (key === 'sfx') this.settings.sfx = !this.settings.sfx;
+            else if (key === 'battleShow') this.settings.battleShow = this.settings.battleShow === false;
             else this.settings.speed = this.settings.speed === 2 ? 1 : 2;
             this.applySettings();
             Audio.setMusic(this.settings.music);

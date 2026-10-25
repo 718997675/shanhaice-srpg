@@ -84,6 +84,7 @@ const Render = {
     this.floats = [];
     this.slashes = [];
     this.flashes = [];
+    if (typeof BattleView !== 'undefined') BattleView.reset();
     this.resize();
     this.buildTerrain();
   },
@@ -96,6 +97,8 @@ const Render = {
     this.floats = [];
     this.slashes = [];
     this.flashes = [];
+    /* 横版演出（P4.4）：战斗切场时无条件清场，防止淡出跨到营地 */
+    if (typeof BattleView !== 'undefined') BattleView.reset();
   },
 
   palette() { return this.PALETTES[this.theme] || this.PALETTES.mountain; },
@@ -630,6 +633,8 @@ const Render = {
     this.drawCursor(ctx, b);
     this.drawFrame(ctx);
     ctx.restore();
+    /* 横版战斗演出（P4.4）：开演时盖在棋盘上，收幕淡出后自动清场 */
+    if (typeof BattleView !== 'undefined' && BattleView.scene) BattleView.draw(ctx);
   },
 
   /* 水面波光：深水格上缓慢移的正弦高光 */
