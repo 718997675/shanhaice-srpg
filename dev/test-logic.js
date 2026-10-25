@@ -25,7 +25,7 @@ function approx(a, b, t, msg) { ok(Math.abs(a - b) <= (t || 0.01), msg + ' (got 
 
 console.log('—— 数据校验 ——');
 eq(CHAPTERS.length, 12, '章节数');
-eq(HERO_ORDER.length, 12, '角色数');
+eq(HERO_ORDER.length, 14, '角色数');
 for (const id of HERO_ORDER) {
   const c = CHARS[id];
   ok(!!c, '角色存在 ' + id);

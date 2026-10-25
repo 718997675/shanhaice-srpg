@@ -480,10 +480,53 @@ const CHARS = {
     personal2: { name: '潮生', desc: '歌的射程 +1。', songRange: 1 },
     items: [{ key: 'tide_voice', uses: 25 }, { key: 'potion', uses: 3 }],
     bio: '溯游而上的鲛人歌者，尾鳍在月下是淡水色的。她的歌能安魂，也能让千军静默一瞬。'
+  },
+  /* ---------------- 替补援军（P3.3）：第 5 章后固定入队 ----------------
+   * reserve: true → 入队时等级对齐队伍平均（game.alignLevel）。 */
+  xiewuyi: {
+    id: 'xiewuyi', name: '谢无衣', cls: 'talisman', level: 6, exp: 0, portrait: 'xiewuyi', element: 'fire',
+    reserve: true,
+    stats: { hp: 21, str: 2, mag: 9, skl: 9, spd: 7, lck: 6, def: 4, res: 9 },
+    growth: { hp: 45, str: 10, mag: 50, skl: 50, spd: 40, lck: 40, def: 25, res: 50 },
+    ranks: { talisman: 'C' }, personal: { name: '符胆', desc: '魔抗 +2；相邻友军命中 +5。', res: 2, adjacentAllyHit: 5 },
+    personal2: { name: '朱笔', desc: '对披甲目标暴击 +12。', critVsArmor: 12 },
+    items: [{ key: 'greater_talisman', uses: 20 }, { key: 'potion', uses: 3 }],
+    bio: '游方画符的术士，符纸永远比盘缠多。他说符是写给天看的信，写歪了就没人收。'
+  },
+  tengdage: {
+    id: 'tengdage', name: '滕大戈', cls: 'axeman', level: 6, exp: 0, portrait: 'tengdage', element: 'earth',
+    reserve: true,
+    stats: { hp: 32, str: 11, mag: 0, skl: 6, spd: 4, lck: 4, def: 12, res: 3 },
+    growth: { hp: 80, str: 55, mag: 0, skl: 35, spd: 25, lck: 25, def: 50, res: 20 },
+    ranks: { axe: 'B' }, personal: { name: '断锋', desc: '对披甲目标命中 +15。', hitVsArmor: 15 },
+    personal2: { name: '老骨', desc: '护甲 +3；魔抗 +1。', def: 3, res: 1 },
+    items: [{ key: 'steel_blade', uses: 20 }, { key: 'potion', uses: 3 }],
+    bio: '退役的刀客，刀上豁口比年纪多。他不爱说话，只在夜里擦刀，擦到天亮。'
   }
 };
 
-const HERO_ORDER = ['yunce', 'yankui', 'luming', 'qingluo', 'bailu', 'xuanyi', 'moya', 'chisang', 'aman', 'yunling', 'jiangsi', 'yusqiu'];
+/* ---------------- 遗言（P3.3 英魂碑） ----------------
+ * 阵亡后写在碑上的一句话，不参与任何数值。 */
+const EPITAPHS = {
+  yunce: '守脉人守的从来不是脉。这句话我到最后才听懂。',
+  yankui: '这次……身后有人。够了。',
+  luming: '下一个，一定要救回来。',
+  qingluo: '箭囊空了。山还在。',
+  bailu: '这回没逃。',
+  xuanyi: '渡口的名字，我记到最后了。',
+  moya: '这次我选你。',
+  chisang: '活下去才是赎罪——我算是……明白了。',
+  aman: '我属于选我那一边的人。',
+  yunling: '族是血，队是选。我选你们。',
+  jiangsi: '约不是束缚，是我记得你。',
+  yusqiu: '让消失的东西……有声音。',
+  xiewuyi: '符画完了。剩下的路，你们走。',
+  tengdage: '刀钝了，人没退。'
+};
+
+if (typeof window !== 'undefined') window.EPITAPHS = EPITAPHS;
+
+const HERO_ORDER = ['yunce', 'yankui', 'luming', 'qingluo', 'bailu', 'xuanyi', 'moya', 'chisang', 'aman', 'yunling', 'jiangsi', 'yusqiu', 'xiewuyi', 'tengdage'];
 const INITIAL_ROSTER = ['yunce', 'yankui', 'luming'];
 
 /* ---------------- 敌人模板 ----------------

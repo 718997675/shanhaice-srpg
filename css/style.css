@@ -654,6 +654,17 @@ img { display: block; }
 .record-line { padding: 5px 0; border-bottom: 1px dashed rgba(80,68,45,.15); }
 .record-line .muted { color: #8c826b; }
 .fallen-line { color: #8b3b2d; }
+/* 英魂碑（P3.3）：阵亡者卡片 */
+.mem-list { display: flex; flex-direction: column; gap: 10px; }
+.mem-card { position: relative; padding: 10px 12px 10px 14px; border: 1px solid rgba(122, 90, 44, .22);
+  border-left: 3px solid #8b3b2d; border-radius: 2px; background: rgba(255, 251, 238, .38); }
+.mem-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.mem-name { font-size: 15px; color: #5d3527; letter-spacing: .08em; }
+.mem-meta { font-family: var(--sans); font-size: 10px; color: #8c826b; }
+.mem-bio { margin-top: 5px; font-size: 11px; line-height: 1.75; color: #4b5142; }
+.mem-epitaph { margin-top: 7px; font-size: 12px; color: #6d4a33; letter-spacing: .04em; }
+.mem-pass { margin-top: 6px; font-size: 11px; color: #7a6a4e; }
+.mem-sealed { margin-top: 3px; font-size: 10px; color: #8c826b; }
 .record-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 
 /* 结算 */

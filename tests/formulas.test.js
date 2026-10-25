@@ -980,7 +980,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
       vm.runInContext('({ CHARS, CLASSES, SUPPORTS, SUPPORT_PAIR_MAP, AUTO_JOINS, WEAPON_TYPES, ITEMS, HERO_ORDER, RANK_ORDER, Spells, Summon })', ctx);
 
     /* 17.1 人物数据完整性 */
-    eq('人物共 12 名', Object.keys(CHARS).length, 12);
+    eq('人物共 14 名（12 主力 + 2 替补援军）', Object.keys(CHARS).length, 14);
     for (const id of ['jiangsi', 'yusqiu']) {
       const c = CHARS[id];
       ok(id + ' 职业存在', !!CLASSES[c.cls], c.cls);
@@ -1627,7 +1627,7 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
 
     /* --- 26.1 个人技② 数据完整性 --- */
     const ids = Object.keys(CHARS);
-    eq('角色 12 人', ids.length, 12);
+    eq('角色 14 人（12 主力 + 2 替补援军）', ids.length, 14);
     const missing = ids.filter(id => !CHARS[id].personal2 || !CHARS[id].personal2.name || !CHARS[id].personal2.desc);
     eq('每人都有第二条个人技', missing.join(',') || '无', '无');
     const names2 = ids.map(id => CHARS[id].personal2.name);
@@ -1774,6 +1774,61 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('弓出手 2 次', wu.bow, 2);
     ok('道具不计熟练', wu.potion === undefined);
     eq('无出手则无记录', Object.keys(Battle.weaponUsesOf(mkUnit())).length, 0);
+  }
+
+  console.log('\n== 27. 替补援军 + 遗言（P3.3） ==');
+  {
+    const { CHARS, CLASSES, WEAPONS, ITEMS, EPITAPHS, AUTO_JOINS, CHAPTERS, HERO_ORDER, STAT_ORDER } =
+      vm.runInContext('({ CHARS, CLASSES, WEAPONS, ITEMS, EPITAPHS, AUTO_JOINS, CHAPTERS, HERO_ORDER, STAT_ORDER })', ctx);
+    const ids = Object.keys(CHARS);
+    const reserves = ids.filter(id => CHARS[id].reserve);
+    eq('替补援军 2 人', reserves.length, 2);
+    eq('替补援军是谢无衣与滕大戈', reserves.sort().join(','), 'tengdage,xiewuyi');
+    ok('两人都进了 HERO_ORDER', reserves.every(id => HERO_ORDER.includes(id)));
+
+    /* 职业与兵装 */
+    eq('谢无衣是符师', CHARS.xiewuyi.cls, 'talisman');
+    eq('滕大戈是重刃', CHARS.tengdage.cls, 'axeman');
+    for (const id of reserves) {
+      const c = CHARS[id], cls = CLASSES[c.cls];
+      ok(id + ' 职业存在且为一转', !!cls && cls.tier === 1);
+      ok(id + ' 有转职去向', !!cls.promote && !!CLASSES[cls.promote]);
+      for (const t of cls.weapons) ok(id + ' 熟练度覆盖 ' + t, !!c.ranks[t]);
+      for (const it of c.items) {
+        const w = WEAPONS[it.key] || ITEMS[it.key];
+        ok(id + ' 初始物品存在 ' + it.key, !!w);
+        if (WEAPONS[it.key]) ok(id + ' 初始兵装职业可用 ' + it.key, cls.weapons.includes(WEAPONS[it.key].type));
+      }
+      for (const k of STAT_ORDER) ok(id + ' 属性完整 ' + k, typeof c.stats[k] === 'number' && typeof c.growth[k] === 'number');
+      ok(id + ' 有两条个人技', !!(c.personal && c.personal.name) && !!(c.personal2 && c.personal2.name));
+      ok(id + ' 两条个人技不同名', c.personal.name !== c.personal2.name);
+      ok(id + ' 有生平', typeof c.bio === 'string' && c.bio.length > 8);
+      ok(id + ' 基础等级不高于转职线', c.level < 10);
+    }
+
+    /* 遗言：14 人全覆盖、互不重复、非空 */
+    const noEpitaph = ids.filter(id => !EPITAPHS[id] || !String(EPITAPHS[id]).trim());
+    eq('每人都有遗言', noEpitaph.join(',') || '无', '无');
+    const texts = ids.map(id => EPITAPHS[id]);
+    eq('遗言互不重复', new Set(texts).size, texts.length);
+    ok('遗言都不超过 40 字', texts.every(t => t.length <= 40));
+
+    /* 入队：第 5 章末两条线都补人 */
+    for (const chId of ['5A', '5B']) {
+      ok('autoJoins 有 ' + chId, Array.isArray(AUTO_JOINS[chId]));
+      for (const id of reserves) {
+        ok('第 ' + chId + ' 章末补入 ' + id, (AUTO_JOINS[chId] || []).includes(id));
+      }
+      ok('第 ' + chId + ' 章存在', CHAPTERS.some(c => String(c.id) === chId));
+    }
+    const obtainable = new Set();
+    for (const chId in AUTO_JOINS) for (const id of AUTO_JOINS[chId]) obtainable.add(id);
+    eq('替补援军有入队路径', reserves.filter(id => !obtainable.has(id)).join(',') || '无', '无');
+
+    /* 数值定位：谢无衣偏辅助（魔抗高于护甲），滕大戈偏半坦（护甲高、血厚） */
+    ok('谢无衣魔抗 > 护甲', CHARS.xiewuyi.stats.res > CHARS.xiewuyi.stats.def);
+    ok('滕大戈护甲 ≥ 10 且生命 ≥ 30', CHARS.tengdage.stats.def >= 10 && CHARS.tengdage.stats.hp >= 30);
+    ok('滕大戈力量高于技巧', CHARS.tengdage.stats.str > CHARS.tengdage.stats.skl);
   }
 
   console.log('\n----------------------------------------');

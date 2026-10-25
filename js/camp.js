@@ -74,6 +74,7 @@ const Camp = {
     else if (this.tab === 'forge') this.renderForge(body);
     else if (this.tab === 'support') this.renderSupport(body);
     else if (this.tab === 'record') this.renderRecord(body);
+    else if (this.tab === 'memorial') this.renderMemorial(body);
     else if (this.tab === 'deploy') this.renderDeploy(body);
   },
 
@@ -508,6 +509,48 @@ const Camp = {
       '<button class="mini-btn danger" data-act="reset">重开旅程</button>' +
       '<button class="mini-btn" data-act="title">回到标题</button>' +
       '</div></div>';
+  },
+
+  /* ============================================================
+   * 英魂碑（P3.3）：阵亡者生平、遗言与传承去向
+   * ============================================================ */
+  renderMemorial(body) {
+    const c = Game.campaign;
+    const list = (c.fallen || []).map(id => {
+      const base = CHARS[id];
+      if (!base) return '';
+      const m = (c.memorial && c.memorial[id]) || {};
+      const ch = m.chapter ? Route.byId(m.chapter) : null;
+      const where = ch ? UI.chapterLabel(ch.no) + ' ' + ch.name : '不知名的路上';
+      const cls = CLASSES[m.cls || base.cls];
+      const heir = (m.heir && CHARS[m.heir]) ? CHARS[m.heir].name : (m.heirName || '');
+      const carried = [];
+      if (m.skill) carried.push('个人技「' + UI.escape(m.skill) + '」');
+      if (m.weapon) carried.push(UI.escape((WEAPONS[m.weapon] || {}).name || m.weapon));
+      const pass = carried.length
+        ? '传给 <b>' + UI.escape(heir || '同行者') + '</b>：' + carried.join('、')
+        : (heir ? '遗志由 <b>' + UI.escape(heir) + '</b> 接下' : '无人可传');
+      const sealed = m.sealed
+        ? '<div class="mem-sealed">' + UI.escape((WEAPONS[m.sealed] || {}).name || m.sealed) + ' 无人能持，封存于行囊。</div>'
+        : '';
+      return '<div class="mem-card">' +
+        '<div class="mem-head"><span class="mem-name">' + UI.escape(base.name) + '</span>' +
+        '<span class="mem-meta">' + UI.escape(cls ? cls.name : '') + ' · 殁于 ' + UI.escape(where) + '</span></div>' +
+        '<div class="mem-bio">' + UI.escape(base.bio || '') + '</div>' +
+        '<div class="mem-epitaph">「' + UI.escape(m.epitaph || (typeof EPITAPHS !== 'undefined' && EPITAPHS[id]) || '') + '」</div>' +
+        '<div class="mem-pass">' + pass + '</div>' + sealed + '</div>';
+    }).join('');
+    const relics = (c.relics || []).map(it => {
+      const w = WEAPONS[it.key] || ITEMS[it.key];
+      return '<div class="record-line">' + UI.escape(w ? w.name : it.key) + ' <span class="muted">封存</span></div>';
+    }).join('');
+    body.innerHTML = '<div class="record-wrap">' +
+      '<h3>英 魂 碑</h3>' +
+      (list
+        ? '<div class="mem-list">' + list + '</div>'
+        : '<div class="record-list"><div class="record-line"><span class="muted">碑上还没有名字。愿它一直空着。</span></div></div>') +
+      (relics ? '<h3 style="margin-top:16px;">封 存</h3><div class="record-list">' + relics + '</div>' : '') +
+      '</div>';
   },
 
   /* ============================================================

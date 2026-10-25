@@ -698,5 +698,78 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (!(norm.inherited || []).length) throw new Error('归一化丢了继承技');
   }
 
+  /* P3.3 替补援军等级对齐 + 殉志传承 + 英魂碑 */
+  {
+    const { Camp, Game: Gv, CHARS, CLASSES } = vm.runInContext('({ Camp, Game, CHARS, CLASSES })', ctx);
+    /* 等级对齐：按成长期望值补，同一目标等级结果确定 */
+    const xw = Gv.makeRec('xiewuyi');
+    const baseHp = xw.stats.hp, baseMag = xw.stats.mag;
+    Gv.alignLevel(xw, 10);
+    const expHp = baseHp + Math.round(CHARS.xiewuyi.growth.hp / 100 * (10 - CHARS.xiewuyi.level));
+    console.log('谢无衣对齐 Lv.10：生命', baseHp, '→', xw.stats.hp, '（期望', expHp, '）；灵力', baseMag, '→', xw.stats.mag);
+    if (xw.level !== 10) throw new Error('等级未对齐：' + xw.level);
+    if (xw.stats.hp !== expHp) throw new Error('对齐成长值异常：' + xw.stats.hp + ' ≠ ' + expHp);
+    const low = Gv.makeRec('tengdage');
+    Gv.alignLevel(low, 3);   // 目标低于基础等级：不降级
+    console.log('目标等级低于基础时不降级：Lv.', low.level);
+    if (low.level !== CHARS.tengdage.level) throw new Error('对齐不该降低等级');
+
+    /* 殉志传承：支援最高的存活者接技能；传说兵装类型不符则封存 */
+    const savedRoster = camp.roster, savedSupports = camp.supports;
+    camp.roster = ['yunce', 'luming', 'qingluo', 'xuanyi'].map(id => Gv.makeRec(id));
+    camp.supports = { qingluo_xuanyi: 90 };
+    camp.memorial = {}; camp.relics = [];
+    const dead = camp.roster.find(r => r.id === 'qingluo');
+    dead.inherited = [{ name: '旧技', dmg: 1 }];
+    dead.items = [{ key: 'lw_longgu', uses: 20 }, { key: 'iron_bow', uses: 10 }];
+    const lg = Gv.passOnLegacy('qingluo', 5);
+    const heir = camp.roster.find(r => r.id === (lg && lg.heir));
+    console.log('传承：', lg.name, '→', lg.heirName, '；技能', lg.skill, '；兵装', lg.weapon, '；封存', lg.sealed);
+    if (!lg || lg.heir !== 'xuanyi') throw new Error('继承者应为支援最高的玄漪：' + (lg && lg.heir));
+    if (lg.skill !== '鹰眼') throw new Error('未传承个人技①：' + lg.skill);
+    if (!heir.inherited.some(s => s.name === '鹰眼')) throw new Error('继承技未写入继承者');
+    if (lg.sealed !== 'lw_longgu') throw new Error('弓不该传给法师');
+    if (!camp.relics.some(it => it.key === 'lw_longgu')) throw new Error('类型不符的传说兵装未封存');
+    if (lg.epitaph !== vm.runInContext('EPITAPHS', ctx).qingluo) throw new Error('英魂碑遗言未写入');
+    /* 类型相符时随传承：玄漪的咒熟练度拉到 S，青萝改持咒传说 */
+    heir.ranks.tome = 'S';
+    dead.items = [{ key: 'lw_wanbi', uses: 20 }];
+    camp.memorial = {}; camp.relics = [];
+    const lg2 = Gv.passOnLegacy('qingluo', 6);
+    console.log('类型相符随传承：', lg2.weapon, '；玄漪行囊', heir.items.map(i => i.key).join('/'));
+    if (lg2.weapon !== 'lw_wanbi' || lg2.sealed) throw new Error('咒传说应随传承');
+    if (!heir.items.some(i => i.key === 'lw_wanbi')) throw new Error('传说兵装未进继承者行囊');
+    /* 继承上限仍是 2 条 */
+    dead.inherited = [{ name: '甲技', dmg: 1 }, { name: '乙技', dmg: 1 }];
+    heir.inherited = [{ name: '占位一', dmg: 1 }, { name: '占位二', dmg: 1 }];
+    camp.memorial = {};
+    Gv.passOnLegacy('qingluo', 7);
+    console.log('传承后仍守上限 2：', heir.inherited.map(s => s.name).join('/'));
+    if (heir.inherited.length !== 2) throw new Error('传承突破继承上限');
+    if (heir.inherited.some(s => s.name === '占位一')) throw new Error('传承未先进先出');
+
+    /* 英魂碑渲染：名字 + 遗言 + 传承去向 */
+    camp.fallen = ['qingluo'];
+    camp.memorial = { qingluo: lg };
+    const memBody = el();
+    Camp.renderMemorial(memBody);
+    const html = memBody.innerHTML;
+    const okName = html.indexOf('青萝') >= 0;
+    const okEpi = html.indexOf('箭囊空了') >= 0;
+    const okPass = html.indexOf('传给') >= 0 && html.indexOf('玄漪') >= 0;
+    console.log('英魂碑渲染：名字', okName, '；遗言', okEpi, '；传承', okPass);
+    if (!okName || !okEpi || !okPass) throw new Error('英魂碑渲染不完整');
+    /* 无阵亡时给安慰文案 */
+    camp.fallen = [];
+    const emptyBody = el();
+    Camp.renderMemorial(emptyBody);
+    if (emptyBody.innerHTML.indexOf('愿它一直空着') < 0) throw new Error('空碑文案缺失');
+    console.log('空碑文案 =', true);
+
+    camp.roster = savedRoster;
+    camp.supports = savedSupports;
+    camp.memorial = {}; camp.relics = []; camp.fallen = [];
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

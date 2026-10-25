@@ -85,6 +85,8 @@ const Game = {
       seals: 0,
       roster,
       fallen: [],
+      memorial: {},
+      relics: [],
       supports: {},
       knots: {},
       convoy: [{ key: 'potion', uses: 3 }],
@@ -153,7 +155,10 @@ const Game = {
         stats,
         ranks: Object.assign({}, base.ranks, r.ranks || {}),
         items,
-        weaponIndex: Math.max(0, Math.min(items.length - 1, r.weaponIndex || 0))
+        weaponIndex: Math.max(0, Math.min(items.length - 1, r.weaponIndex || 0)),
+        /* P2.2 技能继承与熟练度进度：旧档没有则给空，有则原样保留 */
+        inherited: Array.isArray(r.inherited) ? r.inherited.filter(s => s && s.name).slice(-INHERIT_CAP) : [],
+        rankPts: (r.rankPts && typeof r.rankPts === 'object') ? Object.assign({}, r.rankPts) : {}
       };
     });
     if (!c.roster.some(r => r.id === 'yunce')) {
@@ -169,6 +174,13 @@ const Game = {
     c.fallen = c.fallen.filter(id => CHARS[id] && id !== 'yunce');
     c.fallen = Array.from(new Set(c.fallen));
     if (!c.supports || typeof c.supports !== 'object') c.supports = {};
+    /* 英魂碑（P3.3）：memorial 记阵亡生平与传承，relics 存封存的传说兵装 */
+    if (!c.memorial || typeof c.memorial !== 'object') c.memorial = {};
+    for (const id of Object.keys(c.memorial)) {
+      if (!CHARS[id]) delete c.memorial[id];
+    }
+    if (!Array.isArray(c.relics)) c.relics = [];
+    c.relics = c.relics.filter(it => it && (WEAPONS[it.key] || ITEMS[it.key]));
     /* 心结（P3.2）：旧档没有该字段；已有路线却漏挂时补挂 */
     if (!c.knots || typeof c.knots !== 'object') c.knots = {};
     if (c.route && HEART_KNOTS[c.route] && !c.knots[HEART_KNOTS[c.route].char]) {
@@ -418,7 +430,10 @@ const Game = {
         }
         for (const up of this.applyRankGrowth(rec)) rankUps.push(up);
       }
+      const legacies = [];
       for (const id of result.fallen || []) {
+        const legacy = this.passOnLegacy(id, ch.id);
+        if (legacy) legacies.push(legacy);
         const idx = this.campaign.roster.findIndex(r => r.id === id);
         if (idx >= 0) this.campaign.roster.splice(idx, 1);
         if (!this.campaign.fallen.includes(id)) this.campaign.fallen.push(id);
@@ -459,6 +474,8 @@ const Game = {
         if (this.campaign.roster.some(r => r.id === id)) continue;
         const rec = this.makeRec(id);
         if (rec) {
+          /* 替补援军（P3.3）：等级对齐队伍平均，免得第 5 章后进来的人形同虚设 */
+          if (CHARS[id] && CHARS[id].reserve) this.alignLevel(rec, this.averageLevel());
           this.campaign.roster.push(rec);
           joined.push(id);
         }
@@ -524,6 +541,15 @@ const Game = {
         UI.escape(CHARS[u.id].name) + '·' + UI.escape((WEAPON_TYPES[u.wt] && WEAPON_TYPES[u.wt].name) || u.wt) +
         ' ' + u.from + '→' + u.to).join('、') + '</b></div>';
       if (fallenNames.length) list += '<div style="color:#8b3b2d;">阵亡：' + fallenNames.map(n => UI.escape(n)).join('、') + '。他们将留在行录里。</div>';
+      for (const lg of legacies) {
+        const parts = [];
+        if (lg.skill) parts.push('「' + UI.escape(lg.skill) + '」');
+        if (lg.weapon) parts.push(UI.escape((WEAPONS[lg.weapon] || {}).name || lg.weapon));
+        let line = '<div style="color:#7a4a35;">殉志传承：' + UI.escape(lg.name) + ' 把 ' +
+          (parts.length ? parts.join(' 与 ') : '遗志') + ' 交给了 ' + UI.escape(lg.heirName || '同行者') + '。</div>';
+        if (lg.sealed) line += '<div style="color:#8a806a;font-size:10px;">' + UI.escape((WEAPONS[lg.sealed] || {}).name || lg.sealed) + ' 无人能持，已封存于行囊。</div>';
+        list += line;
+      }
       if (nextCh) list += '<div>下一程：<b>' + UI.escape(UI.chapterLabel(nextCh.no) + ' ' + nextCh.name) +
         (nextCh.route ? '（' + UI.escape(Route.label(this.campaign.route)) + '）' : '') + '</b></div>';
       else list += '<div><b>九脉已通，山海重明。</b></div>';
@@ -613,6 +639,99 @@ const Game = {
     if (!row.ranks || typeof row.ranks !== 'object') row.ranks = {};
     return Battle.rankGrowth(row.ranks, row.rankPts, rec.weaponUses)
       .map(u => Object.assign({ id: rec.id }, u));
+  },
+
+  /* 队伍平均等级（替补援军对齐用） */
+  averageLevel() {
+    const roster = (this.campaign && this.campaign.roster) || [];
+    if (!roster.length) return 1;
+    const sum = roster.reduce((s, r) => s + (r.level || 1), 0);
+    return Math.round(sum / roster.length);
+  },
+
+  /* 替补援军等级对齐（P3.3）：按成长率的期望值补足属性，而不是随机 roll——
+   * 同一存档无论何时入队，数值都一样，测试也好断言。 */
+  alignLevel(rec, target) {
+    const base = CHARS[rec.id];
+    if (!base || !rec) return rec;
+    const to = Math.max(base.level, Math.min(MAX_LEVEL, Math.round(target || base.level)));
+    const up = to - base.level;
+    if (up > 0) {
+      for (const k of STAT_ORDER) {
+        const g = (base.growth && base.growth[k]) || 0;
+        const add = Math.round(g / 100 * up);
+        if (add > 0) rec.stats[k] = Math.min(STAT_CAPS[k] || 99, (rec.stats[k] || 0) + add);
+      }
+    }
+    rec.level = to;
+    return rec;
+  },
+
+  /* 殉志传承（P3.3）：阵亡者把一条个人技（或继承技，职业技能不传）交给支援等级最高的
+   * 存活者；传说兵装随传承，类型/熟练度不符或行囊满则封存进 campaign.relics，不凭空消失。
+   * 返回传承记录，写进 campaign.memorial 供英魂碑展示。须在死者移出 roster 之前调用。 */
+  passOnLegacy(fallenId, chapterId) {
+    const c = this.campaign;
+    const base = CHARS[fallenId];
+    if (!base) return null;
+    const dead = c.roster.find(r => r.id === fallenId) || null;
+    if (!c.memorial || typeof c.memorial !== 'object') c.memorial = {};
+    if (!Array.isArray(c.relics)) c.relics = [];
+    const rec = {
+      id: fallenId, name: base.name,
+      cls: dead ? dead.cls : base.cls,
+      chapter: chapterId || null,
+      heir: null, heirName: null,
+      skill: null, weapon: null, sealed: null,
+      epitaph: (typeof EPITAPHS !== 'undefined' && EPITAPHS[fallenId]) || ''
+    };
+    /* 继承者：存活者中支援点数最高者；同分取等级高的；都没有支援就取等级最高 */
+    const pairOf = (a, b) => SUPPORT_PAIR_MAP[a + '_' + b] || SUPPORT_PAIR_MAP[b + '_' + a] || null;
+    let best = null;
+    for (const r of c.roster) {
+      if (r.id === fallenId) continue;
+      const pair = pairOf(fallenId, r.id);
+      const pts = pair ? (c.supports[pair.id] || 0) : 0;
+      const key = pts * 100 + (r.level || 0);
+      if (!best || key > best.key) best = { row: r, key };
+    }
+    if (!best) return rec;                       // 全队只剩死者：无人可传
+    const heir = best.row;
+    rec.heir = heir.id;
+    rec.heirName = CHARS[heir.id] ? CHARS[heir.id].name : heir.id;
+
+    /* 技能：个人技① → 个人技② → 死者已有的继承技；继承者已会的跳过 */
+    const cands = [base.personal, base.personal2].filter(s => s && s.name);
+    if (dead && Array.isArray(dead.inherited)) cands.push(...dead.inherited);
+    const pick = cands.find(s => !(heir.inherited || []).some(x => x && x.name === s.name));
+    if (pick) {
+      if (!Array.isArray(heir.inherited)) heir.inherited = [];
+      heir.inherited.push(JSON.parse(JSON.stringify(pick)));
+      while (heir.inherited.length > INHERIT_CAP) heir.inherited.shift();
+      rec.skill = pick.name;
+    }
+
+    /* 传说兵装：类型相符 + 熟练度够 + 行囊未满才随传承，否则封存 */
+    const legend = ((dead && dead.items) || []).find(it => it && LEGENDARY_WEAPONS[it.key]);
+    if (legend) {
+      const w = WEAPONS[legend.key];
+      const heirCls = CLASSES[heir.cls];
+      const canCarry = !!(w && heirCls && (heirCls.weapons || []).includes(w.type) &&
+        RANK_ORDER[heir.ranks[w.type]] !== undefined &&
+        RANK_ORDER[heir.ranks[w.type]] >= RANK_ORDER[w.rank] &&
+        (heir.items || []).length < 5);
+      const copy = JSON.parse(JSON.stringify(legend));
+      if (canCarry) {
+        heir.items = heir.items || [];
+        heir.items.push(copy);
+        rec.weapon = legend.key;
+      } else {
+        c.relics.push(copy);
+        rec.sealed = legend.key;
+      }
+    }
+    c.memorial[fallenId] = rec;
+    return rec;
   },
 
   normalizeUnitRecord(rec, prev) {

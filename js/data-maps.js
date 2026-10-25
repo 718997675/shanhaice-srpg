@@ -4,11 +4,12 @@
  * ============================================================ */
 
 /* 章末自动入队（保险网）：地图招募点之外的补充，键为章 id。
- * P3.1 起第 4 章末分 A/B 线：5A/6A/7A = 焚脉（追），5B/6B/7B = 守脉（守），第 8 章汇合。 */
+ * P3.1 起第 4 章末分 A/B 线：5A/6A/7A = 焚脉（追），5B/6B/7B = 守脉（守），第 8 章汇合。
+ * P3.3 起第 5 章末两条线各补两名替补援军（谢无衣 / 滕大戈），防止后期人手不足被卡关。 */
 const AUTO_JOINS = {
   1: ['qingluo'], 2: ['bailu'], 3: ['xuanyi'],
-  '5A': ['chisang'], '6A': ['jiangsi', 'yusqiu'], '7A': ['aman', 'yunling'],
-  '5B': ['jiangsi'], '6B': ['aman', 'yusqiu'], '7B': ['chisang', 'yunling']
+  '5A': ['chisang', 'xiewuyi', 'tengdage'], '6A': ['jiangsi', 'yusqiu'], '7A': ['aman', 'yunling'],
+  '5B': ['jiangsi', 'xiewuyi', 'tengdage'], '6B': ['aman', 'yusqiu'], '7B': ['chisang', 'yunling']
 };
 
 const CHAPTERS = [
