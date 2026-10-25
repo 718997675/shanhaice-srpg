@@ -2151,6 +2151,50 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     eq('引导文案不掺剧情', leaky.join(',') || '无', '无');
   }
 
+  console.log('\n== 34. 立绘资源接入（P4.3） ==');
+  {
+    const { CHARS } = vm.runInContext('({ CHARS })', ctx);
+    const dir = path.join(ROOT, 'assets/portraits');
+    const has = f => fs.existsSync(path.join(dir, f));
+    const sizeOf = f => fs.statSync(path.join(dir, f)).size;
+
+    eq('14 名角色都有立绘',
+      Object.keys(CHARS).filter(id => !has(id + '.jpg')).join(',') || '无', '无');
+    eq('角色都有 hurt 表情',
+      Object.keys(CHARS).filter(id => !has(id + '_hurt.jpg')).join(',') || '无', '无');
+
+    /* 对白里会出现的 Boss（UI.charOf 的 specials 映射目标）必须有立绘，否则台词没脸 */
+    const bossIds = ['xuanque', 'shanxiao', 'chisha', 'bamboo', 'waterghost', 'icexiao', 'swampdragon', 'turbidgeneral'];
+    eq('对白 Boss 都有立绘', bossIds.filter(id => !has(id + '.jpg')).join(',') || '无', '无');
+
+    /* 体积红线：单张超 1.5M 说明有人把 art-source 原图直接拷进来了 */
+    const pngs = fs.readdirSync(dir).filter(f => f.endsWith('.jpg'));
+    const heavy = pngs.filter(f => sizeOf(f) > 1.5 * 1024 * 1024);
+    eq('没有未压缩的原图混进 assets', heavy.join(',') || '无', '无');
+    ok('立绘数量 ≥ 55', pngs.length >= 55, String(pngs.length));
+    /* 扩展名必须与实际编码一致：JPEG 内容不许挂 .png 后缀 */
+    const wrongExt = pngs.filter(f => f.endsWith('.png'));
+    eq('立绘没有 .png 后缀的 JPEG', wrongExt.join(',') || '无', '无');
+
+    const portTotal = pngs.reduce((a, f) => a + sizeOf(f), 0);
+    ok('立绘目录总量 < 8M', portTotal < 8 * 1024 * 1024,
+      (portTotal / 1024 / 1024).toFixed(2) + 'M');
+
+    /* 全身与图标目录：资源就位即可，接线在 P4 剩余项里做 */
+    const fullDir = path.join(dir, 'full');
+    const fulls = fs.existsSync(fullDir) ? fs.readdirSync(fullDir).filter(f => f.endsWith('.jpg')) : [];
+    ok('全身立绘已就位（≥15 张）', fulls.length >= 15, String(fulls.length));
+
+    const iconDir = path.join(ROOT, 'assets/icons/units');
+    const icons = fs.existsSync(iconDir) ? fs.readdirSync(iconDir).filter(f => f.endsWith('.png')) : [];
+    ok('我方图标已就位（14 张）', icons.length >= 14, String(icons.length));
+
+    /* 美术侧拼音与游戏 id 的别名必须真的落到文件上（曾漏过 yusuqiu → yusqiu） */
+    const aliases = { yankui: 'yanwei', moya: 'moyan', yusqiu: 'yusuqiu' };
+    const aliasBad = Object.keys(aliases).filter(id => !has(id + '.jpg'));
+    eq('别名角色都有立绘', aliasBad.join(',') || '无', '无');
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

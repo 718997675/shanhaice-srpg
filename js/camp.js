@@ -109,7 +109,7 @@ const Camp = {
       '<div class="stat-cell"><div class="lab">' + (STAT_NAMES[k] || k) + '</div>' +
       '<span class="val">' + (rec.stats[k] || 0) + '</span><span class="grow">' + ((base.growth && base.growth[k]) || 0) + '%</span></div>'
     ).join('');
-    const img = 'assets/portraits/' + rec.id + '.svg';
+    const img = UI.portraitPath(rec.id);
     /* 技能列表（P2.2）：职业技 + 个人技① + 个人技② + 继承技 */
     const pseudo = { cls: rec.cls, personal: base.personal, personal2: base.personal2, inherited: rec.inherited || [] };
     const skillList = (typeof Battle !== 'undefined' && Battle.skillListOf) ? Battle.skillListOf(pseudo) : [];
@@ -159,7 +159,7 @@ const Camp = {
 
     return '<div class="unit-hero">' +
       '<div class="unit-portrait"><div class="portrait-fallback">' + UI.escape(base.name.charAt(0)) + '</div>' +
-      '<img src="' + img + '" alt="" onerror="this.style.display=\'none\'"></div>' +
+      '<img src="' + img + '" alt=""' + UI.portraitFbAttr(rec.id) + '></div>' +
       '<div class="unit-id"><div class="unit-name">' + UI.escape(base.name) + '</div>' +
       '<div class="unit-class">' + UI.escape(cls.name || '') + ' · Lv.' + rec.level + ' · ' + (rec.exp || 0) + '/100</div>' +
       skillHTML +

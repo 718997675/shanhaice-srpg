@@ -1009,5 +1009,26 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     if (toasts.length !== 1 || toasts[0] !== HINTS.move) throw new Error('引导文案不对');
   }
 
+  /* P4.3 立绘路径：PNG 优先、SVG 兜底，角色与 Boss 都走同一条 */
+  {
+    const { UI: UIv9 } = vm.runInContext('({ UI })', ctx);
+    const png = UIv9.portraitPath('yunce');
+    const svg = UIv9.portraitSvgPath('yunce');
+    const attr = UIv9.portraitFbAttr('yunce');
+    const heroHtml = UIv9.portraitHTML('云策');
+    const bossHtml = UIv9.portraitHTML('山魈王');
+    const npcHtml = UIv9.portraitHTML('庙伯');
+    console.log('立绘路径：', png, '｜兜底：', svg);
+    console.log('portraitHTML：云策→jpg', heroHtml.indexOf('yunce.jpg') > 0,
+      '；山魈王→jpg', bossHtml.indexOf('shanxiao.jpg') > 0,
+      '；无立绘 NPC 不出 img', npcHtml.indexOf('<img') < 0);
+    if (png !== 'assets/portraits/yunce.jpg') throw new Error('立绘路径不对');
+    if (svg !== 'assets/portraits/yunce.svg') throw new Error('SVG 路径不对');
+    if (attr.indexOf('yunce.svg') < 0 || attr.indexOf('dataset.fb') < 0) throw new Error('兜底属性不对');
+    if (heroHtml.indexOf('yunce.jpg') < 0) throw new Error('角色立绘未用 JPG');
+    if (bossHtml.indexOf('shanxiao.jpg') < 0) throw new Error('Boss 立绘未用 JPG');
+    if (npcHtml.indexOf('<img') >= 0) throw new Error('无立绘 NPC 不该出 img');
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

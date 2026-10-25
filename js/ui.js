@@ -163,20 +163,31 @@ const UI = {
     return null;
   },
 
+  /* 立绘路径（P4.3）：优先用 art-source 压出来的 JPG，缺失时回退 SVG 程序图。
+   * 两段都失败再交给调用方的文字兜底——所以漏一张图不会白屏。
+   * 立绘不透明（原图 hasAlpha:no），用 JPG 比 PNG 小 5 倍；图标要透明，仍走 PNG。 */
+  portraitPath(id) { return 'assets/portraits/' + id + '.jpg'; },
+  portraitSvgPath(id) { return 'assets/portraits/' + id + '.svg'; },
+  /* 内联 onerror：第一次失败换 svg，第二次失败隐藏（留文字首字） */
+  portraitFbAttr(id) {
+    return ' onerror="if(this.dataset.fb){this.style.display=\'none\'}else{this.dataset.fb=1;this.src=\'' +
+      this.portraitSvgPath(id) + '\'}"';
+  },
+
   portraitHTML(name, cls) {
     const id = this.charOf(name);
     const initial = name ? name.charAt(0) : '？';
-    const src = id ? 'assets/portraits/' + id + '.svg' : '';
+    const src = id ? this.portraitPath(id) : '';
     return '<span class="thumb-wrap ' + (cls || '') + '"><span class="thumb-letter">' + this.escape(initial) + '</span>' +
-      (src ? '<img src="' + src + '" alt="" onerror="this.remove()">' : '') + '</span>';
+      (src ? '<img src="' + src + '" alt=""' + this.portraitFbAttr(id) + '>' : '') + '</span>';
   },
 
   unitPortraitHTML(unit) {
     const id = unit.charId || (unit.side === 'enemy' ? this.charOf(unit.name) : null);
     const initial = (unit.name || '？').charAt(0);
-    const src = id && CHARS[id] ? 'assets/portraits/' + id + '.svg' : '';
+    const src = id && CHARS[id] ? this.portraitPath(id) : '';
     return '<div class="unit-portrait"><div class="portrait-fallback">' + this.escape(initial) + '</div>' +
-      (src ? '<img src="' + src + '" alt="" onerror="this.style.display=\'none\'">' : '') + '</div>';
+      (src ? '<img src="' + src + '" alt=""' + this.portraitFbAttr(id) + '>' : '') + '</div>';
   },
 
   unitCard(unit, B, hint) {
@@ -466,28 +477,21 @@ const UI = {
           this.el.dialogImg.style.display = 'none';
           this.el.dialogFallback.style.display = 'flex';
           this.el.dialogFallback.textContent = who.charAt(0);
-          if (id && CHARS[id]) {
-            this.el.dialogImg.onload = () => {
-              this.el.dialogImg.style.display = 'block';
+          if (id) {
+            const img = this.el.dialogImg;
+            let triedSvg = false;
+            img.onload = () => {
+              img.style.display = 'block';
               this.el.dialogFallback.style.display = 'none';
             };
-            this.el.dialogImg.onerror = () => {
-              this.el.dialogImg.style.display = 'none';
+            /* PNG 缺失 → 回退 SVG 程序图 → 再失败才留文字首字 */
+            img.onerror = () => {
+              if (!triedSvg) { triedSvg = true; img.src = this.portraitSvgPath(id); return; }
+              img.style.display = 'none';
               this.el.dialogFallback.style.display = 'flex';
             };
-            this.el.dialogImg.src = 'assets/portraits/' + id + '.svg';
-            this.el.dialogImg.alt = who;
-          } else if (id) {
-            this.el.dialogImg.onload = () => {
-              this.el.dialogImg.style.display = 'block';
-              this.el.dialogFallback.style.display = 'none';
-            };
-            this.el.dialogImg.onerror = () => {
-              this.el.dialogImg.style.display = 'none';
-              this.el.dialogFallback.style.display = 'flex';
-            };
-            this.el.dialogImg.src = 'assets/portraits/' + id + '.svg';
-            this.el.dialogImg.alt = who;
+            img.src = this.portraitPath(id);
+            img.alt = who;
           } else {
             this.el.dialogImg.removeAttribute('src');
           }
