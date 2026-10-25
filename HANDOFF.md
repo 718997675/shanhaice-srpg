@@ -5,9 +5,20 @@
 
 ---
 
-## 0. 当前节点速览（2026-10-26 00:40）
+## 0. 当前节点速览（2026-10-26 01:18）
 
 **P6 已搁置**（用户决定，`dev/regress.js` 停在 75 通过 / 2 失败未提交）。**二期已启动**，主文档：`docs/山海策-灵脉-二期计划.md`（四根主轴：尺度/传承/宿命/呈现）。执行顺序按计划 §3：**P1 = A 战略层 + D 宿命脚本 + G 打击感 + H-P1 图标**，其中 **G 与 H-P1 投入产出比最高，最先做**。
+
+### ✅ 战中换装 + 击杀掉落（提交 `32d7423`，四连全绿：4977 / 1820 / 双冒烟）
+
+经典策略层（火纹风格）：战斗中可自由换装备、击杀敌军有概率掉落武器道具。
+
+- **换装**：行动菜单加「换装」按钮（`battle.js openSwapMenu`）→ modal 列出 `unit.items` 中可装备武器（名称/威力/命中/射程/耐久/能否装备）→ 选装改 `unit.weaponIndex`。规则：不消耗移动力、不结束行动；换过后本回合不能再换回来（`u.swapped` 记录已换索引，防刷射程）；已攻击后禁用。`finishUnitAction`/`finishEnemyAction` 清理 `swapped`。
+- **掉落**：`ENEMY_TYPES` 普通敌军加 `drop: { key, chance }`——bandit 掉铁剑(15%)、armor 掉铁重刃(12%)、shaman 掉冰咒(15%)、priest 掉金创药(20%)、rogue 掉匕首(15%)、elite 掉钢枪(10%)；野兽(wolf/bird)不掉。`makeEnemyUnit` 把 `type.drop` 拷到 `unit.drop`；`handleDeath` 按 chance 概率 push 到 `B.loot.items`，武器给 `WEAPONS[key].uses` 正常耐久。日志播报「击杀 X，获得 Y」。
+- **addLoot 双格式**：`game.js addLoot` 原只接受字符串 key，现支持 `{key, uses}` 对象（保留掉落武器耐久）；材料堆叠 `st.uses += uses`。
+- **测试**：test-logic 新增「战中换装 + 击杀掉落」断言节（44 条）——换装入出口/防刷标记/canEquipKey 过滤、ENEMY_TYPES drop 字段校验、makeEnemyUnit 拷 drop、handleDeath 概率掉落、addLoot 双格式。
+
+**并行线**：技能演出（`spell-fx.js`/`juice.js`/`spells.js`）是另一条线在做，本次提交附带其遗留改动（已被 index.html 和 smoke-boot 引用，不提交会导致引用断裂）。
 
 ### ✅ 规则修正：攻击不消耗移动力（提交 `165302c`，四连全绿）
 
