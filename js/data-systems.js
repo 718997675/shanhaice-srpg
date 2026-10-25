@@ -433,7 +433,7 @@ const HEART_KNOTS = {
 };
 const KNOT_HIT_PENALTY = 5;              // 未解心结：命中 -5
 const KNOT_FINAL_BONUS = { hit: 5, crit: 5 };  // 全解：终章全队 +5 命中 +5 必杀
-const KNOT_FINAL_NO = 9;                 // 终章章号
+const KNOT_FINAL_NO = 13;                // 终章章号（下海四章之后）
 
 if (typeof window !== 'undefined') window.HEART_KNOTS = HEART_KNOTS;
 
@@ -486,7 +486,7 @@ const ENDINGS = {
 };
 
 /* 判定阈值：好结局要求「人留住、羁绊够、阵眼全控」三条同时成立 */
-const ENDING_RULE = { good: { alive: 8, rankA: 3, allNodes: true }, mid: { alive: 5, rankA: 1 } };
+const ENDING_RULE = { good: { alive: 10, rankA: 3, allNodes: true }, mid: { alive: 5, rankA: 1 } };
 
 function endingOf(metrics) {
   const m = metrics || {};
@@ -550,9 +550,13 @@ const CODEX = [
   { key: 'bridgewraith', kind: 'boss', name: '桥魅', lore: '渡厄桥的怨。过桥的人越多，它就越记得自己没过去。', tip: '水属性，别让它在水格上回复。' },
   { key: 'valleydragon', kind: 'boss', name: '谷螭', lore: '断魂谷里的无角小龙。它不咬人，它只把谷口堵上。', tip: '土属性，堵路时优先清两侧。' },
   { key: 'tidewyrm', kind: 'boss', name: '浪蛟', lore: '沧浪津的浪是它翻的。它一停，津口就静得吓人。', tip: '水属性，站在高处打有命中加成。' },
-  /* —— 遗迹 2 —— */
+  { key: 'relickeeper', kind: 'boss', name: '守脉人遗骸', lore: '他守到最后一刻，然后被自己的灵脉抽空了。碑上没刻他的名字，因为他还在替别人刻。', tip: '带护盾词缀，先破盾；二阶段甲更厚、移动更慢，用破甲兵装磨。' },
+  /* —— 遗迹 5 —— */
   { key: 'ruin_5A', kind: 'ruin', name: '玄冰祭坛', chapter: '5A', lore: '祭坛底下压着一条主脉的脉眼。冰不是天冷结的，是脉在喘。', tip: '冰面滑行会改变站位，进图先看地形。' },
-  { key: 'ruin_8', kind: 'ruin', name: '天柱废墟', chapter: '8', lore: '补天遗族最后立起的一根柱子。它断了，但断口还朝着天。', tip: '三处阵眼要同时守住三个己方阶段。' }
+  { key: 'ruin_8', kind: 'ruin', name: '天柱废墟', chapter: '8', lore: '补天遗族最后立起的一根柱子。它断了，但断口还朝着天。', tip: '三处阵眼要同时守住三个己方阶段。' },
+  { key: 'ruin_10', kind: 'ruin', name: '沉城旧都', chapter: 10, lore: '整座城在海底还亮着灯。灯是灵脉的余烬，人不在了，光还没散。', tip: '残垣多、射界乱，古匣藏在城心，打捞要走得深一点。' },
+  { key: 'ruin_11', kind: 'ruin', name: '万脉渊', chapter: 11, lore: '九条主脉在这里汇成一口井。井底有东西在数人，数到你就停。', tip: '三处阵眼相距极远，必须分兵，别让一路被拖住。' },
+  { key: 'ruin_12', kind: 'ruin', name: '无字碑', chapter: 12, lore: '一块磨得发亮的碑。正面无字，背面密密麻麻刻满了名字——那是被抽走的人。', tip: '守脉人遗骸二阶段护甲极高，破甲与咒术优先。' }
 ];
 
 function codexEntry(key) {
@@ -644,13 +648,13 @@ const MECHANICS = [
   { id: 'knots', group: 'campaign', title: '心结',
     body: '没选的那条路会化成对应同伴的心结：命中 −5。在营地把对应支援练到 A 级即可了断；全部解开后，终章全队命中 +5、必杀 +5。' },
   { id: 'endings', group: 'campaign', title: '多结局',
-    body: '终章按存活人数、A 级羁绊数与阵眼控制判定三档尾声：灵脉重燃（存活 ≥8、A 级 ≥3、三阵眼全控）、山河如旧（存活 ≥5 或 A 级 ≥1）、永夜（其余）。行录记录已达成的结局。' },
+    body: '终章按存活人数、A 级羁绊数与阵眼控制判定三档尾声：灵脉重燃（存活 ≥10、A 级 ≥3、三阵眼全控）、山河如旧（存活 ≥5 或 A 级 ≥1）、永夜（其余）。行录记录已达成的结局。' },
   { id: 'rewind', group: 'campaign', title: '悔棋与续战',
     body: '每章可悔棋 3 次（修罗 0 次），逐次回到上一个我方阶段开始，随机数状态完整恢复。切后台、关闭页面会自动写入续战存档，回来选「继续旅程」即可接续。' },
   { id: 'codex', group: 'campaign', title: '山海图鉴',
-    body: '29 条分五类：妖兽 8、灵兽 3、精英词缀 4、首领 12、遗迹 2。击破敌人解锁敌型与词缀条目，通关对应章节解锁遗迹条目；每条含异闻小传与实战弱点。' },
+    body: '33 条分五类：妖兽 8、灵兽 3、精英词缀 4、首领 13、遗迹 5。击破敌人解锁敌型与词缀条目，通关对应章节解锁遗迹条目；每条含异闻小传与实战弱点。' },
   { id: 'save', group: 'campaign', title: '存档与周目',
-    body: '战役进度、续战存档与设置分三个本地键存放（v4），版本不兼容的旧档会引导开新旅程。二周目保留周目数（传说掉率 +5%/周目），缘值与持有重新计数。' }
+    body: '战役进度、续战存档与设置分三个本地键存放（v5），版本不兼容的旧档会引导开新旅程。二周目保留周目数（传说掉率 +5%/周目），缘值与持有重新计数。' }
 ];
 
 function mechanicsByGroup(group) {

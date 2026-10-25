@@ -2,9 +2,13 @@
  * 战役流程：存档、章节推进、结算、续战与标题流转
  * ============================================================ */
 const Game = {
-  SAVE_KEY: 'shanhaice.save.v4',
-  SUSPEND_KEY: 'shanhaice.suspend.v4',
-  SETTINGS_KEY: 'shanhaice.settings.v4',
+  SAVE_KEY: 'shanhaice.save.v5',
+  SUSPEND_KEY: 'shanhaice.suspend.v5',
+  SETTINGS_KEY: 'shanhaice.settings.v5',
+  /* 版本号一变就换键名，但旧键里的战役进度必须能接过来：
+   * 读到旧键 → normalizeCampaign 里做版本迁移 → 写进新键、删掉旧键。
+   * 续战存档不迁移：它绑着具体那张地图的单位坐标，跨版本接上去只会错位。 */
+  LEGACY_SAVE_KEYS: ['shanhaice.save.v4', 'shanhaice.save.v3'],
   campaign: null,
   settings: { music: true, sfx: true, speed: 1, battleShow: true, juice: true, reducedMotion: false, haptics: true },
   lastDeploy: null,
@@ -118,6 +122,11 @@ const Game = {
       raw.chapter = mig.chapter;
       raw.route = mig.route;
       if (mig.cleared) raw.cleared = true;
+      raw.version = 4;
+    }
+    /* v4 → v5：下海四章插入，原第 9 章（终章）后移为 13 */
+    if (raw.version === 4) {
+      raw.chapter = Route.migrateV4Chapter(raw.chapter, raw.cleared);
       raw.version = SAVE_VERSION;
     }
     if (raw.version !== SAVE_VERSION) return null;
@@ -218,7 +227,24 @@ const Game = {
   },
 
   loadCampaign() {
-    return this.normalizeCampaign(this.readJSON(this.SAVE_KEY));
+    let raw = this.readJSON(this.SAVE_KEY);
+    let from = raw ? this.SAVE_KEY : null;
+    if (!raw) {
+      for (const k of this.LEGACY_SAVE_KEYS) {
+        const old = this.readJSON(k);
+        if (old) { raw = old; from = k; break; }
+      }
+    }
+    if (!raw) return null;
+    const c = this.normalizeCampaign(raw);
+    if (!c) return null;
+    if (from !== this.SAVE_KEY) {
+      /* 迁移落盘：先让 saveCampaign 有对象可写，再清掉旧键 */
+      this.campaign = c;
+      this.saveCampaign();
+      try { localStorage.removeItem(from); } catch (e) { /* 隐私模式忽略 */ }
+    }
+    return c;
   },
 
   saveCampaign() {

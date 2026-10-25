@@ -111,7 +111,15 @@ const ItemIcons = {
     tome: '<g transform="rotate(28 32 32)">' +
       '<path d="M11 17 q10 -6 21 0 q10 -6 21 0 L53 47 q-10 -6 -21 0 q-11 -6 -21 0 Z" fill="{b}" stroke="{i}" stroke-width="2"/>' +
       '<path d="M32 17 L32 47" stroke="{i}" stroke-width="2"/>' +
-      '<path d="M17 25 h9 M38 25 h9 M17 33 h9 M38 33 h9" stroke="{i}" stroke-width="1.4"/></g>'
+      '<path d="M17 25 h9 M38 25 h9 M17 33 h9 M38 33 h9" stroke="{i}" stroke-width="1.4"/></g>',
+    /* 链：短柄 + 三节锁环 + 尖坠，沿斜向串起 */
+    chain: '<g transform="rotate(28 32 32)">' +
+      '<path d="M14 56 L21 47" stroke="{i}" stroke-width="7.5" stroke-linecap="round"/>' +
+      '<path d="M14 56 L21 47" stroke="{b}" stroke-width="5" stroke-linecap="round"/>' +
+      '<ellipse cx="25" cy="43" rx="6.6" ry="4.2" transform="rotate(-51 25 43)" fill="none" stroke="{b}" stroke-width="2.6"/>' +
+      '<ellipse cx="32" cy="34" rx="6.6" ry="4.2" transform="rotate(-51 32 34)" fill="none" stroke="{h}" stroke-width="2.6"/>' +
+      '<ellipse cx="39" cy="25" rx="6.6" ry="4.2" transform="rotate(-51 39 25)" fill="none" stroke="{b}" stroke-width="2.6"/>' +
+      '<path d="M43 21 L54 8 L49 23 Z" fill="{b}" stroke="{i}" stroke-width="1.8"/></g>'
   },
 
   /* ---------------- 五行符号 ---------------- */

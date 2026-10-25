@@ -2720,7 +2720,9 @@ const Battle = {
   async handleDeath(unit, killer) {
     if (!unit) return;
     if (unit.side === 'enemy') {
-      if (unit.rawType === 'xuanque' && unit.phase === 1) {
+      /* 多阶段 Boss：一阶段倒下即变身（数据里带 phase2 的都走这条路） */
+      const base = ENEMY_TYPES[unit.rawType];
+      if (unit.phase === 1 && base && base.phase2) {
         unit.hp = 0;
         await this.transformBoss(unit);
         return;
@@ -2790,8 +2792,10 @@ const Battle = {
   },
 
   async transformBoss(unit) {
-    const type = ENEMY_TYPES.xuanque;
-    const spec = type.phase2;
+    const baseType = ENEMY_TYPES[unit.rawType];
+    if (!baseType || !baseType.phase2) return;
+    const spec = baseType.phase2;
+    const fromName = unit.name;
     const diff = this.diff;
     const stats = {};
     for (const k of ['hp', 'str', 'mag', 'skl', 'spd', 'lck', 'def', 'res']) {
@@ -2807,18 +2811,18 @@ const Battle = {
     unit.tags = spec.tags.slice();
     unit.ai = 'aggressive';
     unit.phase = 2;
-    unit.rawType = 'xuanque_phase2';
+    unit.rawType = unit.rawType + '_phase2';
     unit.statuses = {};
     if (this.B.flags.weakened) this.weakenUnitStats(unit);
     this.B.flags.bossPhase = 2;
-    UI.log('玄阙的血肉裂开，噬脉兽现身。', 'bad');
-    UI.toast('玄阙化作噬脉兽');
+    UI.log(fromName + '的血肉裂开，' + spec.name + '现身。', 'bad');
+    UI.toast(fromName + '化作' + spec.name);
     BGM.play('boss');
     Audio.sfx('crit');
     Render.shake(10);
     Render.flash('#c9a35c', 0.25);
     UI.updateBattle(this.B);
-    await UI.dialogue(DIALOGUES.boss_phase2 || []);
+    await UI.dialogue(DIALOGUES[spec.dialogue || 'boss_phase2'] || []);
     UI.updateBattle(this.B);
   },
 
@@ -2831,9 +2835,9 @@ const Battle = {
 
   applyWeaken() {
     const B = this.B;
-    const boss = B.units.find(u => u.side === 'enemy' && (u.rawType === 'xuanque' || u.rawType === 'xuanque_phase2') && u.hp > 0);
-    UI.log('三处阵眼的脉光刺入浊潮，噬脉兽的气息被削弱了。', 'gold');
-    UI.toast('阵眼共鸣 · 噬脉兽被削弱');
+    const boss = B.units.find(u => u.side === 'enemy' && u.boss && u.hp > 0);
+    UI.log('三处阵眼的脉光刺入浊潮，首领的气息被削弱了。', 'gold');
+    UI.toast('阵眼共鸣 · 首领被削弱');
     if (boss && boss.phase === 2) {
       this.weakenUnitStats(boss);
       Render.floatText('脉弱', boss.x, boss.y, '#a9d3a2', 18);
