@@ -800,6 +800,93 @@ const SUPPORTS = [
         { who: 'yusqiu', text: '我游了这么远，等的就是这句话。' }
       ]
     }
+  },
+  /* P3.2 新增四组：把心结的「了断」对象接进支援网 */
+  {
+    id: 'yunce_moya', a: 'yunce', b: 'moya', name: '旧影',
+    dialogues: {
+      C: [
+        { who: 'moya', text: '别谢我。我这人做好事会折寿。' },
+        { who: 'yunce', text: '那你还做。' },
+        { who: 'moya', text: '……我旧主欠的账，我替他还一点，不行吗？' }
+      ],
+      B: [
+        { who: 'yunce', text: '墨鸦，你恨他吗？' },
+        { who: 'moya', text: '恨。可我更恨自己——跟了他十年，才知道他要拿活人换脉。' },
+        { who: 'yunce', text: '知道得晚，好过一直不知道。' },
+        { who: 'moya', text: '……你这话，怎么比刀还钝。' }
+      ],
+      A: [
+        { who: 'moya', text: '云策。若有一天我挡不住他，你别管我，往前走。' },
+        { who: 'yunce', text: '我不往前走。' },
+        { who: 'moya', text: '为什么？' },
+        { who: 'yunce', text: '我背得动一个人，就背得动两个人。' }
+      ]
+    }
+  },
+  {
+    id: 'yunce_bailu', a: 'yunce', b: 'bailu', name: '逃将',
+    dialogues: {
+      C: [
+        { who: 'bailu', text: '守脉人，你打算怎么赢？靠那半卷残策？' },
+        { who: 'yunce', text: '靠你们。' },
+        { who: 'bailu', text: '……啧。这话我不会记着的。' }
+      ],
+      B: [
+        { who: 'bailu', text: '我逃过一次。整营的人替我死。你知道那种感觉吗？' },
+        { who: 'yunce', text: '不知道。但我知道背着它走路，会很沉。' },
+        { who: 'bailu', text: '那你帮我背一半？' },
+        { who: 'yunce', text: '好。' }
+      ],
+      A: [
+        { who: 'bailu', text: '云策，我不逃了。' },
+        { who: 'yunce', text: '嗯。' },
+        { who: 'bailu', text: '你就这反应？我好不容易说的！' },
+        { who: 'yunce', text: '我怕说多了，你又要反悔。' }
+      ]
+    }
+  },
+  {
+    id: 'yankui_aman', a: 'yankui', b: 'aman', name: '山与兽',
+    dialogues: {
+      C: [
+        { who: 'aman', text: '大个子，你走路像山在挪。兽都躲着你。' },
+        { who: 'yankui', text: '我数过了。三十七步，一只也没跑。' },
+        { who: 'aman', text: '……它们是不敢跑。' }
+      ],
+      B: [
+        { who: 'aman', text: '你为什么总在数东西？' },
+        { who: 'yankui', text: '数清了，就不会少。' },
+        { who: 'aman', text: '人会少的。你数不过来。' },
+        { who: 'yankui', text: '那我一个一个记。' }
+      ],
+      A: [
+        { who: 'yankui', text: '阿蛮。你的兽，认我吗？' },
+        { who: 'aman', text: '它们说，你身上有山的味道，没有人的味道。' },
+        { who: 'yankui', text: '……那算是认了。' },
+        { who: 'aman', text: '算。山不会走，它们喜欢不会走的东西。' }
+      ]
+    }
+  },
+  {
+    id: 'qingluo_xuanyi', a: 'qingluo', b: 'xuanyi', name: '草与冰',
+    dialogues: {
+      C: [
+        { who: 'qingluo', text: '渡口这么冷，怎么一株草都不长？' },
+        { who: 'xuanyi', text: '长过。冻死了。' },
+        { who: 'qingluo', text: '那我种耐寒的。' }
+      ],
+      B: [
+        { who: 'xuanyi', text: '你种的草，又被冰压了。' },
+        { who: 'qingluo', text: '那就再种。草这东西，你越踩它越往缝里长。' },
+        { who: 'xuanyi', text: '……人也是。' }
+      ],
+      A: [
+        { who: 'qingluo', text: '玄漪，冰化的时候，你想先看见什么？' },
+        { who: 'xuanyi', text: '绿色。' },
+        { who: 'qingluo', text: '那我提前给你种满。' }
+      ]
+    }
   }
 ];
 

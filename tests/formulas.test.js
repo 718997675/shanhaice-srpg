@@ -1556,6 +1556,69 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     ok('预览含保留强化', txt.indexOf('保留 +2') > 0, txt);
   }
 
+  console.log('\n== 25. 支援 12 组 + 心结（P3.2） ==');
+  {
+    const { SUPPORTS, CHARS, HEART_KNOTS, KNOT_HIT_PENALTY, KNOT_FINAL_BONUS, KNOT_FINAL_NO } =
+      vm.runInContext('({ SUPPORTS, CHARS, HEART_KNOTS, KNOT_HIT_PENALTY, KNOT_FINAL_BONUS, KNOT_FINAL_NO })', ctx);
+    const { Battle } = vm.runInContext('({ Battle })', ctx);
+    eq('支援组 12 组', SUPPORTS.length, 12);
+    const ids = SUPPORTS.map(p => p.id);
+    eq('支援 id 唯一', new Set(ids).size, ids.length);
+    const bad = [];
+    for (const p of SUPPORTS) {
+      if (!CHARS[p.a] || !CHARS[p.b]) bad.push(p.id + ' 角色不存在');
+      if (p.a === p.b) bad.push(p.id + ' 自连');
+      if (!p.name) bad.push(p.id + ' 缺名');
+      for (const r of ['C', 'B', 'A']) {
+        const d = p.dialogues && p.dialogues[r];
+        if (!Array.isArray(d) || d.length < 3) bad.push(p.id + ' 缺 ' + r + ' 对白');
+        else if (d.some(l => !CHARS[l.who] && l.who !== '旁白')) bad.push(p.id + ' ' + r + ' 说话人非法');
+      }
+    }
+    eq('支援数据完整', bad.join(' | ') || '无', '无');
+    const pairs = SUPPORTS.map(p => [p.a, p.b].sort().join('|'));
+    eq('支援配对不重复', new Set(pairs).size, pairs.length);
+
+    /* 心结：两条线各挂一人，了断对象必须在同一支援组里 */
+    for (const r of ['A', 'B']) {
+      const k = HEART_KNOTS[r];
+      ok('心结 ' + r + ' 存在', !!k);
+      ok('心结 ' + r + ' 角色有效', !!(k && CHARS[k.char]));
+      ok('心结 ' + r + ' 了断对象有效', !!(k && CHARS[k.partner]));
+      const pair = SUPPORTS.find(p => p.id === (k && k.pairId));
+      ok('心结 ' + r + ' 对应支援组存在',
+        !!pair && [pair.a, pair.b].includes(k.char) && [pair.a, pair.b].includes(k.partner));
+      ok('心结 ' + r + ' 有对白', Array.isArray(k.resolve) && k.resolve.length >= 3);
+    }
+    ok('两条线挂的是不同角色', HEART_KNOTS.A.char !== HEART_KNOTS.B.char);
+
+    /* modsFor：未解 -5 / 解开 0 / 终章全解 +5+5 / 非终章不给 */
+    const fake = Object.create(Battle);
+    const hero = mkUnit({ charId: 'chisang', cls: 'zzz', x: 3, y: 3 });
+    const foe = mkUnit({ id: 'e', side: 'enemy', x: 1, y: 0 });
+    fake.B = { units: [hero], nodes: [], supports: {} };
+    fake.chapter = { no: 5 };
+    fake.campaign = { knots: { chisang: { resolved: false, route: 'A' } }, supports: {} };
+    eq('未解心结命中 -5', Battle.modsFor.call(fake, hero, foe).hit, -KNOT_HIT_PENALTY);
+    eq('knotState 未解', Battle.knotState.call(fake, 'chisang'), 'open');
+    ok('未全解', !Battle.allKnotsCleared.call(fake));
+    fake.campaign.knots.chisang.resolved = true;
+    eq('解开后不再扣', Battle.modsFor.call(fake, hero, foe).hit, 0);
+    eq('knotState 已解', Battle.knotState.call(fake, 'chisang'), 'cleared');
+    ok('全解成立', Battle.allKnotsCleared.call(fake));
+    fake.chapter = { no: KNOT_FINAL_NO };
+    const fm = Battle.modsFor.call(fake, hero, foe);
+    eq('终章全解命中 +5', fm.hit, KNOT_FINAL_BONUS.hit);
+    eq('终章全解必杀 +5', fm.crit, KNOT_FINAL_BONUS.crit);
+    fake.chapter = { no: 5 };
+    eq('非终章不给加成', Battle.modsFor.call(fake, hero, foe).hit, 0);
+    const other = mkUnit({ charId: 'luming', cls: 'zzz', x: 3, y: 4 });
+    eq('无心结角色不扣命中', Battle.modsFor.call(fake, other, foe).hit, 0);
+    eq('无心结 knotState 为 null', Battle.knotState.call(fake, 'luming'), null);
+    const foeKnot = mkUnit({ id: 'e2', side: 'enemy', charId: 'chisang', x: 2, y: 0 });
+    eq('敌方不吃心结', Battle.modsFor.call(fake, foeKnot, hero).hit, 0);
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

@@ -86,6 +86,7 @@ const Game = {
       roster,
       fallen: [],
       supports: {},
+      knots: {},
       convoy: [{ key: 'potion', uses: 3 }],
       sideCleared: {},
       introSeen: {},
@@ -168,6 +169,11 @@ const Game = {
     c.fallen = c.fallen.filter(id => CHARS[id] && id !== 'yunce');
     c.fallen = Array.from(new Set(c.fallen));
     if (!c.supports || typeof c.supports !== 'object') c.supports = {};
+    /* 心结（P3.2）：旧档没有该字段；已有路线却漏挂时补挂 */
+    if (!c.knots || typeof c.knots !== 'object') c.knots = {};
+    if (c.route && HEART_KNOTS[c.route] && !c.knots[HEART_KNOTS[c.route].char]) {
+      c.knots[HEART_KNOTS[c.route].char] = { resolved: false, route: c.route };
+    }
     if (!Array.isArray(c.convoy)) c.convoy = [];
     c.convoy = c.convoy.filter(it => it && (WEAPONS[it.key] || ITEMS[it.key]));
     if (!c.sideCleared || typeof c.sideCleared !== 'object') c.sideCleared = {};
@@ -481,6 +487,7 @@ const Game = {
       if (ch.id === 4 && !this.campaign.route) {
         const pick = await this.chooseRoute();
         this.campaign.route = pick;
+        this.applyKnots(pick);
         this.saveCampaign();
       }
       const nextId = Route.nextId(this.campaign.route, ch.id);
@@ -569,6 +576,24 @@ const Game = {
       closable: false
     });
     return pick === 'B' ? 'B' : 'A';
+  },
+
+  /* 心结：选定路线后，把「被放弃的那条路」挂到对应角色身上（P3.2） */
+  applyKnots(route) {
+    const spec = HEART_KNOTS[route];
+    if (!spec) return null;
+    this.campaign.knots = this.campaign.knots || {};
+    this.campaign.knots[spec.char] = { resolved: false, route: route };
+    return spec;
+  },
+
+  /* 心结汇总：{ open: [charId], resolved: [charId], all: [charId], cleared: bool } */
+  knotSummary(campaign) {
+    const c = campaign || this.campaign;
+    const knots = (c && c.knots) || {};
+    const all = Object.keys(knots).filter(id => CHARS[id]);
+    const open = all.filter(id => !knots[id].resolved);
+    return { all, open, resolved: all.filter(id => knots[id].resolved), cleared: all.length > 0 && open.length === 0 };
   },
 
   normalizeUnitRecord(rec) {

@@ -370,6 +370,23 @@ const Camp = {
   renderSupport(body) {
     const c = Game.campaign;
     const rosterIds = c.roster.map(r => r.id);
+    const knotCards = Object.keys(c.knots || {}).filter(id => CHARS[id]).map(id => {
+      const k = c.knots[id];
+      const spec = HEART_KNOTS[k.route] || {};
+      const rank = Combat.supportRank(c.supports[spec.pairId] || 0);
+      const canResolve = rank === 'A' && !k.resolved;
+      return '<div class="knot-card' + (k.resolved ? ' knot-done' : '') + '">' +
+        '<div class="knot-title">心结 · ' + UI.escape(spec.name || '') + '　<b>' + UI.escape(CHARS[id].name) + '</b>' +
+        '<span class="knot-tag">' + (k.resolved ? '已了断' : '未解') + '</span></div>' +
+        '<div class="knot-desc">' + UI.escape(spec.desc || '') + '</div>' +
+        '<div class="knot-state">' + (k.resolved
+          ? '心结已了。全部解开时，终章全队 +5 命中 +5 必杀。'
+          : '未解：命中 -5。' + UI.escape(spec.hint || '')) + '</div>' +
+        (k.resolved ? '' : '<button class="mini-btn gold" data-act="knotResolve" data-id="' + id + '"' +
+          (canResolve ? '' : ' disabled') + '>' + (canResolve ? '了断' : '羁绊未达 A 级') + '</button>') +
+        '</div>';
+    }).join('');
+    const knotHTML = knotCards ? '<div class="knot-wrap"><h3>心 结</h3>' + knotCards + '</div>' : '';
     const cards = SUPPORTS.map(pair => {
       const unlocked = rosterIds.includes(pair.a) && rosterIds.includes(pair.b);
       const points = c.supports[pair.id] || 0;
@@ -390,7 +407,31 @@ const Camp = {
         '<div class="support-bonus">C 级 +5 命中/回避 · B 级 +10 · A 级 +15 命中/回避，并加暴击回避。相邻结束我方阶段可加深羁绊。</div>' +
         '</div>';
     }).join('');
-    body.innerHTML = '<div class="support-wrap">' + cards + '</div>';
+    body.innerHTML = knotHTML + '<div class="support-wrap">' + cards + '</div>';
+  },
+
+  /* 了断心结（P3.2）：需对应支援 A 级，播完对白即解，终章全解给全队加成 */
+  async resolveKnot(charId) {
+    const c = Game.campaign;
+    const k = c.knots && c.knots[charId];
+    if (!k || k.resolved) return;
+    const spec = HEART_KNOTS[k.route];
+    if (!spec) return;
+    if (Combat.supportRank(c.supports[spec.pairId] || 0) !== 'A') {
+      UI.toast('羁绊需达到 A 级才能了断');
+      return;
+    }
+    const lines = (spec.resolve || []).map(line =>
+      Object.assign({}, line, { who: CHARS[line.who] ? CHARS[line.who].name : line.who }));
+    await UI.dialogue(lines);
+    k.resolved = true;
+    Game.saveCampaign();
+    Audio.sfx('levelup');
+    const sum = Game.knotSummary(c);
+    UI.toast(sum.cleared
+      ? '心结已了 · 终章全队 +5 命中 +5 必杀'
+      : CHARS[charId].name + ' 的心结已了断');
+    this.render();
   },
 
   async supportTalk(pairId, rank) {
@@ -688,6 +729,10 @@ const Camp = {
     }
     if (act === 'supportTalk') {
       await this.supportTalk(btn.dataset.pair, btn.dataset.rank);
+      return;
+    }
+    if (act === 'knotResolve') {
+      await this.resolveKnot(btn.dataset.id);
       return;
     }
     if (act === 'settings') {

@@ -429,6 +429,22 @@ const Battle = {
     return best;
   },
 
+  /* 心结状态（P3.2）：'open' 未解 / 'cleared' 已解 / null 无心结 */
+  knotState(charId) {
+    const c = this.campaign || (typeof Game !== 'undefined' && Game.campaign);
+    const knots = (c && c.knots) || null;
+    if (!knots || !knots[charId]) return null;
+    return knots[charId].resolved ? 'cleared' : 'open';
+  },
+
+  /* 心结是否全部解开（终章全队加成的条件） */
+  allKnotsCleared() {
+    const c = this.campaign || (typeof Game !== 'undefined' && Game.campaign);
+    const knots = (c && c.knots) || {};
+    const ids = Object.keys(knots).filter(id => knots[id] && typeof knots[id] === 'object');
+    return ids.length > 0 && ids.every(id => knots[id].resolved);
+  },
+
   modsFor(unit, foe, initiating) {
     const m = Combat.zeroMods();
     if (!unit || !this.B) return m;
@@ -525,6 +541,16 @@ const Battle = {
       const sb = this.bestSupportBonus(unit);
       if (sb.rank) {
         m.hit += sb.hit; m.avoid += sb.avoid; m.crit += sb.crit; m.critAvoid += sb.dodge;
+      }
+    }
+
+    // 心结（P3.2）：未解 -5 命中；全部解开后终章全队 +5 命中 +5 必杀
+    if (unit.side === 'player' && unit.charId) {
+      const ks = this.knotState(unit.charId);
+      if (ks === 'open') m.hit -= KNOT_HIT_PENALTY;
+      else if (ks === 'cleared' && this.chapter && this.chapter.no === KNOT_FINAL_NO && this.allKnotsCleared()) {
+        m.hit += KNOT_FINAL_BONUS.hit;
+        m.crit += KNOT_FINAL_BONUS.crit;
       }
     }
 

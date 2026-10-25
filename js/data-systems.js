@@ -374,3 +374,40 @@ const WEAPON_EVOLUTIONS = {
 };
 
 if (typeof window !== 'undefined') window.WEAPON_EVOLUTIONS = WEAPON_EVOLUTIONS;
+
+/* ---------------- 心结（P3.2，升级方案 §4.2） ----------------
+ * 第 4 章末「追与守」二选一后，被放弃的那条路会落在某个人心里：
+ *   走 A（追·焚脉）→ 赤桑背着断魂谷的空谷；走 B（守·守脉）→ 墨鸦又放走玄阙一次。
+ * 未解：该角色命中 -5（battle.js modsFor 统一出口）；终章前与支援 A 级挚友「了断」；
+ * 全部解开 → 终章全队 +5 命中 +5 必杀。数值常量集中于此。 */
+const HEART_KNOTS = {
+  A: {
+    char: 'chisang', partner: 'xuanyi', pairId: 'xuanyi_chisang',
+    name: '空谷', desc: '你选了追。断魂谷的人等到最后一夜，没等到援兵。',
+    hint: '与玄漪的羁绊达到 A 级后，可在营地「支援」页了断。',
+    resolve: [
+      { who: 'chisang', text: '……我一直在想谷里那些人。他们会不会以为，是我们不肯来。' },
+      { who: 'xuanyi', text: '他们不会。守脉人走哪条路，他们比谁都清楚。' },
+      { who: 'chisang', text: '可我清楚——我选了追，就等于替他们选了死。' },
+      { who: 'xuanyi', text: '赤桑。你把这条命背着走了三章。放下吧，剩下的路我陪你走。' },
+      { who: 'chisang', text: '……好。谷里的人，等我打完这一仗，回去给他们立碑。' }
+    ]
+  },
+  B: {
+    char: 'moya', partner: 'yunce', pairId: 'yunce_moya',
+    name: '旧影', desc: '你选了守。玄阙又一次从眼前走掉，而这次是墨鸦让开的。',
+    hint: '与云策的羁绊达到 A 级后，可在营地「支援」页了断。',
+    resolve: [
+      { who: 'moya', text: '第二次了。第一次他杀我全营，我跑了；这次我自己让开的路。' },
+      { who: 'yunce', text: '你让开，是为了谷里那几万人。' },
+      { who: 'moya', text: '道理我懂。可我一闭眼，就看见他背着手走远的样子。' },
+      { who: 'yunce', text: '那就睁着眼。前面还有一段路，他跑不掉。' },
+      { who: 'moya', text: '……你这个人，说话真难听。行，我跟你走到最后。' }
+    ]
+  }
+};
+const KNOT_HIT_PENALTY = 5;              // 未解心结：命中 -5
+const KNOT_FINAL_BONUS = { hit: 5, crit: 5 };  // 全解：终章全队 +5 命中 +5 必杀
+const KNOT_FINAL_NO = 9;                 // 终章章号
+
+if (typeof window !== 'undefined') window.HEART_KNOTS = HEART_KNOTS;

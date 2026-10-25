@@ -554,5 +554,56 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     camp.convoy = [];
   }
 
+  /* P3.2 心结：挂载 → 命中 -5 → 支援 A 级了断 → 恢复 → 终章全解 +5/+5 */
+  {
+    const { HEART_KNOTS, Camp, UI: UIv2 } = vm.runInContext('({ HEART_KNOTS, Camp, UI })', ctx);
+    camp.knots = {};
+    Game.applyKnots('A');
+    console.log('选 A 线挂心结：', Object.keys(camp.knots).join(','));
+    if (!camp.knots.chisang || camp.knots.chisang.resolved) throw new Error('A 线未挂赤桑心结');
+    const knotUnit = { id: 'kt', charId: 'chisang', side: 'player', cls: 'swordmaster', x: 3, y: 3, hp: 30,
+      stats: { hp: 30, str: 10, mag: 0, skl: 10, spd: 10, lck: 5, def: 5, res: 5 },
+      items: [], weaponIndex: -1, statuses: {}, tags: ['human'] };
+    const knotFoe = { id: 'kt2', side: 'enemy', charId: null, x: 1, y: 1, hp: 20,
+      stats: { hp: 20, str: 5, mag: 0, skl: 5, spd: 5, lck: 5, def: 5, res: 5 },
+      items: [], weaponIndex: -1, statuses: {}, tags: ['human'] };
+    B.units.push(knotUnit, knotFoe);
+    Battle.campaign = camp;
+    const hitKnot = Battle.modsFor(knotUnit, knotFoe).hit;
+    console.log('心结未解命中修正：', hitKnot);
+    if (hitKnot !== -5) throw new Error('心结命中修正异常：' + hitKnot);
+    /* 羁绊不足 A：了断应被拒 */
+    camp.supports[HEART_KNOTS.A.pairId] = 50;
+    await Camp.resolveKnot('chisang');
+    if (camp.knots.chisang.resolved) throw new Error('羁绊不足却了断了');
+    console.log('羁绊 B 级时了断被拒 =', true);
+    /* 拉到 A 级再了断 */
+    camp.supports[HEART_KNOTS.A.pairId] = 90;
+    const origDlg = UIv2.dialogue;
+    UIv2.dialogue = () => Promise.resolve();
+    await Camp.resolveKnot('chisang');
+    UIv2.dialogue = origDlg;
+    console.log('了断后 resolved =', camp.knots.chisang.resolved,
+                '；命中修正 =', Battle.modsFor(knotUnit, knotFoe).hit);
+    if (!camp.knots.chisang.resolved) throw new Error('了断未生效');
+    if (Battle.modsFor(knotUnit, knotFoe).hit !== 0) throw new Error('了断后仍扣命中');
+    /* 终章全解：+5 命中 +5 必杀 */
+    const savedChapter = Battle.chapter;
+    Battle.chapter = { no: 9 };
+    const finalMods = Battle.modsFor(knotUnit, knotFoe);
+    console.log('终章全解：命中 +' + finalMods.hit + ' · 必杀 +' + finalMods.crit);
+    if (finalMods.hit !== 5 || finalMods.crit !== 5) throw new Error('终章全解加成异常');
+    Battle.chapter = savedChapter;
+    /* 营地支援页应渲染出心结卡 */
+    camp.knots.chisang.resolved = false;
+    const knotBody = el();
+    Camp.renderSupport(knotBody);
+    if (knotBody.innerHTML.indexOf('心结 · 空谷') < 0) throw new Error('支援页未渲染心结卡');
+    if (knotBody.innerHTML.indexOf('data-act="knotResolve"') < 0) throw new Error('心结卡缺了断钮');
+    console.log('支援页心结卡 =', true);
+    camp.knots.chisang.resolved = true;
+    B.units = B.units.filter(u => u.id !== 'kt' && u.id !== 'kt2');
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });
