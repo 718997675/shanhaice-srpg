@@ -40,7 +40,7 @@ index.html            页面骨架与脚本加载顺序
 css/style.css         整体视觉与响应式布局
 js/rng.js             可快照/恢复的确定性随机数
 js/data-core.js       职业、武器、角色、敌人、支援、难度、地形
-js/data-maps.js       8 章地图、目标、事件与剧情
+js/data-maps.js       12 张地图、目标、事件与剧情
 js/combat.js          命中、伤害、必杀、追击等战斗公式
 js/battle.js          战斗流程、阶段、AI、阵眼、悔棋与存档
 js/render.js          Canvas 地图与战斗演出
@@ -49,9 +49,22 @@ js/camp.js            营地、编成、商店、转职
 js/game.js            战役推进、章节结算、存档读写
 js/systems/route.js   A/B 战役路线（分歧、章节链、v3 存档迁移）
 js/audio.js           WebAudio 合成音效与配乐
+tests/                数值回归测试（formulas.test.js）
 dev/                  本地服务器、逻辑测试、CDP 调试与素材生成脚本
-assets/portraits/     角色立绘与标题图（SVG）
+assets/portraits/     角色立绘与标题图（SVG，游戏内实际加载）
+assets/icons/         武器与单位图标（PNG）
+docs/                 设计文档：开发计划、升级方案、绘图提示词库、素材清单
+art-source/           素材源图（AI 出图的 PNG 原稿，不进版本库）
 ```
+
+## 设计文档
+
+`docs/` 下是项目全部设计文档，改代码前先看这两份：
+
+- `docs/开发计划.md`：里程碑清单与提交链，当前进度以它为准
+- `docs/山海策-灵脉-升级方案.md`：系统设计全文（阵眼、词缀、连携、指挥技、A/B 路线、心结与多结局）
+- `docs/绘图提示词库.md`、`docs/待生成素材清单.md`、`docs/剩余素材提示词.md`、`docs/传说武器图标提示词.md`、`docs/战斗演出立绘提示词.md`：美术产出用
+- `art-source/manifest.json`：素材交付清单（文件名与状态）
 
 ## 开发与验证
 
