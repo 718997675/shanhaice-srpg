@@ -205,8 +205,9 @@ function weapon(cfg) {
     case 'saber':
       return `<g transform="rotate(24 300 300)"><path d="M288 362 C316 300 338 236 344 168" stroke="#c9d3cd" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M286 350 L270 366 L282 372 Z" fill="${a}"/><rect x="280" y="356" width="8" height="42" rx="4" fill="${cfg.robe2}"/></g>`;
     case 'chain':
-      /* 链：一串铁环从肩侧垂下，末端挂尖坠 */
-      return `<g fill="none" stroke="${a}" stroke-width="3.2" opacity=".9">` +
+      /* 链：一串铁环沿脊线垂下，末端挂尖坠 */
+      return `<path d="M292 372 C276 330 300 300 288 268 C278 240 300 216 289 196" fill="none" stroke="${cfg.robe2}" stroke-width="2.4" opacity=".55"/>` +
+        `<g fill="none" stroke="${a}" stroke-width="3.2" opacity=".9">` +
         `<ellipse cx="290" cy="352" rx="13" ry="7.5" transform="rotate(-38 290 352)"/>` +
         `<ellipse cx="294" cy="316" rx="13" ry="7.5" transform="rotate(-38 294 316)"/>` +
         `<ellipse cx="288" cy="280" rx="13" ry="7.5" transform="rotate(-38 288 280)"/>` +

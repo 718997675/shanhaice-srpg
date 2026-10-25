@@ -2161,18 +2161,14 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     const has = f => fs.existsSync(path.join(dir, f));
     const sizeOf = f => fs.statSync(path.join(dir, f)).size;
 
-    /* 二期「下海」六人暂无美术原图：只要求 dev/gen-art.js 出 SVG 兜底。
-     * 名单锁死，防止以后新增角色忘了补美术还悄悄混过测试。 */
-    const PENDING_ART = ['axi', 'aoxiao', 'gongshumao', 'taowujiu', 'shenyan', 'shuangxu'];
-    eq('待美术名单锁定 6 人', PENDING_ART.join(','), 'axi,aoxiao,gongshumao,taowujiu,shenyan,shuangxu');
-    eq('20 名角色都有立绘（jpg 或 SVG 兜底）',
-      Object.keys(CHARS).filter(id => !has(id + '.jpg') && !has(id + '.svg')).join(',') || '无', '无');
-    eq('已交付美术的 14 人都有 jpg',
-      Object.keys(CHARS).filter(id => !PENDING_ART.includes(id) && !has(id + '.jpg')).join(',') || '无', '无');
-    eq('待美术的人确实还没 jpg',
-      PENDING_ART.filter(id => has(id + '.jpg')).join(',') || '无', '无');
+    /* 二期「下海」六人目前是 dev/gen-portrait-jpg.js 由 SVG 转出的占位图，
+     * 但文件必须真的在——正式美术到位后直接覆盖同名 jpg 即可，这条断言不用改。 */
+    eq('20 名角色都有立绘',
+      Object.keys(CHARS).filter(id => !has(id + '.jpg')).join(',') || '无', '无');
     eq('角色都有 hurt 表情',
-      Object.keys(CHARS).filter(id => !PENDING_ART.includes(id) && !has(id + '_hurt.jpg')).join(',') || '无', '无');
+      Object.keys(CHARS).filter(id => !has(id + '_hurt.jpg')).join(',') || '无', '无');
+    eq('角色都有单位图标',
+      Object.keys(CHARS).filter(id => !fs.existsSync(path.join(ROOT, 'assets/icons/units', id + '.png'))).join(',') || '无', '无');
 
     /* 对白里会出现的 Boss（UI.charOf 的 specials 映射目标）必须有立绘，否则台词没脸 */
     const bossIds = ['xuanque', 'shanxiao', 'chisha', 'bamboo', 'waterghost', 'icexiao', 'swampdragon', 'turbidgeneral'];
