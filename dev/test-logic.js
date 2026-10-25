@@ -10,7 +10,9 @@ const files = [
   'js/data-systems.js',
   'js/data-maps.js',
   'js/combat.js',
-  'js/item-icons.js'
+  'js/item-icons.js',
+  'js/audio.js',
+  'js/audio-bgm.js'
 ];
 
 let code = '';
@@ -294,6 +296,19 @@ eq(stripColor(decodeURIComponent(ItemIcons.uriFor('iron_sword'))),
    stripColor(decodeURIComponent(ItemIcons.uriFor('silver_sword'))), '铁剑/银剑同形换色');
 ok(ItemIcons.svgFor('mat_iron') && ItemIcons.svgFor('mat_steel') && ItemIcons.svgFor('mat_silver'), '材料三档有图');
 
+console.log('—— 音频架构（无 DOM 回退） ——');
+ok(typeof BGM === 'object' && typeof SFX === 'object', 'BGM/SFX 已加载');
+ok(typeof BGM.play === 'function' && typeof BGM.duck === 'function' && typeof BGM.setMusicOn === 'function', 'BGM 接口齐全');
+ok(typeof SFX.play === 'function', 'SFX 接口');
+/* 无 DOM 环境：BGM 回退合成音乐、title 直接合成、音效池关闭 */
+globalThis.__pm = [];
+Audio.playMusic = (m) => { globalThis.__pm.push(m); };
+BGM.play('camp');
+eq(globalThis.__pm.length, 1, '无 DOM 时 BGM.play 回退合成');
+BGM.play('title');
+eq(globalThis.__pm.length, 2, 'title 无文件直接合成');
+ok(SFX.play('hit_flesh') === false, '无 DOM 时音效池关闭');
+
 console.log('\n结果：' + __pass + ' 通过，' + __fail + ' 失败');
 if (__fail) process.exitCode = 1;
 `;
@@ -312,3 +327,114 @@ if (iconSrc.indexOf('Combat.') >= 0) {
   process.exit(1);
 }
 console.log('✓ item-icons.js 无 Combat. 调用（呈现层纯洁）');
+
+/* ---------- 音频架构：静态断言 + fake DOM 行为测试 ---------- */
+const audioSrc = fs.readFileSync(path.join(root, 'js/audio.js'), 'utf8');
+const bgmSrc = fs.readFileSync(path.join(root, 'js/audio-bgm.js'), 'utf8');
+const NEW_SFX = ['swing_light', 'swing_heavy', 'swing_sharp', 'hit_flesh', 'hit_armor', 'hit_wood', 'hit_crit',
+  'cast_metal', 'cast_wood', 'cast_water', 'cast_fire', 'cast_earth',
+  'burst_metal', 'burst_wood', 'burst_water', 'burst_fire', 'burst_earth',
+  'death_hero', 'node_capture', 'ui_confirm', 'heal'];
+let af = 0;
+const ack = (c, m) => { if (c) console.log('  ✓ ' + m); else { af++; console.error('  ✗ ' + m); } };
+for (const n of NEW_SFX) ack(audioSrc.indexOf("case '" + n + "'") >= 0, '音效 case ' + n);
+ack(audioSrc.indexOf('SFX.play(name)') >= 0, 'sfx 文件优先钩子');
+ack(audioSrc.indexOf('BGM._cur') >= 0, 'duck 路由文件音乐');
+ack(audioSrc.indexOf('Combat.') < 0, 'audio.js 不碰公式');
+ack(bgmSrc.indexOf('Combat.') < 0, 'audio-bgm.js 不碰公式');
+const htmlSrc = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+ack(htmlSrc.indexOf('js/audio.js') >= 0 && htmlSrc.indexOf('js/audio-bgm.js') > htmlSrc.indexOf('js/audio.js'),
+  'index.html 加载顺序 audio → audio-bgm');
+for (const f of ['js/main.js', 'js/game.js', 'js/battle.js', 'js/camp.js']) {
+  ack(fs.readFileSync(path.join(root, f), 'utf8').indexOf('Audio.playMusic') < 0, f + ' 音乐切换走 BGM.play');
+}
+
+(async () => {
+  /* fake DOM：验证文件优先 / 缺失回退 / duck / SFX 池 / 开关 / stop */
+  const mkEl = () => {
+    const listeners = {};
+    return {
+      loop: false, preload: '', volume: 1, src: '', paused: true, readyState: 0, currentTime: 0,
+      children: [], style: {}, __fail: false, played: 0,
+      addEventListener(t, fn) { (listeners[t] = listeners[t] || []).push(fn); },
+      removeEventListener(t, fn) { const a = listeners[t] || []; const i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); },
+      appendChild(c) { this.children.push(c); },
+      load() { if (this.__fail) { this.readyState = 0; this.emit('error'); } else { this.readyState = 4; this.emit('canplay'); } },
+      emit(t) { (listeners[t] || []).slice().forEach(f => f({ type: t })); },
+      play() { this.paused = false; this.played++; return { catch() {} }; },
+      pause() { this.paused = true; }
+    };
+  };
+  const created = [];
+  let failNext = false;
+  const fakeDoc = {
+    createElement: (tag) => {
+      const e = mkEl();
+      if (tag === 'audio' && failNext) { e.__fail = true; failNext = false; }
+      created.push(e);
+      return e;
+    }
+  };
+  const sb = { console, Math, setTimeout, clearTimeout, setInterval, clearInterval, document: fakeDoc };
+  const c2 = vm.createContext(sb);
+  vm.runInContext(audioSrc, c2);
+  vm.runInContext(bgmSrc, c2);
+  const run = (src) => vm.runInContext(src, c2);
+  const get = (expr) => vm.runInContext(expr, c2);
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+  /* 真实元素 = 带 source 子节点（BGM）或设了 src（SFX）；排除 _can() 的探测元素 */
+  const realEls = () => created.filter(e => e.children.length || e.src);
+  run('globalThis.__pm = []; Audio.playMusic = (m) => { globalThis.__pm.push(m); };');
+
+  /* a. 文件就绪 → 文件模式播放 */
+  run('BGM.play("camp")');
+  ack(get('BGM._ok.bgm_camp') === true, 'camp 文件就绪标记');
+  ack(get('BGM._cur && BGM._cur.track') === 'bgm_camp', 'camp 进入文件模式');
+  const campEl = realEls()[0];
+  ack(campEl.played === 1 && campEl.paused === false, 'camp 元素已播放');
+  ack(campEl.loop === true && campEl.children.length === 2, 'loop + ogg/mp3 双 source');
+  ack(get('__pm.length') === 0, '文件模式不回退合成');
+  await wait(1000);   // 等 900ms 淡入跑完
+  ack(Math.abs(campEl.volume - 0.55) < 0.05, '淡入到 0.55（got ' + campEl.volume.toFixed(2) + '）');
+
+  /* b. duck：文件音乐瞬压再回 */
+  run('Audio.duck(0.08)');
+  await wait(150);
+  ack(campEl.volume < 0.2, 'duck 压住音量（got ' + campEl.volume.toFixed(2) + '）');
+  await wait(600);
+  ack(Math.abs(campEl.volume - 0.55) < 0.05, 'duck 后恢复（got ' + campEl.volume.toFixed(2) + '）');
+
+  /* c. 文件缺失 → 回退合成 */
+  failNext = true;
+  run('BGM.play("battle")');
+  ack(get('BGM._ok.bgm_battle') === false, 'battle 缺文件标记');
+  ack(get('__pm.length') === 1 && get('__pm[0]') === 'battle', 'battle 回退合成');
+  ack(get('BGM._cur') === null, '回退后无文件播放');
+
+  /* d. SFX 池：首次当次合成、之后文件接管；缺失记终身 */
+  const before = realEls().length;
+  ack(run('SFX.play("hit_flesh")') === false, 'SFX 首次调用返回 false（当次合成）');
+  const sfxEl = realEls()[realEls().length - 1];
+  ack(sfxEl.played === 1 && Math.abs(sfxEl.volume - 0.7) < 0.01, 'SFX 文件就绪即播');
+  ack(get('SFX._ok.hit_flesh') === true, 'SFX 就绪标记');
+  ack(run('SFX.play("hit_flesh")') === true, 'SFX 再次调用走文件');
+  ack(realEls().length === before + 2, 'SFX 每次新建元素');
+  failNext = true;
+  ack(run('SFX.play("no_such_sfx")') === false, 'SFX 缺失返回 false');
+  const n2 = realEls().length;
+  ack(run('SFX.play("no_such_sfx")') === false && realEls().length === n2, 'SFX 缺失不再重复尝试');
+
+  /* e. 开关与 stop（battle 回退后 _cur 已空，重新起播一首再测） */
+  run('BGM.play("camp")');
+  ack(campEl.paused === false, '重播 camp 恢复播放');
+  run('BGM.setMusicOn(false)');
+  await wait(400);
+  ack(campEl.paused === true, '关音乐后元素暂停');
+  run('BGM.setMusicOn(true)');
+  ack(campEl.paused === false, '开音乐后元素恢复');
+  run('BGM.stop()');
+  ack(get('BGM._cur') === null, 'stop 清空当前');
+
+  console.log(af === 0 ? '✓ 音频架构：静态 + fake DOM 行为均通过' : '✗ 音频架构有 ' + af + ' 条失败');
+  if (af) process.exitCode = 1;
+})().catch(e => { console.error('音频行为测试异常：', e); process.exit(1); });

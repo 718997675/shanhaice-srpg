@@ -46,7 +46,7 @@ const Camp = {
     }
     this.tab = next;
     UI.showScreen('camp');
-    Audio.playMusic('camp');
+    BGM.play('camp');
     this.render();
   },
 

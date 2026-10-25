@@ -50,7 +50,7 @@ const Battle = {
       UI.phaseBanner(this.B.phase === 'player' ? '我方阶段' : '继续行旅', false);
       this.B.tapHint = this.B.phase === 'player' ? '点击我方单位行动' : '';
       UI.updateBattle(this.B);
-      Audio.playMusic('battle');
+      BGM.play('battle');
       this.B.lastPlayerState = this.serialize(false);
       if (!Array.isArray(this.B.history) || !this.B.history.length) {
         this.B.history = [this.B.lastPlayerState];
@@ -67,7 +67,7 @@ const Battle = {
     this.updateNodes();
     Render.setBattle(this.B);
     UI.updateBattle(this.B);
-    Audio.playMusic('battle');
+    BGM.play('battle');
     this.B.phase = 'player';
     this.B.phaseIndex = 1;
     this.B.turn = 1;
@@ -2447,6 +2447,13 @@ const Battle = {
     })();
     UI.log(attacker.name + ' 与 ' + defender.name + ' 交战。', '');
     Audio.sfx('select');
+    /* 挥击音（起手与命中分离：先挥后中才有节奏） */
+    const aw0 = Combat.weaponOf(attacker);
+    if (aw0) {
+      const swing = (aw0.w.type === 'axe' || aw0.w.type === 'lance') ? 'swing_heavy'
+        : (aw0.w.type === 'dagger') ? 'swing_sharp' : 'swing_light';
+      Audio.sfx(swing);
+    }
     const events = Combat.resolve(attacker, defender, ctx);
     /* 横版战斗演出（P4.4）：有立绘/图标且设置开着就切横版画面，
      * 否则走原来的棋盘冲斩。公式不进来——ev 全是结算结果。 */
@@ -2479,7 +2486,14 @@ const Battle = {
               Render.flash(ev.crit ? '#f4d79a' : '#f0e8d4', ev.crit ? 0.3 : 0.12);
             }
           }
-          Audio.sfx(ev.crit ? 'crit' : 'hit');
+          /* 命中音按材质分流（披甲/木器/肉身），必杀走重击 */
+          if (ev.crit) Audio.sfx('hit_crit');
+          else {
+            const sw0 = Combat.weaponOf(striker);
+            const mat = (foe.tags && foe.tags.indexOf('armor') >= 0) ? 'hit_armor'
+              : (sw0 && sw0.w.type === 'staff') ? 'hit_wood' : 'hit_flesh';
+            Audio.sfx(mat);
+          }
           UI.log(ev.attackerName + '命中' + ev.defenderName + (ev.crit ? '，必杀' : '') + '，造成 ' + ev.dmg + ' 伤害。', striker.side === 'player' ? 'good' : 'bad');
           if (ev.effective) UI.log('特效克制！', 'gold');
           if (striker.side === 'player') B.stats.damage += ev.dmg;
@@ -2681,7 +2695,7 @@ const Battle = {
     this.B.flags.bossPhase = 2;
     UI.log('玄阙的血肉裂开，噬脉兽现身。', 'bad');
     UI.toast('玄阙化作噬脉兽');
-    Audio.playMusic('boss');
+    BGM.play('boss');
     Audio.sfx('crit');
     Render.shake(10);
     Render.flash('#c9a35c', 0.25);
@@ -2842,7 +2856,7 @@ const Battle = {
     UI.hideUnitCard();
     UI.updateBattle(B);
     UI.log('章节目标达成。', 'gold');
-    Audio.playMusic('camp');
+    BGM.play('camp');
     Audio.sfx('victory');
     await this.wait(650);
     const result = this.collectResult();

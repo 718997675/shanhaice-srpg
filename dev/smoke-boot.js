@@ -53,7 +53,7 @@ sandboxWindow.globalThis = sandboxWindow;
 sandboxWindow.console = console;
 
 const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-maps.js', 'js/combat.js',
-              'js/audio.js', 'js/juice.js', 'js/item-icons.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/ui-icons.js', 'js/battle.js',
+              'js/audio.js', 'js/audio-bgm.js', 'js/juice.js', 'js/item-icons.js', 'js/render.js', 'js/ui.js', 'js/render-battleview.js', 'js/ui-icons.js', 'js/battle.js',
               'js/systems/terrain.js', 'js/systems/spells.js', 'js/systems/summon.js',
               'js/systems/legendary.js', 'js/systems/smith.js', 'js/systems/route.js',
               'js/camp.js', 'js/relations.js', 'js/game.js'];
@@ -1398,8 +1398,7 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
   {
     const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
     const { ItemIcons, WEAPONS, ITEMS, SPELLS, Camp } =
-      vm.runInContext('({ ItemIcons, WEAPONS, ITEMS, SPELLS, Camp })', ctx);
-    vm.runInContext('(c) => { Game.campaign = c; }', ctx)(camp);
+      vm.runInContext('({ ItemIcons, WEAPONS, ITEMS, SPELLS, Camp })', ctx);    vm.runInContext('(c) => { Game.campaign = c; }', ctx)(camp);
     Camp.shopTab = 'weapon';
     const shopB = el();
     Camp.renderShop(shopB);
@@ -1496,6 +1495,33 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     vm.runInContext('UI.forecast = globalThis.__origForecast;', ctx);
     vm.runInContext('UI.actionBar = globalThis.__origActionBar;', ctx);
     console.log('规则「攻击不消耗移动力」：原地攻击后可移动 / 攻击置灰 / 移动力扣减，均通过');
+  }
+
+  /* 音频架构（二期）：文件层加载 + 静态接线 + 合成兜底不炸 */
+  {
+    const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const { BGM, SFX } = vm.runInContext('({ BGM, SFX })', ctx);
+    if (typeof BGM !== 'object' || typeof SFX !== 'object') throw new Error('BGM/SFX 未加载');
+    if (src('index.html').indexOf('js/audio-bgm.js') < src('index.html').indexOf('js/audio.js')) {
+      throw new Error('index.html 缺 audio-bgm.js 或顺序错');
+    }
+    if (src('js/audio.js').indexOf('Combat.') >= 0 || src('js/audio-bgm.js').indexOf('Combat.') >= 0) {
+      throw new Error('音频层不许碰公式');
+    }
+    for (const n of ['swing_light', 'swing_heavy', 'swing_sharp', 'hit_flesh', 'hit_armor', 'hit_wood', 'hit_crit',
+      'cast_metal', 'cast_wood', 'cast_water', 'cast_fire', 'cast_earth',
+      'burst_metal', 'burst_wood', 'burst_water', 'burst_fire', 'burst_earth',
+      'death_hero', 'node_capture', 'ui_confirm']) {
+      if (src('js/audio.js').indexOf("case '" + n + "'") < 0) throw new Error('audio.js 缺音效 ' + n);
+    }
+    if (src('js/battle.js').indexOf("Audio.sfx(swing)") < 0) throw new Error('battle.js 缺挥击音接线');
+    if (src('js/battle.js').indexOf("'hit_armor'") < 0) throw new Error('battle.js 缺材质命中音接线');
+    if (src('js/game.js').indexOf('BGM.setMusicOn') < 0) throw new Error('game.js 缺音乐开关接线');
+    /* 沙盒 DOM 桩没有真 audio 能力：SFX 关闭、Audio.sfx 走合成不炸 */
+    if (SFX.play('hit_flesh') !== false) throw new Error('沙盒桩下 SFX 应关闭');
+    vm.runInContext('Audio.sfx("swing_light"); Audio.sfx("hit_armor"); Audio.sfx("cast_fire");', ctx);
+    BGM.play('camp');   // 无文件 → 回退程序音乐，不应抛错
+    console.log('音频架构：文件层加载 / 21 音效 / 接线 / 回退不炸，均通过');
   }
 
   console.log('\n冒烟通过：无引用错误');

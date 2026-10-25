@@ -311,7 +311,7 @@ const Game = {
     UI.showScreen('title');
     this.campaign = this.loadCampaign() || this.campaign;
     this.refreshTitle();
-    Audio.playMusic('title');
+    BGM.play('title');
   },
 
   /* ---------------- 新旅程 ---------------- */
@@ -632,7 +632,7 @@ const Game = {
         else this.showTitle();
       });
       if (titleBtn) titleBtn.addEventListener('click', () => this.showTitle());
-      Audio.playMusic('camp');
+      BGM.play('camp');
     } catch (err) {
       console.error(err);
       UI.toast('结算写入失败');
@@ -880,6 +880,7 @@ const Game = {
             this.applySettings();
             Audio.setMusic(this.settings.music);
             Audio.setSfx(this.settings.sfx);
+            if (typeof BGM !== 'undefined') BGM.setMusicOn(this.settings.music);
             if (this.campaign) {
               this.campaign.settings = Object.assign({}, this.campaign.settings, this.settings);
               this.saveCampaign();
@@ -888,7 +889,7 @@ const Game = {
             this.saveSettings();
             Audio.sfx('tap');
             refresh();
-            if (key === 'music' && this.settings.music) Audio.playMusic(UI.el.title.classList.contains('hidden') ? 'camp' : 'title');
+            if (key === 'music' && this.settings.music) BGM.play(UI.el.title.classList.contains('hidden') ? 'camp' : 'title');
             if (key === 'speed' && Battle.B) UI.updateBattle(Battle.B);
           });
         });

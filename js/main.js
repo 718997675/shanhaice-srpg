@@ -150,11 +150,11 @@
       state.audioArmed = false;
       Audio.ensure();
       if (Battle.active) {
-        Audio.playMusic(Battle.B && Battle.B.flags && Battle.B.flags.bossPhase >= 2 ? 'boss' : 'battle');
+        BGM.play(Battle.B && Battle.B.flags && Battle.B.flags.bossPhase >= 2 ? 'boss' : 'battle');
       } else if (!document.getElementById('campScreen').classList.contains('hidden')) {
-        Audio.playMusic('camp');
+        BGM.play('camp');
       } else {
-        Audio.playMusic('title');
+        BGM.play('title');
       }
     };
     window.addEventListener('pointerdown', kick, { once: true });
