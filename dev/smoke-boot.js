@@ -771,5 +771,93 @@ const FILES = ['js/rng.js', 'js/data-core.js', 'js/data-systems.js', 'js/data-ma
     camp.memorial = {}; camp.relics = []; camp.fallen = [];
   }
 
+  /* P3.4 多结局：终章结算写 ending + 渲染尾声；三种判定各跑一次 */
+  {
+    const { Game: Gv, UI: UIv } = vm.runInContext('({ Game, UI })', ctx);
+    const savedChapter = camp.chapter, savedCleared = camp.cleared, savedEnding = camp.ending;
+    const savedRoster2 = camp.roster, savedSupports2 = camp.supports;
+    const origSetResult = UIv.setResult, origDlg2 = UIv.dialogue;
+    const origSave = Gv.saveCampaign, origRefresh = Gv.refreshTitle;
+    let captured = '';
+    UIv.setResult = html => { captured = html; };
+    UIv.dialogue = () => Promise.resolve();
+    Gv.saveCampaign = () => {};
+    Gv.refreshTitle = () => {};
+    const runFinale = async (rosterIds, supports, nodesHeld, nodesTotal) => {
+      captured = '';
+      camp.chapter = 9; camp.cleared = false; camp.ending = null;
+      camp.roster = rosterIds.map(id => Gv.makeRec(id));
+      camp.supports = supports;
+      await Gv.onChapterClear({
+        chapterId: 9, turns: 12, sideSuccess: true, units: [], fallen: [],
+        supports, loot: {}, stats: {}, flags: {}, nodesHeld, nodesTotal
+      });
+      return captured;
+    };
+    const allIds = ['yunce', 'yankui', 'luming', 'qingluo', 'bailu', 'xuanyi', 'moya', 'chisang', 'aman', 'yunling'];
+    const manyA = { yunce_luming: 95, yunce_yankui: 95, qingluo_yunling: 95, xuanyi_chisang: 95 };
+    const goodHtml = await runFinale(allIds, manyA, 3, 3);
+    console.log('好结局：ending =', camp.ending, '；面板含「灵脉重燃」=', goodHtml.indexOf('灵脉重燃') >= 0);
+    if (camp.ending !== 'good') throw new Error('满条件应判好结局：' + camp.ending);
+    if (goodHtml.indexOf('灵脉重燃') < 0 || goodHtml.indexOf('ending-block') < 0) throw new Error('结算面板未渲染尾声');
+    if (goodHtml.indexOf('同行 10 人') < 0) throw new Error('尾声指标行缺失');
+
+    const midHtml = await runFinale(allIds, manyA, 2, 3);
+    console.log('中结局（阵眼 2/3）：ending =', camp.ending, '；面板含「山河如旧」=', midHtml.indexOf('山河如旧') >= 0);
+    if (camp.ending !== 'mid') throw new Error('阵眼未全控应判中结局：' + camp.ending);
+
+    const badHtml = await runFinale(['yunce', 'luming'], {}, 0, 3);
+    console.log('差结局（2 人 / 无 A 级）：ending =', camp.ending, '；面板含「永夜」=', badHtml.indexOf('永夜') >= 0);
+    if (camp.ending !== 'bad') throw new Error('人少且无羁绊应判差结局：' + camp.ending);
+    if (badHtml.indexOf('永夜') < 0) throw new Error('差结局未渲染');
+
+    UIv.setResult = origSetResult; UIv.dialogue = origDlg2;
+    Gv.saveCampaign = origSave; Gv.refreshTitle = origRefresh;
+    camp.chapter = savedChapter; camp.cleared = savedCleared; camp.ending = savedEnding;
+    camp.roster = savedRoster2; camp.supports = savedSupports2;
+  }
+
+  /* P3.4 勇者模式：难度叠加、悔棋 0、敌军更硬、不弹战斗预测 */
+  {
+    const { diffOf } = vm.runInContext('({ diffOf })', ctx);
+    const { UI: UIv4 } = vm.runInContext('({ UI })', ctx);
+    const fake = Object.create(Battle);
+    fake.uid = 9000;
+    fake.diff = diffOf({ difficulty: 'normal' });
+    const plain = Battle.makeEnemyUnit.call(fake, { type: 'bandit', lv: 5 });
+    fake.diff = diffOf({ difficulty: 'normal', heroic: true });
+    const hard = Battle.makeEnemyUnit.call(fake, { type: 'bandit', lv: 5 });
+    console.log('勇者敌军：生命', plain.stats.hp, '→', hard.stats.hp, '；倍率', Battle.diff && '—');
+    if (!(hard.stats.hp > plain.stats.hp)) throw new Error('勇者模式敌军未变硬');
+    if (hard.stats.hp !== Math.max(1, Math.round(plain.stats.hp * 1.15))) throw new Error('勇者倍率未按 1.15 结算');
+
+    /* 开一场勇者战役：悔棋归零、无战斗预测 */
+    const savedHeroic = camp.heroic;
+    camp.heroic = true;
+    await Battle.start({ chapterId: 1, campaign: camp, deployedIds: ['yunce', 'luming'] });
+    const hb = Battle.B;
+    console.log('勇者开战：', Battle.diff.name, '；敌军倍率', Battle.diff.enemyMul, '；悔棋', hb.rewindLeft);
+    if (!Battle.diff.heroic || Battle.diff.enemyMul !== 1.15) throw new Error('勇者难度未叠加到战斗');
+    if (hb.rewindLeft !== 0) throw new Error('勇者模式不该有悔棋：' + hb.rewindLeft);
+    let forecastCalls = 0;
+    const origForecast = UIv4.forecast;
+    UIv4.forecast = () => { forecastCalls++; return Promise.resolve(false); };
+    const atk = hb.units.find(u => u.side === 'player' && u.charId && u.hp > 0);
+    const foe = hb.units.find(u => u.side === 'enemy' && u.hp > 0);
+    if (atk && foe) {
+      hb.selectedUnit = atk;
+      atk.x = foe.x; atk.y = foe.y - 1; atk.acted = false; atk.hasMoved = false;
+      hb.mode = 'attack-select';
+      await Battle.chooseAttackTarget.call(Battle, foe);
+    }
+    UIv4.forecast = origForecast;
+    console.log('勇者模式战斗预测弹窗次数 =', forecastCalls);
+    if (forecastCalls !== 0) throw new Error('勇者模式不该弹战斗预测');
+    camp.heroic = savedHeroic;
+    await Battle.start({ chapterId: 1, campaign: camp, deployedIds: ['yunce', 'luming'] });
+    console.log('关掉勇者后预测恢复：diff.heroic =', !!Battle.diff.heroic, '；悔棋', Battle.B.rewindLeft);
+    if (Battle.diff.heroic || Battle.B.rewindLeft === 0) throw new Error('关闭勇者后未恢复');
+  }
+
   console.log('\n冒烟通过：无引用错误');
 })().catch(e => { console.error('冒烟失败：', e); process.exit(1); });

@@ -48,6 +48,23 @@ const DIFFICULTIES = {
   }
 };
 
+/* ---------------- 勇者模式（P3.4） ----------------
+ * 与难度正交的独立开关：悔棋 0 次、无战斗提示、敌军再 ×1.15、经验 ×0.9、通关授徽。
+ * 不改难度表本身，用 diffOf 在取用时叠加，避免「勇者 + 修罗」两套组合写死。 */
+const HEROIC = { enemyMul: 1.15, expMul: 0.9, rewinds: 0 };
+
+function diffOf(campaign) {
+  const base = DIFFICULTIES[(campaign && campaign.difficulty) || 'normal'] || DIFFICULTIES.normal;
+  if (!campaign || !campaign.heroic) return base;
+  return {
+    key: base.key, name: base.name + ' · 勇者', desc: base.desc,
+    enemyMul: Math.round((base.enemyMul || 1) * HEROIC.enemyMul * 100) / 100,
+    enemyLv: base.enemyLv, rewinds: HEROIC.rewinds,
+    expMul: Math.round((base.expMul || 1) * HEROIC.expMul * 100) / 100,
+    heroic: true
+  };
+}
+
 /* ---------------- 地形 ----------------
  * avoid：回避加成；def：物理减伤；heal：己方阶段开始回复比例；
  * cost：步行移动消耗；flyCost：飞行消耗；blocked：步行不可进入。

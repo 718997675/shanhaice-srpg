@@ -73,11 +73,12 @@ const Game = {
     };
   },
 
-  newCampaign(diffKey, cycle) {
+  newCampaign(diffKey, cycle, heroic) {
     const roster = ['yunce', 'yankui', 'luming'].map(id => this.makeRec(id)).filter(Boolean);
     return {
       version: SAVE_VERSION,
       difficulty: DIFFICULTIES[diffKey] ? diffKey : 'normal',
+      heroic: !!heroic,
       cycle: Math.max(1, Math.floor(cycle || 1)),
       chapter: 1,
       route: null,
@@ -115,6 +116,7 @@ const Game = {
     if (raw.version !== SAVE_VERSION) return null;
     const c = raw;
     if (!DIFFICULTIES[c.difficulty]) c.difficulty = 'normal';
+    c.heroic = !!c.heroic;
     c.route = (c.route === 'A' || c.route === 'B') ? c.route : null;
     if (!Route.byId(c.chapter)) c.chapter = 1;
     c.cycle = Math.max(1, Math.floor(c.cycle || 1));
@@ -253,7 +255,7 @@ const Game = {
     const camp = this.campaign || this.loadCampaign();
     if (sus) {
       const ch = Route.byId((sus.state.chapterId || sus.state.chapterIndex) || sus.chapterId);
-      const diff = DIFFICULTIES[(sus.campaign && sus.campaign.difficulty) || 'normal'];
+      const diff = diffOf(sus.campaign);
       info.textContent = '战局待续 · ' + UI.chapterLabel(ch.no) + ' ' + ch.name + ' · ' + diff.name + '难度';
       return;
     }
@@ -262,7 +264,7 @@ const Game = {
       return;
     }
     const ch = Route.byId(camp.chapter);
-    const diff = DIFFICULTIES[camp.difficulty] || DIFFICULTIES.normal;
+    const diff = diffOf(camp);
     const cyc = Math.max(1, camp.cycle || 1);
     if (camp.cleared) {
       info.textContent = '旅程已完成 · ' + diff.name + '难度' + (cyc > 1 ? ' · ' + cyc + ' 周目' : '') + ' · 可回营地重游旧章';
@@ -284,7 +286,7 @@ const Game = {
   },
 
   /* ---------------- 新旅程 ---------------- */
-  async askNewJourney(diffKey) {
+  async askNewJourney(diffKey, heroic) {
     const hasSave = !!this.loadCampaign() || !!this.loadSuspend();
     let cycle = 1;
     if (hasSave) {
@@ -299,7 +301,7 @@ const Game = {
       if (!ok2) return;
     }
     this.removeSuspend();
-    this.campaign = this.newCampaign(diffKey, cycle);
+    this.campaign = this.newCampaign(diffKey, cycle, heroic);
     this.settings.speed = this.settings.speed === 2 ? 2 : 1;
     this.saveCampaign();
     this.currentChapter = 0;
@@ -409,7 +411,7 @@ const Game = {
     this.busy = true;
     try {
       const ch = Route.byId(result.chapterId);
-      const diff = DIFFICULTIES[this.campaign.difficulty] || DIFFICULTIES.normal;
+      const diff = diffOf(this.campaign);
       const sideOk = !!result.sideSuccess;
       const side = ch.side || null;
       const joined = [];
@@ -513,6 +515,11 @@ const Game = {
       const nextId = Route.nextId(this.campaign.route, ch.id);
       this.campaign.chapter = nextId;
       if (!nextId) this.campaign.cleared = true;
+      /* 勇者模式通关授徽（P3.4） */
+      if (!nextId && this.campaign.heroic) {
+        if (!this.campaign.records) this.campaign.records = { chapters: {} };
+        this.campaign.records.heroicBadge = true;
+      }
       this.removeSuspend();
       this.saveCampaign();
       this.refreshTitle();
@@ -552,10 +559,27 @@ const Game = {
       }
       if (nextCh) list += '<div>下一程：<b>' + UI.escape(UI.chapterLabel(nextCh.no) + ' ' + nextCh.name) +
         (nextCh.route ? '（' + UI.escape(Route.label(this.campaign.route)) + '）' : '') + '</b></div>';
-      else list += '<div><b>九脉已通，山海重明。</b></div>';
+      /* 终章：按「存活人数 × A 级支援组数 × 三阵眼是否全控」给尾声（P3.4） */
+      let ending = null;
+      if (!nextId) {
+        ending = endingOf({
+          alive: this.campaign.roster.length,
+          rankA: SUPPORTS.filter(p => Combat.supportRank(this.campaign.supports[p.id] || 0) === 'A').length,
+          nodesHeld: result.nodesHeld || 0,
+          nodesTotal: result.nodesTotal || 0
+        });
+        this.campaign.ending = ending.key;
+        const m = ending.metrics;
+        list += '<div class="ending-block">' +
+          '<div class="ending-kicker">' + UI.escape(ending.kicker) + '</div>' +
+          '<div class="ending-name">' + UI.escape(ending.name) + '</div>' +
+          ending.lines.map(t => '<p>' + UI.escape(t) + '</p>').join('') +
+          '<div class="ending-metrics">同行 ' + m.alive + ' 人 · A 级羁绊 ' + m.rankA + ' 组 · 阵眼 ' +
+          m.nodesHeld + '/' + m.nodesTotal + '</div></div>';
+      }
 
-      const title = !nextId ? '山海重明' : ch.name;
-      const kicker = !nextId ? '旅 程 终 章' : '章 节 完 成';
+      const title = !nextId ? (ending ? ending.name : '山海重明') : ch.name;
+      const kicker = !nextId ? (ending ? ending.kicker : '旅 程 终 章') : '章 节 完 成';
       const html = '<div class="result-kicker">' + kicker + '</div>' +
         '<div class="result-title">' + UI.escape(title) + '</div>' +
         '<div class="result-sub">' + UI.escape(UI.chapterLabel(ch.no)) + ' · ' + (result.turns || 0) + ' 回合 · ' + diff.name + '难度</div>' +

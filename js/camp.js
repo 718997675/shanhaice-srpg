@@ -470,7 +470,7 @@ const Camp = {
    * ============================================================ */
   renderRecord(body) {
     const c = Game.campaign;
-    const diff = DIFFICULTIES[c.difficulty] || DIFFICULTIES.normal;
+    const diff = diffOf(c);
     const rec = c.records || { chapters: {} };
     const chapterRows = CHAPTERS.map(ch => {
       const r = rec.chapters && rec.chapters[ch.id];
@@ -489,10 +489,13 @@ const Camp = {
       return '<div class="record-line">' + UI.escape(CHARS[p.a].name) + ' × ' + UI.escape(CHARS[p.b].name) + ' <span class="muted">' + rank + ' 级</span></div>';
     }).join('') || '<div class="record-line"><span class="muted">羁绊尚未成形。</span></div>';
     const stamp = c.savedAt ? new Date(c.savedAt).toLocaleString('zh-CN', { hour12: false }) : '—';
+    const endingName = (c.ending && typeof ENDINGS !== 'undefined' && ENDINGS[c.ending]) ? ENDINGS[c.ending].name : '';
     body.innerHTML = '<div class="record-wrap">' +
       '<h3>行 录</h3>' +
       '<div class="record-list">' +
       '<div class="record-line">当前：<b>' + UI.escape(Game.chapterProgressText()) + '</b></div>' +
+      (endingName ? '<div class="record-line">结局：<b>' + UI.escape(endingName) + '</b></div>' : '') +
+      (c.heroic ? '<div class="record-line">勇者模式：<b>' + ((rec.heroicBadge) ? '已通关 · 授徽' : '进行中') + '</b></div>' : '') +
       '<div class="record-line">难度：<b>' + diff.name + '</b></div>' +
       '<div class="record-line">盘缠：<b>' + c.gold + '</b> · 脉印：<b>' + c.seals + '</b></div>' +
       '<div class="record-line">总击破：<b>' + (rec.kills || 0) + '</b> · 阵亡：<b>' + (rec.lost || 0) + '</b></div>' +

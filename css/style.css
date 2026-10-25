@@ -654,6 +654,11 @@ img { display: block; }
 .record-line { padding: 5px 0; border-bottom: 1px dashed rgba(80,68,45,.15); }
 .record-line .muted { color: #8c826b; }
 .fallen-line { color: #8b3b2d; }
+/* 勇者模式开关（P3.4） */
+.heroic-toggle { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0 4px;
+  font-family: var(--sans); font-size: 11px; line-height: 1.7; color: #6d6450; cursor: pointer; }
+.heroic-toggle input { margin-top: 2px; accent-color: #b04638; }
+.heroic-toggle b { color: #7e4a2e; }
 /* 英魂碑（P3.3）：阵亡者卡片 */
 .mem-list { display: flex; flex-direction: column; gap: 10px; }
 .mem-card { position: relative; padding: 10px 12px 10px 14px; border: 1px solid rgba(122, 90, 44, .22);
@@ -697,6 +702,13 @@ img { display: block; }
 .result-stat .val { font-family: var(--sans); font-size: 16px; color: #3d3c2c; margin-top: 2px; }
 .result-list { font-size: 12px; line-height: 1.9; color: #514d3e; }
 .result-list b { color: #7e4a2e; }
+/* 尾声（P3.4）：结局正文 */
+.ending-block { margin-top: 14px; padding: 12px 14px; border: 1px solid rgba(122, 90, 44, .26);
+  border-left: 3px solid #b04638; border-radius: 2px; background: rgba(255, 251, 238, .42); }
+.ending-kicker { font-family: var(--sans); font-size: 9px; letter-spacing: .3em; color: #9a8a6a; }
+.ending-name { margin: 3px 0 8px; font-size: 19px; letter-spacing: .14em; color: #6b3427; }
+.ending-block p { margin: 0 0 7px; font-size: 12px; line-height: 1.95; color: #4b5142; text-indent: 2em; }
+.ending-metrics { margin-top: 8px; font-family: var(--sans); font-size: 10px; color: #8c826b; }
 .result-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .result-actions button { min-height: 40px; padding: 0 22px; background: linear-gradient(100deg, #3e4639, #333c30); color: #f0e5cc; border: 1px solid #5c6352; border-radius: 2px; letter-spacing: .1em; font-size: 13px; transition: background .16s, box-shadow .16s; }
 .result-actions button:hover { background: linear-gradient(100deg, #4c5546, #3d463a); box-shadow: 0 0 16px rgba(211, 171, 94, .18); }

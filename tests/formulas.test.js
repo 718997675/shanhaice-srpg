@@ -1831,6 +1831,97 @@ console.log('\n== 14. 法术与召唤系统落地（P2） ==');
     ok('滕大戈力量高于技巧', CHARS.tengdage.stats.str > CHARS.tengdage.stats.skl);
   }
 
+  console.log('\n== 28. 多结局（P3.4） ==');
+  {
+    const { ENDINGS, ENDING_RULE, endingOf } = vm.runInContext('({ ENDINGS, ENDING_RULE, endingOf })', ctx);
+    /* 三档数据完整性 */
+    eq('结局三档', Object.keys(ENDINGS).length, 3);
+    for (const k of ['good', 'mid', 'bad']) {
+      const e = ENDINGS[k];
+      ok('结局 ' + k + ' 存在', !!e);
+      eq('结局 ' + k + ' 的 key 自洽', e.key, k);
+      ok('结局 ' + k + ' 有名字', typeof e.name === 'string' && e.name.length >= 2);
+      ok('结局 ' + k + ' 有小标题', typeof e.kicker === 'string' && e.kicker.length >= 2);
+      ok('结局 ' + k + ' 有 3~5 段', Array.isArray(e.lines) && e.lines.length >= 3 && e.lines.length <= 5);
+      ok('结局 ' + k + ' 每段不少于 20 字', e.lines.every(t => typeof t === 'string' && t.length >= 20));
+    }
+    const names = ['good', 'mid', 'bad'].map(k => ENDINGS[k].name);
+    eq('三档结局不重名', new Set(names).size, 3);
+    eq('好结局叫灵脉重燃', ENDINGS.good.name, '灵脉重燃');
+    eq('中结局叫山河如旧', ENDINGS.mid.name, '山河如旧');
+    eq('差结局叫永夜', ENDINGS.bad.name, '永夜');
+
+    /* 判定：三要素全满 → 好 */
+    const full = endingOf({ alive: 12, rankA: 5, nodesHeld: 3, nodesTotal: 3 });
+    eq('人够 + 羁绊够 + 阵眼全控 → 好', full.key, 'good');
+    ok('好结局带回指标', full.metrics.allNodes === true && full.metrics.alive === 12);
+    /* 任一条不满足 → 退中 */
+    eq('阵眼未全控 → 中', endingOf({ alive: 12, rankA: 5, nodesHeld: 2, nodesTotal: 3 }).key, 'mid');
+    eq('人不够 → 中', endingOf({ alive: 7, rankA: 5, nodesHeld: 3, nodesTotal: 3 }).key, 'mid');
+    eq('羁绊不够 → 中', endingOf({ alive: 12, rankA: 2, nodesHeld: 3, nodesTotal: 3 }).key, 'mid');
+    /* 中结局的两条独立通道 */
+    eq('存活达标即中', endingOf({ alive: 5, rankA: 0, nodesHeld: 0, nodesTotal: 3 }).key, 'mid');
+    eq('A 级达标即中', endingOf({ alive: 4, rankA: 1, nodesHeld: 0, nodesTotal: 3 }).key, 'mid');
+    /* 差 */
+    eq('人少且无 A 级 → 差', endingOf({ alive: 4, rankA: 0, nodesHeld: 0, nodesTotal: 3 }).key, 'bad');
+    eq('全员阵亡 → 差', endingOf({ alive: 0, rankA: 0, nodesHeld: 0, nodesTotal: 0 }).key, 'bad');
+    eq('空参数不报错 → 差', endingOf().key, 'bad');
+    eq('undefined 指标不报错 → 差', endingOf({}).key, 'bad');
+    /* 边界与钳制 */
+    eq('存活刚好 8 → 可判好', endingOf({ alive: 8, rankA: 3, nodesHeld: 3, nodesTotal: 3 }).key, 'good');
+    eq('A 级刚好 3 → 可判好', endingOf({ alive: 8, rankA: 3, nodesHeld: 3, nodesTotal: 3 }).key, 'good');
+    eq('存活 7 不判好', endingOf({ alive: 7, rankA: 3, nodesHeld: 3, nodesTotal: 3 }).key, 'mid');
+    eq('负数被钳成 0', endingOf({ alive: -5, rankA: -1, nodesHeld: -2, nodesTotal: -3 }).metrics.alive, 0);
+    eq('无阵眼时不满足全控', endingOf({ alive: 12, rankA: 5, nodesHeld: 0, nodesTotal: 0 }).key, 'mid');
+    ok('阈值常量可读', ENDING_RULE.good.alive > 0 && ENDING_RULE.mid.alive > 0);
+    ok('阈值递减', ENDING_RULE.good.alive > ENDING_RULE.mid.alive && ENDING_RULE.good.rankA > ENDING_RULE.mid.rankA);
+    /* 返回的 lines 是副本，改它不污染数据表 */
+    const one = endingOf({ alive: 12, rankA: 5, nodesHeld: 3, nodesTotal: 3 });
+    one.lines.push('污染');
+    eq('lines 是副本', ENDINGS.good.lines.length, 5);
+  }
+
+  console.log('\n== 29. 勇者模式（P3.4） ==');
+  {
+    const { DIFFICULTIES, HEROIC, diffOf } = vm.runInContext('({ DIFFICULTIES, HEROIC, diffOf })', ctx);
+    /* 开关常量 */
+    eq('勇者敌军加成 1.15', HEROIC.enemyMul, 1.15);
+    eq('勇者悔棋 0 次', HEROIC.rewinds, 0);
+    eq('勇者经验 0.9', HEROIC.expMul, 0.9);
+    /* 关掉时与难度表完全一致 */
+    for (const k of ['easy', 'normal', 'hard']) {
+      const d = diffOf({ difficulty: k });
+      eq(k + ' 关勇者时敌军倍率不变', d.enemyMul, DIFFICULTIES[k].enemyMul);
+      eq(k + ' 关勇者时悔棋不变', d.rewinds, DIFFICULTIES[k].rewinds);
+      ok(k + ' 关勇者时无 heroic 标记', !d.heroic);
+    }
+    eq('缺省难度回落标准', diffOf({}).key, 'normal');
+    eq('空参数回落标准', diffOf().key, 'normal');
+    eq('难度非法时回落标准', diffOf({ difficulty: 'zzz' }).key, 'normal');
+    /* 开启后叠加 */
+    const hn = diffOf({ difficulty: 'normal', heroic: true });
+    eq('标准 + 勇者：敌军 ×1.15', hn.enemyMul, 1.15);
+    eq('标准 + 勇者：悔棋 0', hn.rewinds, 0);
+    eq('标准 + 勇者：经验 ×0.9', hn.expMul, 0.9);
+    eq('标准 + 勇者：名字带后缀', hn.name, '标准 · 勇者');
+    ok('标准 + 勇者：带 heroic 标记', hn.heroic === true);
+    eq('标准 + 勇者：难度键不变', hn.key, 'normal');
+    eq('标准 + 勇者：敌等级不变', hn.enemyLv, 0);
+    const hh = diffOf({ difficulty: 'hard', heroic: true });
+    eq('修罗 + 勇者：敌军 ×1.32', hh.enemyMul, 1.32);
+    eq('修罗 + 勇者：悔棋仍 0', hh.rewinds, 0);
+    eq('修罗 + 勇者：经验 ×0.86', hh.expMul, 0.86);
+    const he = diffOf({ difficulty: 'easy', heroic: true });
+    eq('轻松 + 勇者：敌军 ×1.03', he.enemyMul, 1.03);
+    eq('轻松 + 勇者：悔棋 0', he.rewinds, 0);
+    /* 不污染原表 */
+    eq('原表 standard 未被改写', DIFFICULTIES.normal.enemyMul, 1);
+    eq('原表 normal 悔棋仍是 3', DIFFICULTIES.normal.rewinds, 3);
+    ok('原表对象未被替换', DIFFICULTIES.normal.heroic === undefined);
+    /* 叠加顺序无关：先算再取与取后再算一致 */
+    eq('勇者倍率与难度倍率可交换', Math.round(1.15 * 1.15 * 100) / 100, hh.enemyMul);
+  }
+
   console.log('\n----------------------------------------');
   console.log('结果：' + pass + ' 通过 / ' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

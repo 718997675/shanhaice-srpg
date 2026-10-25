@@ -423,3 +423,65 @@ if (typeof window !== 'undefined') {
   window.INHERIT_CAP = INHERIT_CAP;
   window.RANK_UP_USES = RANK_UP_USES;
 }
+
+/* ---------------- 多结局（P3.4） ----------------
+ * 只做尾声差异，不做流程分支。判定三要素：存活人数、A 级支援组数、终章三阵眼是否全控。
+ * endingOf 是纯函数，供 game.onChapterClear 与测试共用。 */
+const ENDINGS = {
+  good: {
+    key: 'good', name: '灵脉重燃', kicker: '尾 声 · 上',
+    lines: [
+      '九条主脉在同一夜里亮起。先是天柱废墟下那一条，然后断魂谷、赤砂关、云梦泽——像有人从地底把灯一盏一盏点过来。',
+      '玄阙没有留下尸体。他把自己拆成了九份，补回了他亲手抽走的地方。你师父到最后也没学会说软话，他只会做题。',
+      '浊潮退去之后，滩上很静。虞素秋说那是海在唱，不是你听错。',
+      '守脉人还剩几个？你回头数了数身后的人，数到一半就停了。活着的人不用数。',
+      '后来山门重开。新来的孩子在石碑前问：守脉人守的是什么？你想了很久，说：守的是「还有人愿意接着守」这件事。'
+    ]
+  },
+  mid: {
+    key: 'mid', name: '山河如旧', kicker: '尾 声 · 中',
+    lines: [
+      '浊潮退了，但退得不干净。有些地方的土还是灰的，草长到一半就停住。',
+      '换心没有成，也没有全败。主脉续上七条，剩下两条细得像线，风大一点就晃。',
+      '你们把阵眼留在原地，派人守着。守到什么时候，没人说，也不敢说。',
+      '山门还是那座山门，人少了一半。饭桌坐得松，谁都不提空着的位子。',
+      '有人问你赢了吗。你说：活着回来了。这已经是很久没人做到的事。'
+    ]
+  },
+  bad: {
+    key: 'bad', name: '永夜', kicker: '尾 声 · 下',
+    lines: [
+      '主脉断在第八条。第九条在你们赶到之前就凉了。',
+      '玄阙死在噬脉兽嘴里，噬脉兽死在你剑下。谁都没赢。',
+      '浊潮不退了。它慢慢往上漫，漫过断桥，漫过赤砂关，漫到青岚山门的石阶第三级。',
+      '你把还能走的人带下山。回头看，山在雾里，看不清了。守脉人的最后一课，是学会承认：有些东西守不住。',
+      '但你还是把灯留下了。灯在，就还有人认得回来的路。'
+    ]
+  }
+};
+
+/* 判定阈值：好结局要求「人留住、羁绊够、阵眼全控」三条同时成立 */
+const ENDING_RULE = { good: { alive: 8, rankA: 3, allNodes: true }, mid: { alive: 5, rankA: 1 } };
+
+function endingOf(metrics) {
+  const m = metrics || {};
+  const alive = Math.max(0, Math.floor(m.alive || 0));
+  const rankA = Math.max(0, Math.floor(m.rankA || 0));
+  const held = Math.max(0, Math.floor(m.nodesHeld || 0));
+  const total = Math.max(0, Math.floor(m.nodesTotal || 0));
+  const allNodes = total > 0 && held >= total;
+  const g = ENDING_RULE.good, mid = ENDING_RULE.mid;
+  let key = 'bad';
+  if (alive >= g.alive && rankA >= g.rankA && (!g.allNodes || allNodes)) key = 'good';
+  else if (alive >= mid.alive || rankA >= mid.rankA) key = 'mid';
+  const e = ENDINGS[key];
+  return {
+    key, name: e.name, kicker: e.kicker, lines: e.lines.slice(),
+    metrics: { alive, rankA, nodesHeld: held, nodesTotal: total, allNodes }
+  };
+}
+
+if (typeof window !== 'undefined') {
+  window.ENDINGS = ENDINGS;
+  window.endingOf = endingOf;
+}

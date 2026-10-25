@@ -20,7 +20,8 @@ const Battle = {
     this.chapterId = o.chapterId;
     this.campaign = o.campaign;
     this.chapter = o.chapter || Route.byId(this.chapterId);
-    this.diff = DIFFICULTIES[(o.campaign && o.campaign.difficulty) || 'normal'] || DIFFICULTIES.normal;
+    /* 勇者模式（P3.4）：难度用 diffOf 叠加，敌军 ×1.15、悔棋 0 */
+    this.diff = diffOf(o.campaign);
     this.uid = 1;
     const campSeed = (this.campaign && this.campaign.startedAt) || Date.now();
     RNG.setSeed((campSeed ^ Route.seedOf(this.chapterId)) >>> 0);
@@ -1514,7 +1515,8 @@ const Battle = {
     const B = this.B;
     const u = B.selectedUnit;
     if (!u || !target) return;
-    const ok = await UI.forecast(this.combatCtx(), u, target);
+    /* 勇者模式（P3.4）：不给战斗预测，直接出手 */
+    const ok = (this.diff && this.diff.heroic) ? true : await UI.forecast(this.combatCtx(), u, target);
     if (!this.active || B.ending) return;
     if (!ok) {
       if (B.mode === 'attack-select') UI.updateBattle(B);
@@ -2783,11 +2785,16 @@ const Battle = {
       });
     }
     const fallen = B.units.filter(u => u.side === 'player' && u.charId && u.hp <= 0).map(u => u.charId);
+    /* 阵眼控制情况（P3.4 多结局判定：终章三阵眼是否全控） */
+    const nodesTotal = (B.nodes || []).length;
+    const nodesHeld = (B.nodes || []).filter(n => n && n.owner === 'player').length;
     return {
       chapterId: this.chapterId,
       turns: B.turn,
       victory: true,
       sideSuccess: this.sideSuccess(),
+      nodesHeld,
+      nodesTotal,
       units: rosterOut,
       fallen,
       recruited: B.recruited.slice(),

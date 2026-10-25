@@ -47,7 +47,8 @@
       const card = e.target.closest('[data-diff]');
       if (!card) return;
       Audio.sfx('tap');
-      Game.askNewJourney(card.dataset.diff);
+      const hero = document.getElementById('heroicToggle');
+      Game.askNewJourney(card.dataset.diff, !!(hero && hero.checked));
     });
   }
 
