@@ -1,5 +1,10 @@
 # 山海策 · 灵脉
 
+<img width="2570" height="1604" alt="image" src="https://github.com/user-attachments/assets/0e90b5d8-2976-409f-998b-b88f5af31abb" />
+<img width="2578" height="1602" alt="image" src="https://github.com/user-attachments/assets/8c5ab00b-5cd7-4ac9-9d3e-884bea3379e5" />
+<img width="2556" height="1600" alt="image" src="https://github.com/user-attachments/assets/ab91522d-0483-4e81-9ff8-7c45b1641484" />
+<img width="2562" height="1596" alt="image" src="https://github.com/user-attachments/assets/2f3b1d41-080e-4e30-af7a-2455016590f6" />
+
 原创东方玄幻战棋 SRPG。纯静态网页，使用 HTML / CSS / Canvas / 原生 JavaScript，无构建步骤、无外部依赖、`file://` 可直接运行。
 
 > **接手开发先读 [`HANDOFF.md`](HANDOFF.md)**：当前节点、下一步、代码地图、工程红线与踩坑清单都在那里。本 README 只讲「是什么、怎么跑、有什么」。
